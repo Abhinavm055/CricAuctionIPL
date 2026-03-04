@@ -16,6 +16,7 @@ import { db } from "@/lib/firebase";
 import {
   IPL_TEAMS,
   AUCTION_TIMER,
+  BID_RESET_TIMER,
   getNextBid,
   RETENTION_COSTS,
   SQUAD_CONSTRAINTS,
@@ -43,10 +44,19 @@ const normalizePool = (pool: string | undefined) => {
   return "accelerated";
 };
 
+const shuffleArray = <T,>(arr: T[]) => {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+};
+
 const buildAuctionQueue = (players: Array<Record<string, any>>) => {
   const grouped: Record<string, string[]> = OFFICIAL_POOL_ORDER.reduce((acc, key) => ({ ...acc, [key]: [] }), {} as Record<string, string[]>);
   players.forEach((p) => grouped[normalizePool(p.pool)].push(p.id));
-  return OFFICIAL_POOL_ORDER.flatMap((pool) => grouped[pool] || []);
+  return OFFICIAL_POOL_ORDER.flatMap((pool) => shuffleArray(grouped[pool] || []));
 };
 
 const getPlayerOverseasFlag = (playerData: any) => Boolean(playerData?.overseas ?? playerData?.isOverseas);
@@ -317,7 +327,7 @@ export const placeBid = async (gameCode: string, teamId: string, amount: number)
     tx.update(sessionRef, {
       "currentAuction.currentBid": amount,
       "currentAuction.currentBidderId": teamId,
-      "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + AUCTION_TIMER * 1000),
+      "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + BID_RESET_TIMER * 1000),
     });
   });
 };
@@ -467,6 +477,87 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
         });
       }
     }
+  });
+};
+
+
+export const skipCurrentPlayer = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) throw new Error("Session not found");
+    const auction = sessionSnap.data().currentAuction;
+    if (!auction?.activePlayerId) throw new Error("No active player");
+
+    const playerSnap = await tx.get(doc(db, "players", auction.activePlayerId));
+    const basePrice = Number(playerSnap.data()?.basePrice || 0);
+    if (auction.currentBidderId || Number(auction.currentBid || 0) > basePrice) {
+      throw new Error("Cannot skip after bidding starts");
+    }
+
+    const unsold = [...((sessionSnap.data().unsoldPlayers || []) as string[]), auction.activePlayerId];
+    tx.update(sessionRef, {
+      unsoldPlayers: unsold,
+      currentAuction: {
+        activePlayerId: auction.activePlayerId,
+        currentBid: Number(auction.currentBid || 0),
+        currentBidderId: null,
+        timerEndsAt: null,
+        status: "UNSOLD",
+      },
+    });
+  });
+};
+
+export const togglePauseAuction = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) throw new Error("Session not found");
+    const auction = sessionSnap.data().currentAuction;
+    if (!auction?.activePlayerId) return;
+
+    if (auction.status === "RUNNING") {
+      const remaining = Math.max(1, Math.ceil(((auction.timerEndsAt?.toMillis?.() || Date.now()) - Date.now()) / 1000));
+      tx.update(sessionRef, {
+        "currentAuction.status": "PAUSED",
+        "currentAuction.pausedRemainingSec": remaining,
+        "currentAuction.timerEndsAt": null,
+      });
+    } else if (auction.status === "PAUSED") {
+      const remaining = Number(auction.pausedRemainingSec || AUCTION_TIMER);
+      tx.update(sessionRef, {
+        "currentAuction.status": "RUNNING",
+        "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + remaining * 1000),
+      });
+    }
+  });
+};
+
+export const startAcceleratedRound = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) throw new Error("Session not found");
+    const unsold = shuffleArray((sessionSnap.data().unsoldPlayers || []) as string[]);
+    tx.update(sessionRef, {
+      phase: "AUCTION",
+      auctionQueue: unsold,
+      queueIndex: -1,
+      unsoldPlayers: [],
+      currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE" },
+    });
+  });
+};
+
+export const bringBackUnsoldPlayer = async (gameCode: string, playerId: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) throw new Error("Session not found");
+    const unsold = ((sessionSnap.data().unsoldPlayers || []) as string[]).filter((id) => id !== playerId);
+    const queue = [ ...((sessionSnap.data().auctionQueue || []) as string[]), playerId ];
+    tx.update(sessionRef, { unsoldPlayers: unsold, auctionQueue: queue });
   });
 };
 

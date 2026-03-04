@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { AuctionHeader } from "@/components/AuctionHeader";
 import { PlayerCard } from "@/components/PlayerCard";
@@ -9,7 +9,6 @@ import { Player } from "@/lib/samplePlayers";
 import { useGameData } from "@/contexts/GameDataContext";
 import { getNextBid, IPL_TEAMS, SQUAD_CONSTRAINTS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
-import { Trophy, ArrowLeft } from "lucide-react";
 import {
   finalizePlayerSale,
   listenSession,
@@ -17,6 +16,10 @@ import {
   placeBid,
   resolveRtmDecision,
   startNextPlayer,
+  skipCurrentPlayer,
+  togglePauseAuction,
+  startAcceleratedRound,
+  bringBackUnsoldPlayer,
 } from "@/lib/sessionService";
 import { getAIBid } from "@/lib/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
@@ -46,9 +49,34 @@ const Auction = () => {
   const [session, setSession] = useState<any>(null);
   const [teams, setTeams] = useState<TeamState[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [commentary, setCommentary] = useState<string[]>([]);
+  const [banner, setBanner] = useState<{ kind: 'SOLD' | 'UNSOLD'; text: string } | null>(null);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
+
+  const prevBidRef = useRef<number>(0);
+  const prevBidderRef = useRef<string | null>(null);
+  const prevStatusRef = useRef<string>("IDLE");
+  const audioRef = useRef<AudioContext | null>(null);
+
+  const playTone = useCallback((freq: number, duration = 0.12, volume = 0.04) => {
+    try {
+      if (!audioRef.current) audioRef.current = new AudioContext();
+      const ctx = audioRef.current;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.type = "sine";
+      gain.gain.value = volume;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + duration);
+    } catch {
+      // no-op
+    }
+  }, []);
 
   useEffect(() => {
     if (!gameCode) return;
@@ -59,10 +87,7 @@ const Auction = () => {
   useEffect(() => {
     if (!gameCode) return;
     const unsub = listenTeams(gameCode, (teamDocs) => {
-      const enriched = (teamDocs as any[]).map((team) => ({
-        ...IPL_TEAMS.find((t) => t.id === team.id),
-        ...team,
-      }));
+      const enriched = (teamDocs as any[]).map((team) => ({ ...IPL_TEAMS.find((t) => t.id === team.id), ...team }));
       setTeams(enriched as TeamState[]);
     });
     return () => unsub();
@@ -78,14 +103,14 @@ const Auction = () => {
   const userTeam = teams.find((team) => team.id === myTeamId);
 
   const currentAuction = session?.currentAuction;
-  const currentPlayer = useMemo(() => masterPlayerList.find((p) => p.id === currentAuction?.activePlayerId) || null, [masterPlayerList, currentAuction?.activePlayerId]);
+  const currentPlayer = useMemo(() => masterPlayerList.find((p: any) => p.id === currentAuction?.activePlayerId) || null, [masterPlayerList, currentAuction?.activePlayerId]);
   const currentBidderTeam = teams.find((team) => team.id === currentAuction?.currentBidderId);
 
   const nextBid = getNextBid(currentAuction?.currentBid || 0);
-  const timerSeconds = Math.max(1, Math.ceil(((currentAuction?.timerEndsAt?.toMillis?.() || Date.now()) - Date.now()) / 1000));
+  const timerSeconds = Math.max(0, Math.floor(((currentAuction?.timerEndsAt?.toMillis?.() || Date.now()) - Date.now()) / 1000));
 
   const teamPlayersResolved = useMemo(() => {
-    const lookup = new Map(masterPlayerList.map((p) => [p.id, p]));
+    const lookup = new Map(masterPlayerList.map((p: any) => [p.id, p]));
     return teams.reduce<Record<string, { retained: Player[]; bought: Player[] }>>((acc, team) => {
       acc[team.id] = {
         retained: (team.retainedPlayers || []).map((id) => lookup.get(id)).filter(Boolean) as Player[],
@@ -105,6 +130,11 @@ const Auction = () => {
     return true;
   };
 
+  const skipDisabled = useMemo(() => {
+    if (!currentPlayer || !currentAuction) return true;
+    return Number(currentAuction.currentBid || 0) > Number((currentPlayer as any).basePrice || 0);
+  }, [currentPlayer, currentAuction]);
+
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
     if (!canTeamBid(userTeam, currentPlayer, amount)) return;
@@ -113,8 +143,9 @@ const Auction = () => {
 
   const handleFinalize = useCallback(async () => {
     if (!gameCode || !isHost) return;
+    playTone(220, 0.2, 0.08); // hammer
     await finalizePlayerSale(gameCode);
-  }, [gameCode, isHost]);
+  }, [gameCode, isHost, playTone]);
 
   useEffect(() => {
     if (!isHost || !gameCode || !currentPlayer) return;
@@ -137,10 +168,58 @@ const Auction = () => {
     return () => clearTimeout(timer);
   }, [isHost, gameCode, teams, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId]);
 
+  useEffect(() => {
+    if (!currentAuction) return;
+
+    if (currentAuction.currentBidderId && Number(currentAuction.currentBid || 0) !== prevBidRef.current) {
+      const team = teams.find((t) => t.id === currentAuction.currentBidderId);
+      const line = prevBidderRef.current ? `${team?.shortName || "Team"} raises to ₹${(Number(currentAuction.currentBid) / 10000000).toFixed(2)} Cr` : `${team?.shortName || "Team"} enters the bidding`;
+      setCommentary((prev) => [line, ...prev].slice(0, 8));
+      playTone(880, 0.08, 0.05); // bid sound
+    }
+
+    if (currentAuction.status === "SOLD" && prevStatusRef.current !== "SOLD") {
+      const team = teams.find((t) => t.id === currentAuction.currentBidderId);
+      const text = `SOLD TO ${team?.shortName || "TEAM"} • ₹${(Number(currentAuction.currentBid || 0) / 10000000).toFixed(2)} Cr`;
+      setBanner({ kind: 'SOLD', text });
+      setCommentary((prev) => [text, ...prev].slice(0, 8));
+      setTimeout(() => setBanner(null), 3000);
+      playTone(260, 0.2, 0.08);
+    }
+
+    if (currentAuction.status === "UNSOLD" && prevStatusRef.current !== "UNSOLD") {
+      const text = `UNSOLD • ${currentPlayer?.name || "Player"}`;
+      setBanner({ kind: 'UNSOLD', text });
+      setCommentary((prev) => [text, ...prev].slice(0, 8));
+      setTimeout(() => setBanner(null), 2500);
+      playTone(180, 0.22, 0.07);
+    }
+
+    prevBidRef.current = Number(currentAuction.currentBid || 0);
+    prevBidderRef.current = currentAuction.currentBidderId || null;
+    prevStatusRef.current = currentAuction.status || "IDLE";
+  }, [currentAuction, teams, currentPlayer, playTone]);
+
+  useEffect(() => {
+    if (timerSeconds === 5) playTone(500, 0.05, 0.03);
+    if (timerSeconds === 3) playTone(900, 0.08, 0.05);
+    if (timerSeconds === 0 && currentAuction?.status === "RUNNING") playTone(220, 0.2, 0.08);
+  }, [timerSeconds, currentAuction?.status, playTone]);
+
   const pendingRtm = session?.pendingRtm;
-  const rtmPlayer = masterPlayerList.find((p) => p.id === pendingRtm?.playerId) || null;
+  const rtmPlayer = masterPlayerList.find((p: any) => p.id === pendingRtm?.playerId) || null;
   const rtmOriginalTeam = teams.find((t) => t.id === pendingRtm?.originalTeamId);
   const rtmWinningTeam = teams.find((t) => t.id === pendingRtm?.winningTeamId);
+
+  const topPurchases = useMemo(() => {
+    const all: Array<{ playerId: string; price: number; teamId: string }> = [];
+    teams.forEach((team) => {
+      Object.entries(team.playerPurchasePrices || {}).forEach(([pid, price]) => all.push({ playerId: pid, price: Number(price), teamId: team.id }));
+    });
+    return all.sort((a, b) => b.price - a.price).slice(0, 5);
+  }, [teams]);
+
+  const purseBoard = useMemo(() => [...teams].sort((a, b) => Number(b.purseRemaining) - Number(a.purseRemaining)).slice(0, 5), [teams]);
 
   const auctionEnded =
     (session?.phase === "AUCTION_COMPLETE") ||
@@ -150,58 +229,58 @@ const Auction = () => {
 
   return (
     <div className="min-h-screen broadcast-container flex flex-col">
-      <AuctionHeader
-        gameCode={gameCode!}
-        currentPool={(currentPlayer as any)?.pool}
-        playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)}
-        totalPlayers={queueLength}
-      />
+      <AuctionHeader gameCode={gameCode!} currentPool={(currentPlayer as any)?.pool} playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)} totalPlayers={queueLength} />
 
-      {auctionEnded && (
-        <div className="text-center py-4">
-          <Button variant="ghost" onClick={() => navigate("/")}><ArrowLeft className="w-4 h-4 mr-2" />Home</Button>
-          <Trophy className="w-14 h-14 mx-auto text-primary" />
+      {banner && (
+        <div className={`fixed inset-0 z-50 flex items-center justify-center pointer-events-none ${banner.kind === 'SOLD' ? 'bg-yellow-500/20' : 'bg-red-500/20'} animate-pulse`}>
+          <div className={`px-8 py-6 rounded-2xl text-3xl font-display shadow-2xl ${banner.kind === 'SOLD' ? 'bg-yellow-500 text-black' : 'bg-red-600 text-white'} `}>
+            {banner.kind}: {banner.text}
+          </div>
         </div>
       )}
 
-      <main className="flex-1 p-6">
-        <div className="grid grid-cols-12 gap-6 max-w-7xl mx-auto">
-          <div className="col-span-3 grid grid-cols-2 gap-2">
-            {teams.map((team) => {
-              const resolved = teamPlayersResolved[team.id] || { retained: [], bought: [] };
-              const allPlayers = [...resolved.retained, ...resolved.bought];
-              return (
-                <TeamCard
-                  key={team.id}
-                  {...team}
-                  playersCount={Number(team.squadSize || allPlayers.length)}
-                  overseasCount={Number(team.overseasCount || allPlayers.filter((p) => isOverseasPlayer(p)).length)}
-                  rtmCards={team.rtmCards || 0}
-                  isCurrentBidder={team.id === currentAuction?.currentBidderId}
-                  isBidding={team.id === currentAuction?.currentBidderId}
-                  isUserTeam={team.id === myTeamId}
-                  onClick={() => setSelectedTeamId(team.id)}
-                />
-              );
-            })}
+      <main className="flex-1 p-4 md:p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 max-w-7xl mx-auto">
+          <div className="lg:col-span-3 overflow-x-auto">
+            <div className="grid grid-flow-col lg:grid-flow-row auto-cols-[180px] lg:auto-cols-auto lg:grid-cols-2 gap-2">
+              {teams.map((team) => {
+                const resolved = teamPlayersResolved[team.id] || { retained: [], bought: [] };
+                const allPlayers = [...resolved.retained, ...resolved.bought];
+                return (
+                  <TeamCard
+                    key={team.id}
+                    {...team}
+                    playersCount={Number(team.squadSize || allPlayers.length)}
+                    overseasCount={Number(team.overseasCount || allPlayers.filter((p) => isOverseasPlayer(p)).length)}
+                    rtmCards={team.rtmCards || 0}
+                    isCurrentBidder={team.id === currentAuction?.currentBidderId}
+                    isBidding={team.id === currentAuction?.currentBidderId}
+                    isUserTeam={team.id === myTeamId}
+                    onClick={() => setSelectedTeamId(team.id)}
+                  />
+                );
+              })}
+            </div>
           </div>
 
-          <div className="col-span-6 flex flex-col items-center">
+          <div className="lg:col-span-6 flex flex-col items-center">
             {currentPlayer && currentAuction?.status === "RUNNING" && (
               <>
-                <BidTimer key={`${currentAuction.activePlayerId}-${currentAuction.timerEndsAt?.seconds || "no-timer"}`} duration={timerSeconds} isActive={true} onTimeout={handleFinalize} />
+                <BidTimer key={`${currentAuction.activePlayerId}-${currentAuction.timerEndsAt?.seconds || "no-timer"}`} duration={Math.max(0, Math.floor(timerSeconds))} isActive={currentAuction?.status === 'RUNNING'} onTimeout={handleFinalize} />
                 <PlayerCard player={currentPlayer as any} currentBid={currentAuction.currentBid} currentBidder={currentBidderTeam?.shortName || null} teamColor={currentBidderTeam?.color} />
               </>
             )}
 
-            {(!currentPlayer || currentAuction?.status !== "RUNNING") && (
+            {currentAuction?.status === 'PAUSED' && <p className="text-lg font-semibold text-yellow-400 mt-6">Auction Paused by Host</p>}
+
+            {(!currentPlayer || !["RUNNING", "PAUSED"].includes(currentAuction?.status)) && (
               <div className="mt-8">
                 {isHost ? <Button onClick={() => startNextPlayer(gameCode!)}>Start Next Player</Button> : <p className="text-muted-foreground">Waiting for host…</p>}
               </div>
             )}
           </div>
 
-          <div className="col-span-3">
+          <div className="lg:col-span-3 space-y-3">
             <BidControls
               currentBid={currentAuction?.currentBid || 0}
               purseRemaining={userTeam.purseRemaining}
@@ -210,8 +289,38 @@ const Auction = () => {
               onBid={handleBid}
               onPass={() => {}}
               isHost={isHost}
-              onSkip={() => startNextPlayer(gameCode!)}
+              onSkip={() => skipCurrentPlayer(gameCode!)}
+              skipDisabled={skipDisabled}
+              onPauseToggle={() => togglePauseAuction(gameCode!)}
+              isPaused={currentAuction?.status === 'PAUSED'}
+              onStartAccelerated={() => startAcceleratedRound(gameCode!)}
+              onBringBackUnsold={() => {
+                const unsold = (session?.unsoldPlayers || []) as string[];
+                if (unsold[0]) bringBackUnsoldPlayer(gameCode!, unsold[0]);
+              }}
             />
+
+            <div className="p-3 border rounded-xl bg-card/40">
+              <h3 className="font-semibold mb-2">Live Commentary</h3>
+              <div className="space-y-1 text-xs text-muted-foreground max-h-40 overflow-auto">
+                {commentary.length ? commentary.map((c, i) => <p key={`${c}-${i}`}>{c}</p>) : <p>Waiting for bidding action…</p>}
+              </div>
+            </div>
+
+            <div className="p-3 border rounded-xl bg-card/40">
+              <h3 className="font-semibold mb-2">Auction Analytics</h3>
+              <p className="text-xs font-medium mb-1">Top Purchases</p>
+              <div className="text-xs space-y-1 mb-2">
+                {topPurchases.map((p) => {
+                  const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
+                  return <p key={`${p.playerId}-${p.teamId}`}>{pl?.name || p.playerId} – ₹{(p.price / 10000000).toFixed(2)} Cr</p>;
+                })}
+              </div>
+              <p className="text-xs font-medium mb-1">Purse Leaderboard</p>
+              <div className="text-xs space-y-1 mb-2">{purseBoard.map((t) => <p key={t.id}>{t.shortName} – ₹{(Number(t.purseRemaining) / 10000000).toFixed(2)} Cr</p>)}</div>
+              <p className="text-xs font-medium mb-1">Players Bought</p>
+              <div className="text-xs space-y-1">{teams.map((t) => <p key={t.id}>{t.shortName}: {Number(t.squadSize || 0)}</p>)}</div>
+            </div>
           </div>
         </div>
       </main>

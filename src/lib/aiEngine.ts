@@ -1,6 +1,8 @@
 import { getNextBid, SQUAD_CONSTRAINTS } from "./constants";
 import { Player } from "./samplePlayers";
 
+export type AIPersonality = "Aggressive" | "Balanced" | "Budget Saver" | "Role Focused";
+
 export interface AITeam {
   id: string;
   shortName: string;
@@ -15,12 +17,8 @@ const clamp = (value: number, min: number, max: number) => Math.min(max, Math.ma
 const getPlayerRating = (player: any) => Number(player?.rating ?? player?.starRating ?? 3);
 const isOverseasPlayer = (player: any) => Boolean(player?.overseas ?? player?.isOverseas);
 
-const getMaxBidForPlayer = (player: Player) => {
-  const rating = getPlayerRating(player);
-  const ratingWeight = 0.7 + rating * 0.2;
-  const cappedBoost = (player as any).isCapped ? 1.15 : 1;
-  return Math.floor(player.basePrice * ratingWeight * cappedBoost);
-};
+const personalities: AIPersonality[] = ["Aggressive", "Balanced", "Budget Saver", "Role Focused"];
+const getPersonality = (teamId: string): AIPersonality => personalities[Math.abs(teamId.split('').reduce((a, c) => a + c.charCodeAt(0), 0)) % personalities.length];
 
 export const getAIBid = (
   teams: AITeam[],
@@ -47,12 +45,12 @@ export const getAIBid = (
 
   const weighted = eligibleTeams
     .map((team) => {
-      const slotsLeft = SQUAD_CONSTRAINTS.MAX_SQUAD - (team.players?.length || 0);
-      const maxBid = getMaxBidForPlayer(player);
-      const purseConservatism = team.purseRemaining < 100000000 ? 0.75 : 1; // <10Cr => conservative
-      const roleNeedBoost = slotsLeft <= 5 ? 0.85 : 1;
-      const aggression = rating > 4.5 ? 1.15 : 1;
-      const stayInChance = clamp(0.3 + (rating / 5) * 0.45, 0.2, 0.92) * purseConservatism * roleNeedBoost * aggression;
+      const personality = getPersonality(team.id);
+      const baseAggression = personality === "Aggressive" ? 1.2 : personality === "Budget Saver" ? 0.75 : personality === "Role Focused" ? 1.0 : 0.95;
+      const budgetFactor = team.purseRemaining < 100000000 ? 0.72 : 1; // <10Cr
+      const starBoost = rating > 4.5 ? 1.2 : 1;
+      const maxBid = Math.floor(player.basePrice * (0.8 + rating * 0.25) * baseAggression);
+      const stayInChance = clamp((0.28 + (rating / 5) * 0.45) * budgetFactor * starBoost * baseAggression, 0.18, 0.95);
       return { team, maxBid, stayInChance };
     })
     .filter((entry) => entry.maxBid >= nextBid && Math.random() < entry.stayInChance);
