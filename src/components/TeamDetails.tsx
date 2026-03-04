@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { arrayRemove, arrayUnion, doc, setDoc, updateDoc } from 'firebase/firestore';
+import { arrayRemove, arrayUnion, deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -34,7 +34,12 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
   const [roleFilter, setRoleFilter] = useState('all');
   const [editingPlayer, setEditingPlayer] = useState<EditablePlayer | null>(null);
 
-  const teamPlayerIds = useMemo(() => team.players || [], [team.players]);
+  const teamPlayerIds = useMemo(() => {
+    const fromTeamArray = team.players || [];
+    const fromPreviousTeam = players.filter((player) => player.previousTeamId === team.id).map((player) => player.id || '');
+    return Array.from(new Set([...fromTeamArray, ...fromPreviousTeam].filter(Boolean)));
+  }, [team.id, team.players, players]);
+
   const teamPlayers = useMemo(
     () => players.filter((player) => teamPlayerIds.includes(player.id || '')),
     [players, teamPlayerIds],
@@ -51,6 +56,21 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
     });
   }, [players, roleFilter, search, teamPlayerIds]);
 
+  const movePlayerToTeam = async (player: EditablePlayer, targetTeamId: string) => {
+    if (!player.id) return;
+    const previousTeamId = player.previousTeamId || '';
+
+    if (previousTeamId && previousTeamId !== targetTeamId) {
+      await updateDoc(doc(db, 'teams', previousTeamId), { players: arrayRemove(player.id) });
+    }
+
+    if (targetTeamId) {
+      await updateDoc(doc(db, 'teams', targetTeamId), { players: arrayUnion(player.id) });
+    }
+
+    await setDoc(doc(db, 'players', player.id), { previousTeamId: targetTeamId }, { merge: true });
+  };
+
   const addPlayerToTeam = async (player: EditablePlayer) => {
     if (!player.id) return;
     if (teamPlayerIds.includes(player.id)) {
@@ -58,34 +78,51 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
       return;
     }
 
-    await updateDoc(doc(db, 'teams', team.id), { players: arrayUnion(player.id) });
-    await setDoc(doc(db, 'players', player.id), { previousTeamId: team.id }, { merge: true });
-
+    await movePlayerToTeam(player, team.id);
     toast({ title: 'Player added', description: `${player.name} added to ${team.shortName}.` });
   };
 
   const removePlayerFromTeam = async (player: EditablePlayer) => {
     if (!player.id) return;
-
     await updateDoc(doc(db, 'teams', team.id), { players: arrayRemove(player.id) });
     await setDoc(doc(db, 'players', player.id), { previousTeamId: '' }, { merge: true });
-
     toast({ title: 'Player removed', description: `${player.name} removed from ${team.shortName}.` });
+  };
+
+  const deletePlayerFromTeam = async (player: EditablePlayer) => {
+    if (!player.id) return;
+    await updateDoc(doc(db, 'teams', team.id), { players: arrayRemove(player.id) });
+    await deleteDoc(doc(db, 'players', player.id));
+    toast({ title: 'Player deleted', description: `${player.name} deleted from players database.` });
   };
 
   const handleSaveEditedPlayer = async (player: EditablePlayer) => {
     if (!player.id) return;
+    const existing = players.find((p) => p.id === player.id);
 
-    await setDoc(doc(db, 'players', player.id), {
-      name: player.name,
-      role: player.role,
-      rating: Number(player.rating),
-      basePrice: Number(player.basePrice),
-      overseas: !!player.overseas,
-      pool: player.pool,
-      image: player.image,
-      previousTeamId: player.previousTeamId,
-    }, { merge: true });
+    await setDoc(
+      doc(db, 'players', player.id),
+      {
+        name: player.name,
+        role: player.role,
+        rating: Number(player.rating),
+        basePrice: Number(player.basePrice),
+        overseas: !!player.overseas,
+        pool: player.pool,
+        image: player.image,
+        previousTeamId: player.previousTeamId,
+      },
+      { merge: true },
+    );
+
+    if ((existing?.previousTeamId || '') !== (player.previousTeamId || '')) {
+      if (existing?.previousTeamId) {
+        await updateDoc(doc(db, 'teams', existing.previousTeamId), { players: arrayRemove(player.id) });
+      }
+      if (player.previousTeamId) {
+        await updateDoc(doc(db, 'teams', player.previousTeamId), { players: arrayUnion(player.id) });
+      }
+    }
 
     setEditingPlayer(null);
     toast({ title: 'Player updated', description: `${player.name} changes saved.` });
@@ -194,7 +231,8 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
                 </TableCell>
                 <TableCell className="space-x-2">
                   <Button size="sm" variant="outline" onClick={() => setEditingPlayer(player)}>Edit</Button>
-                  <Button size="sm" variant="destructive" onClick={() => removePlayerFromTeam(player)}>Remove</Button>
+                  <Button size="sm" variant="secondary" onClick={() => removePlayerFromTeam(player)}>Remove</Button>
+                  <Button size="sm" variant="destructive" onClick={() => deletePlayerFromTeam(player)}>Delete</Button>
                 </TableCell>
               </TableRow>
             ))}

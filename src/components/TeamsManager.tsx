@@ -21,30 +21,38 @@ interface TeamsManagerProps {
 export const TeamsManager = ({ teams, players, globalSearch = '' }: TeamsManagerProps) => {
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
 
+  const playerIdsByTeam = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+
+    teams.forEach((team) => {
+      map[team.id] = new Set(team.players || []);
+    });
+
+    players.forEach((player) => {
+      if (!player.id || !player.previousTeamId) return;
+      if (!map[player.previousTeamId]) map[player.previousTeamId] = new Set();
+      map[player.previousTeamId].add(player.id);
+    });
+
+    return map;
+  }, [teams, players]);
+
   const filteredTeams = useMemo(() => {
     const q = globalSearch.toLowerCase().trim();
     if (!q) return teams;
 
     return teams.filter((team) => {
-      const roster = players.filter((player) => (team.players || []).includes(player.id || ''));
+      const roster = players.filter((player) => playerIdsByTeam[team.id]?.has(player.id || ''));
       const teamMatch = team.name.toLowerCase().includes(q) || team.shortName.toLowerCase().includes(q);
       const playerMatch = roster.some((player) => player.name.toLowerCase().includes(q) || player.role.toLowerCase().includes(q));
       return teamMatch || playerMatch;
     });
-  }, [globalSearch, teams, players]);
+  }, [globalSearch, teams, players, playerIdsByTeam]);
 
   const selectedTeam = useMemo(
     () => filteredTeams.find((team) => team.id === selectedTeamId) || filteredTeams[0],
     [selectedTeamId, filteredTeams],
   );
-
-  const playerCountByTeam = useMemo(() => {
-    const counts: Record<string, number> = {};
-    teams.forEach((team) => {
-      counts[team.id] = team.players?.length || 0;
-    });
-    return counts;
-  }, [teams]);
 
   if (filteredTeams.length === 0) {
     return <p className="text-muted-foreground">No teams match the current search.</p>;
@@ -63,7 +71,7 @@ export const TeamsManager = ({ teams, players, globalSearch = '' }: TeamsManager
               <TeamLogo logo={team.logo} shortName={team.shortName} size="md" />
               <div>
                 <p className="font-semibold">{team.name}</p>
-                <p className="text-sm text-muted-foreground">{playerCountByTeam[team.id] || 0} players</p>
+                <p className="text-sm text-muted-foreground">{playerIdsByTeam[team.id]?.size || 0} players</p>
               </div>
             </CardContent>
           </Card>

@@ -38,19 +38,28 @@ const AdminPage = () => {
     });
 
     const unsubTeams = onSnapshot(collection(db, 'teams'), (snap) => {
-      const mapped = snap.docs.map((d) => {
-        const data = d.data() as Omit<TeamRecord, 'id'>;
-        const fallback = IPL_TEAMS.find((team) => team.id === d.id);
+      const firestoreMap = new Map(
+        snap.docs.map((d) => [
+          d.id,
+          {
+            id: d.id,
+            ...(d.data() as Omit<TeamRecord, 'id'>),
+          },
+        ]),
+      );
+
+      const merged = IPL_TEAMS.map((baseTeam) => {
+        const fromFirestore = firestoreMap.get(baseTeam.id);
         return {
-          id: d.id,
-          ...data,
-          name: data.name || fallback?.name || d.id.toUpperCase(),
-          shortName: data.shortName || fallback?.shortName || d.id.toUpperCase(),
-          logo: data.logo || fallback?.logo,
-          players: data.players || [],
+          id: baseTeam.id,
+          name: fromFirestore?.name || baseTeam.name,
+          shortName: fromFirestore?.shortName || baseTeam.shortName,
+          logo: fromFirestore?.logo || baseTeam.logo,
+          players: fromFirestore?.players || [],
         };
       });
-      setTeams(mapped);
+
+      setTeams(merged);
     });
 
     return () => {
