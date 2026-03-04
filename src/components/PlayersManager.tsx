@@ -143,7 +143,7 @@ export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersMan
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-semibold">Players Manager</h2>
+        <h2 className="text-xl font-semibold">Players (Firestore)</h2>
 
         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
           <DialogTrigger asChild>
