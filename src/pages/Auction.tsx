@@ -30,10 +30,14 @@ export interface TeamState {
   purseRemaining: number;
   players: string[];
   retainedPlayers: string[];
+  overseasCount: number;
+  squadSize: number;
   rtmCards: number;
   playerPurchasePrices: Record<string, number>;
   isAI: boolean;
 }
+
+const isOverseasPlayer = (player: any) => Boolean(player?.overseas ?? player?.isOverseas);
 
 const Auction = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
@@ -53,16 +57,12 @@ const Auction = () => {
 
   useEffect(() => {
     if (!gameCode) return;
-    const unsub = listenTeams(gameCode, (teamDocs) => {
-      setTeams(teamDocs as TeamState[]);
-    });
+    const unsub = listenTeams(gameCode, (teamDocs) => setTeams(teamDocs as TeamState[]));
     return () => unsub();
   }, [gameCode]);
 
   useEffect(() => {
-    if (session && session.phase !== "AUCTION") {
-      navigate(`/lobby/${gameCode}`);
-    }
+    if (session && !["AUCTION", "AUCTION_COMPLETE"].includes(session.phase)) navigate(`/lobby/${gameCode}`);
   }, [session, gameCode, navigate]);
 
   const isHost = session?.hostId === userId;
@@ -71,12 +71,9 @@ const Auction = () => {
   const userTeam = teams.find((team) => team.id === myTeamId);
 
   const currentAuction = session?.currentAuction;
-  const currentPlayer = useMemo(
-    () => masterPlayerList.find((player) => player.id === currentAuction?.activePlayerId) || null,
-    [masterPlayerList, currentAuction?.activePlayerId]
-  );
-
+  const currentPlayer = useMemo(() => masterPlayerList.find((p) => p.id === currentAuction?.activePlayerId) || null, [masterPlayerList, currentAuction?.activePlayerId]);
   const currentBidderTeam = teams.find((team) => team.id === currentAuction?.currentBidderId);
+
   const nextBid = getNextBid(currentAuction?.currentBid || 0);
   const timerSeconds = Math.max(1, Math.ceil(((currentAuction?.timerEndsAt?.toMillis?.() || Date.now()) - Date.now()) / 1000));
 
@@ -95,9 +92,10 @@ const Auction = () => {
     if (!team || !player) return false;
     if (currentAuction?.status !== "RUNNING") return false;
     if (currentAuction?.currentBidderId === team.id) return false;
-    const squadCount = (team.players?.length || 0) + (team.retainedPlayers?.length || 0);
-    if (squadCount >= SQUAD_CONSTRAINTS.MAX_SQUAD) return false;
-    return Number(team.purseRemaining || 0) >= amount;
+    if (Number(team.purseRemaining || 0) < amount) return false;
+    if (Number(team.squadSize || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD) return false;
+    if (isOverseasPlayer(player) && Number(team.overseasCount || 0) >= SQUAD_CONSTRAINTS.MAX_OVERSEAS) return false;
+    return true;
   };
 
   const handleBid = useCallback(async (amount: number) => {
@@ -119,6 +117,7 @@ const Auction = () => {
       teams.map((t) => ({
         ...t,
         players: [...(t.players || []), ...(t.retainedPlayers || [])],
+        overseasCount: t.overseasCount,
         isAI: !!t.isAI,
       })),
       currentPlayer,
@@ -127,11 +126,7 @@ const Auction = () => {
     );
 
     if (!aiDecision) return;
-
-    const timer = setTimeout(() => {
-      placeBid(gameCode, aiDecision.teamId, aiDecision.bid).catch(() => undefined);
-    }, 1200 + Math.random() * 2800);
-
+    const timer = setTimeout(() => placeBid(gameCode, aiDecision.teamId, aiDecision.bid).catch(() => undefined), 1200 + Math.random() * 2800);
     return () => clearTimeout(timer);
   }, [isHost, gameCode, teams, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId]);
 
@@ -140,7 +135,9 @@ const Auction = () => {
   const rtmOriginalTeam = teams.find((t) => t.id === pendingRtm?.originalTeamId);
   const rtmWinningTeam = teams.find((t) => t.id === pendingRtm?.winningTeamId);
 
-  const auctionEnded = queueLength > 0 && session?.queueIndex >= queueLength - 1 && ["SOLD", "UNSOLD", "IDLE"].includes(currentAuction?.status || "") && !pendingRtm;
+  const auctionEnded =
+    (session?.phase === "AUCTION_COMPLETE") ||
+    (queueLength > 0 && session?.queueIndex >= queueLength - 1 && ["SOLD", "UNSOLD", "IDLE"].includes(currentAuction?.status || "") && !pendingRtm);
 
   if (!session || !userTeam) return <p className="p-6">Loading auction…</p>;
 
@@ -148,7 +145,7 @@ const Auction = () => {
     <div className="min-h-screen broadcast-container flex flex-col">
       <AuctionHeader
         gameCode={gameCode!}
-        currentPool={currentPlayer?.pool}
+        currentPool={(currentPlayer as any)?.pool}
         playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)}
         totalPlayers={queueLength}
       />
@@ -170,8 +167,8 @@ const Auction = () => {
                 <TeamCard
                   key={team.id}
                   {...team}
-                  playersCount={allPlayers.length}
-                  overseasCount={allPlayers.filter((p) => p.isOverseas).length}
+                  playersCount={Number(team.squadSize || allPlayers.length)}
+                  overseasCount={Number(team.overseasCount || allPlayers.filter((p) => isOverseasPlayer(p)).length)}
                   rtmCards={team.rtmCards || 0}
                   isCurrentBidder={team.id === currentAuction?.currentBidderId}
                   isBidding={team.id === currentAuction?.currentBidderId}
@@ -186,7 +183,7 @@ const Auction = () => {
             {currentPlayer && currentAuction?.status === "RUNNING" && (
               <>
                 <BidTimer key={`${currentAuction.activePlayerId}-${currentAuction.timerEndsAt?.seconds || "no-timer"}`} duration={timerSeconds} isActive={true} onTimeout={handleFinalize} />
-                <PlayerCard player={currentPlayer} currentBid={currentAuction.currentBid} currentBidder={currentBidderTeam?.shortName || null} teamColor={currentBidderTeam?.color} />
+                <PlayerCard player={currentPlayer as any} currentBid={currentAuction.currentBid} currentBidder={currentBidderTeam?.shortName || null} teamColor={currentBidderTeam?.color} />
               </>
             )}
 
@@ -221,15 +218,32 @@ const Auction = () => {
         playerPrices={selectedTeamId ? teams.find((t) => t.id === selectedTeamId)?.playerPurchasePrices || {} : {}}
       />
 
-      <RTMModal
-        open={!!pendingRtm && isHost}
-        player={rtmPlayer}
-        originalTeamName={rtmOriginalTeam?.name}
-        winningTeamName={rtmWinningTeam?.name}
-        finalBid={pendingRtm?.finalBid || 0}
-        onYes={() => resolveRtmDecision(gameCode!, true)}
-        onNo={() => resolveRtmDecision(gameCode!, false)}
-      />
+      {!!pendingRtm && isHost && (
+        <RTMModal
+          open={true}
+          stage={pendingRtm.status}
+          player={rtmPlayer as any}
+          originalTeamName={rtmOriginalTeam?.name}
+          winningTeamName={rtmWinningTeam?.name}
+          finalBid={Number(pendingRtm.finalBid || 0)}
+          onPrimary={() => {
+            const actionByStage: Record<string, any> = {
+              AWAIT_ORIGINAL: "ORIGINAL_YES",
+              AWAIT_WINNER_COUNTER: "WINNER_COUNTER_YES",
+              AWAIT_ORIGINAL_MATCH: "ORIGINAL_MATCH_YES",
+            };
+            resolveRtmDecision(gameCode!, actionByStage[pendingRtm.status]);
+          }}
+          onSecondary={() => {
+            const actionByStage: Record<string, any> = {
+              AWAIT_ORIGINAL: "ORIGINAL_NO",
+              AWAIT_WINNER_COUNTER: "WINNER_COUNTER_NO",
+              AWAIT_ORIGINAL_MATCH: "ORIGINAL_MATCH_NO",
+            };
+            resolveRtmDecision(gameCode!, actionByStage[pendingRtm.status]);
+          }}
+        />
+      )}
     </div>
   );
 };

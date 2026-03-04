@@ -9,24 +9,54 @@ interface RTMModalProps {
   originalTeamName?: string;
   winningTeamName?: string;
   finalBid: number;
-  onYes: () => void;
-  onNo: () => void;
+  stage: "AWAIT_ORIGINAL" | "AWAIT_WINNER_COUNTER" | "AWAIT_ORIGINAL_MATCH";
+  onPrimary: () => void;
+  onSecondary: () => void;
 }
 
-export const RTMModal = ({ open, player, originalTeamName, winningTeamName, finalBid, onYes, onNo }: RTMModalProps) => {
+export const RTMModal = ({
+  open,
+  player,
+  originalTeamName,
+  winningTeamName,
+  finalBid,
+  stage,
+  onPrimary,
+  onSecondary,
+}: RTMModalProps) => {
+  const contentByStage = {
+    AWAIT_ORIGINAL: {
+      title: "Use RTM for this player?",
+      description: `${originalTeamName} can match ${winningTeamName}'s winning bid for ${player?.name} at ${formatPrice(finalBid)}.`,
+      primary: "YES (Use RTM)",
+      secondary: "NO",
+    },
+    AWAIT_WINNER_COUNTER: {
+      title: "Counter RTM Bid",
+      description: `${winningTeamName}, do you want to increase the bid above ${formatPrice(finalBid)}?`,
+      primary: "YES (Counter Bid)",
+      secondary: "NO (Let RTM stand)",
+    },
+    AWAIT_ORIGINAL_MATCH: {
+      title: "Match Counter Bid?",
+      description: `${originalTeamName}, match updated bid for ${player?.name} at ${formatPrice(finalBid)}?`,
+      primary: "YES (Match)",
+      secondary: "NO",
+    },
+  } as const;
+
+  const copy = contentByStage[stage];
+
   return (
     <Dialog open={open}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Use RTM for this player?</DialogTitle>
-          <DialogDescription>
-            {originalTeamName} can match {winningTeamName}'s winning bid for {player?.name} at {formatPrice(finalBid)}.
-          </DialogDescription>
+          <DialogTitle>{copy.title}</DialogTitle>
+          <DialogDescription>{copy.description}</DialogDescription>
         </DialogHeader>
-        <div className="text-sm text-muted-foreground">RTM will transfer the player to {originalTeamName} and consume 1 RTM card.</div>
         <DialogFooter>
-          <Button variant="outline" onClick={onNo}>No</Button>
-          <Button onClick={onYes}>Yes</Button>
+          <Button variant="outline" onClick={onSecondary}>{copy.secondary}</Button>
+          <Button onClick={onPrimary}>{copy.primary}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
