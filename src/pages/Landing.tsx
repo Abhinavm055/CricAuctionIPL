@@ -2,13 +2,25 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { generateGameCode } from '@/lib/constants';
 import { Gavel, Users, Bot, Shield } from 'lucide-react';
+import { createSession } from '@/lib/sessionService';
+
+const getUserId = () => {
+  const existing = localStorage.getItem('uid');
+  if (existing) return existing;
+  const id = `user-${Math.random().toString(36).slice(2, 9)}`;
+  localStorage.setItem('uid', id);
+  return id;
+};
 
 const Landing = () => {
   const navigate = useNavigate();
 
   const handlePlayMultiplayer = () => navigate('/multiplayer');
-  const handlePlayWithAI = () => {
+
+  const handlePlayWithAI = async () => {
     const code = generateGameCode();
+    const userId = getUserId();
+    await createSession(code, userId, 'VS_AI');
     navigate(`/lobby/${code}?host=true&ai=true`);
   };
 
@@ -34,18 +46,18 @@ const Landing = () => {
             <Users className="w-10 h-10 text-primary mb-3" />
             <h3 className="font-display text-2xl mb-2">VS Multiplayer Auction</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Host or join a live IPL auction with friends. Human players control selected teams while unselected teams are handled by the AI engine.
+              Host or join a live IPL auction with friends.
             </p>
             <Button variant="gold" size="lg" onClick={handlePlayMultiplayer} className="w-full">Play Multiplayer</Button>
           </div>
 
           <div className="p-6 card-gradient rounded-2xl border border-border/50">
             <Bot className="w-10 h-10 text-primary mb-3" />
-            <h3 className="font-display text-2xl mb-2">Solo Auction Simulator</h3>
+            <h3 className="font-display text-2xl mb-2">VS AI Auction</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Practice the IPL auction solo against AI-controlled teams. Build the strongest squad within purse limits and squad rules.
+              1 human team vs 9 AI teams with personality-driven bidding.
             </p>
-            <Button variant="broadcast" size="lg" onClick={handlePlayWithAI} className="w-full">Play Solo</Button>
+            <Button variant="broadcast" size="lg" onClick={handlePlayWithAI} className="w-full">Play VS AI</Button>
           </div>
         </div>
       </main>

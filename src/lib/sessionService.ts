@@ -20,6 +20,8 @@ import {
   getNextBid,
   RETENTION_COSTS,
   SQUAD_CONSTRAINTS,
+  AI_STRATEGIES,
+  TEAM_NEEDS_TEMPLATE,
 } from "@/lib/constants";
 
 const OFFICIAL_POOL_ORDER = [
@@ -80,10 +82,10 @@ export const listenTeams = (gameCode: string, callback: (teams: any[]) => void) 
 };
 
 export const fillAITeams = async (gameCode: string) => {
-  await updateDoc(doc(db, "sessions", gameCode), { aisAI: true, updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, "sessions", gameCode), { isAIFilled: true, updatedAt: serverTimestamp() });
 };
 
-export const createSession = async (gameCode: string, hostId: string) => {
+export const createSession = async (gameCode: string, hostId: string, mode: "MULTIPLAYER" | "VS_AI" = "MULTIPLAYER") => {
   const sessionRef = doc(db, "sessions", gameCode);
   const batch = writeBatch(db);
 
@@ -94,6 +96,7 @@ export const createSession = async (gameCode: string, hostId: string) => {
     selectedTeams: {},
     retentions: {},
     playersJoined: [hostId],
+    mode,
     allTeams: IPL_TEAMS.map((t) => ({ id: t.id, name: t.name, isAI: true })),
     auctionQueue: [],
     queueIndex: -1,
@@ -110,7 +113,7 @@ export const createSession = async (gameCode: string, hostId: string) => {
     },
   });
 
-  IPL_TEAMS.forEach((team) => {
+  IPL_TEAMS.forEach((team, index) => {
     batch.set(doc(collection(sessionRef, "teams"), team.id), {
       ...team,
       purseRemaining: team.purse,
@@ -120,7 +123,9 @@ export const createSession = async (gameCode: string, hostId: string) => {
       squadSize: 0,
       overseasCount: 0,
       rtmCards: 0,
-      isAI: true,
+      isAI: mode === "VS_AI",
+      aiStrategy: AI_STRATEGIES[index % AI_STRATEGIES.length],
+      teamNeeds: { ...TEAM_NEEDS_TEMPLATE },
       createdAt: serverTimestamp(),
     });
   });
@@ -139,7 +144,7 @@ export const selectTeam = async (gameCode: string, teamId: string, userId: strin
 
   const allTeams = (snap.data().allTeams || []).map((t: any) => (t.id === teamId ? { ...t, isAI: false } : t));
   await updateDoc(sessionRef, { [`selectedTeams.${teamId}`]: userId, allTeams });
-  await updateDoc(doc(db, "sessions", gameCode, "teams", teamId), { isAI: false });
+  await updateDoc(doc(db, "sessions", gameCode, "teams", teamId), { isAI: userId.startsWith("AI-") });
 };
 
 export const startRetention = async (gameCode: string) => {

@@ -169,7 +169,7 @@ const Auction = () => {
     );
 
     if (!aiDecision) return;
-    const timer = setTimeout(() => placeBid(gameCode, aiDecision.teamId, aiDecision.bid).catch(() => undefined), 1200 + Math.random() * 2800);
+    const timer = setTimeout(() => placeBid(gameCode, aiDecision.teamId, aiDecision.bid).catch(() => undefined), aiDecision.delayMs);
     return () => clearTimeout(timer);
   }, [isHost, gameCode, teams, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId]);
 
