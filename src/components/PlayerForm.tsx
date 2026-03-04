@@ -1,0 +1,150 @@
+import { useMemo, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
+import { AUCTION_POOLS, PLAYER_ROLES } from '@/lib/constants';
+
+export interface EditablePlayer {
+  id?: string;
+  name: string;
+  role: string;
+  rating: number;
+  basePrice: number;
+  overseas: boolean;
+  pool: string;
+  previousTeamId: string;
+  image: string;
+}
+
+interface TeamOption {
+  id: string;
+  name: string;
+}
+
+interface PlayerFormProps {
+  initial: EditablePlayer;
+  teams: TeamOption[];
+  onSave: (player: EditablePlayer) => Promise<void>;
+  onCancel: () => void;
+  submitLabel?: string;
+}
+
+export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Save Player' }: PlayerFormProps) => {
+  const [form, setForm] = useState<EditablePlayer>(initial);
+  const [saving, setSaving] = useState(false);
+
+  const imagePreview = useMemo(() => form.image.trim(), [form.image]);
+  const previousTeamValue = form.previousTeamId?.trim() || 'none';
+
+  const update = <K extends keyof EditablePlayer>(key: K, value: EditablePlayer[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4 p-4 border rounded-lg bg-card">
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label>Name</Label>
+          <Input value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Player name" />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Role</Label>
+          <Select value={form.role} onValueChange={(value) => update('role', value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select role" />
+            </SelectTrigger>
+            <SelectContent>
+              {PLAYER_ROLES.map((role) => (
+                <SelectItem key={role} value={role}>{role}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Rating (1-5)</Label>
+          <Input
+            type="number"
+            min={1}
+            max={5}
+            value={form.rating}
+            onChange={(e) => update('rating', Number(e.target.value))}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Base Price</Label>
+          <Input
+            type="number"
+            min={0}
+            value={form.basePrice}
+            onChange={(e) => update('basePrice', Number(e.target.value))}
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label>Pool</Label>
+          <Select value={form.pool} onValueChange={(value) => update('pool', value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select pool" />
+            </SelectTrigger>
+            <SelectContent>
+              {AUCTION_POOLS.map((pool) => (
+                <SelectItem key={pool} value={pool}>{pool}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Previous Team</Label>
+          <Select value={previousTeamValue} onValueChange={(value) => update('previousTeamId', value === 'none' ? '' : value)}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select team" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No team</SelectItem>
+              {teams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>{team.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Image URL</Label>
+        <Input value={form.image} onChange={(e) => update('image', e.target.value)} placeholder="https://..." />
+      </div>
+
+      {imagePreview && (
+        <div className="space-y-2">
+          <Label>Image Preview</Label>
+          <img src={imagePreview} alt={`${form.name || 'player'} preview`} className="w-24 h-24 object-cover rounded-md border" />
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <Switch checked={!!form.overseas} onCheckedChange={(value) => update('overseas', value)} id="overseas-switch" />
+        <Label htmlFor="overseas-switch">Overseas Player</Label>
+      </div>
+
+      <div className="flex gap-2">
+        <Button disabled={saving} onClick={handleSave}>{submitLabel}</Button>
+        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+      </div>
+    </div>
+  );
+};

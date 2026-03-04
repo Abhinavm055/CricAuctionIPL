@@ -2,49 +2,75 @@ import { useEffect, useState } from 'react';
 import { collection, onSnapshot, setDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
-import { EditablePlayer } from '@/components/PlayerEditor';
+import { EditablePlayer } from '@/components/PlayerForm';
 import { PlayersManager } from '@/components/PlayersManager';
 import { TeamsManager } from '@/components/TeamsManager';
 
-const defaultPlayerImage = (name: string) => `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'IPL Player')}&background=0f172a&color=ffffff&size=256`;
+interface TeamRecord {
+  id: string;
+  name: string;
+  shortName: string;
+  logo?: string;
+  players?: string[];
+}
+
+const defaultPlayerImage = (name: string) =>
+  `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'IPL Player')}&background=0f172a&color=ffffff&size=256`;
 
 const AdminPage = () => {
-  const [tab, setTab] = useState<'players' | 'teams'>('players');
+  const [tab, setTab] = useState<'players' | 'teams'>('teams');
   const [players, setPlayers] = useState<EditablePlayer[]>([]);
+  const [teams, setTeams] = useState<TeamRecord[]>([]);
 
   useEffect(() => {
     const unsubPlayers = onSnapshot(collection(db, 'players'), (snap) => {
-      const mapped = snap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+      const mapped = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<EditablePlayer, 'id'>) }));
       setPlayers(mapped);
 
-      // auto-populate missing player images with public URLs
-      mapped.forEach((p) => {
-        if (!p.image) {
-          setDoc(doc(db, 'players', p.id!), { image: defaultPlayerImage(p.name) }, { merge: true });
+      mapped.forEach((player) => {
+        if (!player.image) {
+          setDoc(doc(db, 'players', player.id!), { image: defaultPlayerImage(player.name) }, { merge: true });
         }
       });
     });
 
-    return () => unsubPlayers();
+    const unsubTeams = onSnapshot(collection(db, 'teams'), (snap) => {
+      const mapped = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TeamRecord, 'id'>) }));
+      setTeams(mapped);
+    });
+
+    return () => {
+      unsubPlayers();
+      unsubTeams();
+    };
   }, []);
 
   return (
     <div className="min-h-screen p-6 bg-background">
-      <h1 className="text-3xl font-display mb-6">Admin Panel</h1>
+      <h1 className="text-3xl font-display mb-6">Super Admin Panel</h1>
 
       <div className="grid md:grid-cols-[220px_1fr] gap-6">
-        <aside className="border rounded-xl p-3 h-fit">
-          <Button variant={tab === 'players' ? 'default' : 'ghost'} className="w-full justify-start mb-2" onClick={() => setTab('players')}>
-            PLAYERS
+        <aside className="border rounded-xl p-3 h-fit bg-card">
+          <p className="text-xs text-muted-foreground px-2 pb-2">Navigation</p>
+          <Button
+            variant={tab === 'teams' ? 'default' : 'ghost'}
+            className="w-full justify-start mb-2"
+            onClick={() => setTab('teams')}
+          >
+            Teams
           </Button>
-          <Button variant={tab === 'teams' ? 'default' : 'ghost'} className="w-full justify-start" onClick={() => setTab('teams')}>
-            TEAMS
+          <Button
+            variant={tab === 'players' ? 'default' : 'ghost'}
+            className="w-full justify-start"
+            onClick={() => setTab('players')}
+          >
+            Players
           </Button>
         </aside>
 
-        <section className="border rounded-xl p-4">
-          {tab === 'players' && <PlayersManager players={players} />}
-          {tab === 'teams' && <TeamsManager players={players} />}
+        <section className="border rounded-xl p-4 bg-card">
+          {tab === 'players' && <PlayersManager players={players} teams={teams} />}
+          {tab === 'teams' && <TeamsManager players={players} teams={teams} />}
         </section>
       </div>
     </div>
