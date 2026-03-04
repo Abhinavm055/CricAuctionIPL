@@ -41,10 +41,14 @@ export const PlayerCard = ({ player, currentBid, currentBidder, teamColor }: Pla
       )}
 
       <div className="p-8 flex flex-col items-center">
-        {/* Player image placeholder */}
+        {/* Player image */}
         <div className="relative mb-6">
-          <div className="w-32 h-32 rounded-full bg-gradient-to-br from-secondary to-accent flex items-center justify-center border-4 border-primary/30 shadow-lg">
-            <User className="w-16 h-16 text-muted-foreground" />
+          <div className="w-48 h-48 rounded-xl bg-gradient-to-br from-secondary to-accent flex items-center justify-center border-4 border-primary/30 shadow-lg overflow-hidden">
+            {(player as any).image || player.imageUrl ? (
+              <img src={((player as any).image || player.imageUrl)} alt={player.name} className="w-full h-full object-cover" />
+            ) : (
+              <User className="w-16 h-16 text-muted-foreground" />
+            )}
           </div>
           {/* Role badge */}
           <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r ${roleColors[player.role]} text-white text-xs font-bold shadow-lg`}>
