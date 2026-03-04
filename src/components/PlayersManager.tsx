@@ -34,9 +34,10 @@ const emptyPlayer: EditablePlayer = {
 interface PlayersManagerProps {
   players: EditablePlayer[];
   teams: TeamRecord[];
+  globalSearch?: string;
 }
 
-export const PlayersManager = ({ players, teams }: PlayersManagerProps) => {
+export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersManagerProps) => {
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -66,10 +67,15 @@ export const PlayersManager = ({ players, teams }: PlayersManagerProps) => {
 
   const filteredPlayers = useMemo(() => {
     const q = search.toLowerCase().trim();
+    const globalQ = globalSearch.toLowerCase().trim();
 
     return [...players]
       .filter((player) => {
         const nameMatch = player.name.toLowerCase().includes(q);
+        const globalMatch = !globalQ
+          || player.name.toLowerCase().includes(globalQ)
+          || player.role.toLowerCase().includes(globalQ)
+          || (teamNameById[player.previousTeamId] || '').toLowerCase().includes(globalQ);
         const roleMatch = roleFilter === 'all' ? true : player.role === roleFilter;
         const playerTeam = player.previousTeamId || '';
         const teamMatch = teamFilter === 'all' ? true : playerTeam === teamFilter;
@@ -81,10 +87,10 @@ export const PlayersManager = ({ players, teams }: PlayersManagerProps) => {
               ? !!player.overseas
               : !player.overseas;
 
-        return nameMatch && roleMatch && teamMatch && ratingMatch && overseasMatch;
+        return globalMatch && nameMatch && roleMatch && teamMatch && ratingMatch && overseasMatch;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [players, ratingRange, roleFilter, search, teamFilter, overseasFilter]);
+  }, [players, ratingRange, roleFilter, search, teamFilter, overseasFilter, globalSearch, teamNameById]);
 
   const syncTeamMembership = async (playerId: string, newTeamId: string, previousTeamId: string) => {
     if (previousTeamId && previousTeamId !== newTeamId) {

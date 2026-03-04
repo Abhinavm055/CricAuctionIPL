@@ -52,6 +52,7 @@ const Auction = () => {
   const [commentary, setCommentary] = useState<string[]>([]);
   const [banner, setBanner] = useState<{ kind: 'SOLD' | 'UNSOLD'; text: string } | null>(null);
   const [showHammer, setShowHammer] = useState(false);
+  const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -59,6 +60,9 @@ const Auction = () => {
   const prevBidRef = useRef<number>(0);
   const prevBidderRef = useRef<string | null>(null);
   const prevStatusRef = useRef<string>("IDLE");
+  const autoAdvanceKeyRef = useRef<string | null>(null);
+  const autoAdvanceTimerRef = useRef<number | null>(null);
+  const autoAdvanceHostTimeoutRef = useRef<number | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
 
   const playTone = useCallback((freq: number, duration = 0.12, volume = 0.04) => {
@@ -170,6 +174,13 @@ const Auction = () => {
   }, [isHost, gameCode, teams, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId]);
 
   useEffect(() => {
+    return () => {
+      if (autoAdvanceTimerRef.current) window.clearInterval(autoAdvanceTimerRef.current);
+      if (autoAdvanceHostTimeoutRef.current) window.clearTimeout(autoAdvanceHostTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!currentAuction) return;
 
     if (currentAuction.currentBidderId && Number(currentAuction.currentBid || 0) !== prevBidRef.current) {
@@ -202,6 +213,51 @@ const Auction = () => {
     prevBidderRef.current = currentAuction.currentBidderId || null;
     prevStatusRef.current = currentAuction.status || "IDLE";
   }, [currentAuction, teams, currentPlayer, playTone]);
+
+  useEffect(() => {
+    if (!currentAuction) return;
+    if (!['SOLD', 'UNSOLD'].includes(currentAuction.status || '')) {
+      setAutoNextCountdown(null);
+      return;
+    }
+
+    const key = `${currentAuction.activePlayerId}-${currentAuction.status}`;
+    if (autoAdvanceKeyRef.current === key) return;
+    autoAdvanceKeyRef.current = key;
+
+    if (autoAdvanceTimerRef.current) window.clearInterval(autoAdvanceTimerRef.current);
+
+    let counter = 3;
+    setAutoNextCountdown(counter);
+
+    autoAdvanceTimerRef.current = window.setInterval(() => {
+      counter -= 1;
+
+      if (counter <= 0) {
+        setAutoNextCountdown(null);
+        if (autoAdvanceTimerRef.current) {
+          window.clearInterval(autoAdvanceTimerRef.current);
+          autoAdvanceTimerRef.current = null;
+        }
+        return;
+      }
+
+      setAutoNextCountdown(counter);
+    }, 1000);
+  }, [currentAuction]);
+
+  useEffect(() => {
+    if (!isHost || !gameCode || !currentAuction) return;
+    if (!['SOLD', 'UNSOLD'].includes(currentAuction.status || '')) return;
+
+    const key = `${currentAuction.activePlayerId}-${currentAuction.status}`;
+    if (autoAdvanceHostTimeoutRef.current) window.clearTimeout(autoAdvanceHostTimeoutRef.current);
+
+    autoAdvanceHostTimeoutRef.current = window.setTimeout(() => {
+      if (autoAdvanceKeyRef.current !== key) return;
+      startNextPlayer(gameCode).catch(() => undefined);
+    }, 3000);
+  }, [isHost, gameCode, currentAuction]);
 
   useEffect(() => {
     if (timerSeconds === 5) playTone(500, 0.05, 0.03);
@@ -248,6 +304,13 @@ const Auction = () => {
         </div>
       )}
 
+      {autoNextCountdown !== null && (
+        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl bg-black/70 text-white text-center border border-white/20">
+          <p className="text-xs uppercase tracking-wide text-white/70">Next player in</p>
+          <p className="text-3xl font-display leading-none">{autoNextCountdown}</p>
+        </div>
+      )}
+
       <main className="flex-1 p-4 md:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 max-w-7xl mx-auto">
           <div className="lg:col-span-3 overflow-x-auto">
@@ -282,9 +345,9 @@ const Auction = () => {
 
             {currentAuction?.status === 'PAUSED' && <p className="text-lg font-semibold text-yellow-400 mt-6">Auction Paused by Host</p>}
 
-            {(!currentPlayer || !["RUNNING", "PAUSED"].includes(currentAuction?.status)) && (
+            {(!currentPlayer || !["RUNNING", "PAUSED"].includes(currentAuction?.status)) && !['SOLD', 'UNSOLD'].includes(currentAuction?.status || '') && (
               <div className="mt-8">
-                {isHost ? <Button onClick={() => startNextPlayer(gameCode!)}>Start Next Player</Button> : <p className="text-muted-foreground">Waiting for host…</p>}
+                {isHost ? <Button onClick={() => startNextPlayer(gameCode!)}>Start Auction</Button> : <p className="text-muted-foreground">Waiting for host…</p>}
               </div>
             )}
           </div>

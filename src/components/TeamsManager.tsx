@@ -15,12 +15,28 @@ interface TeamRecord {
 interface TeamsManagerProps {
   teams: TeamRecord[];
   players: EditablePlayer[];
+  globalSearch?: string;
 }
 
-export const TeamsManager = ({ teams, players }: TeamsManagerProps) => {
+export const TeamsManager = ({ teams, players, globalSearch = '' }: TeamsManagerProps) => {
   const [selectedTeamId, setSelectedTeamId] = useState<string>('');
 
-  const selectedTeam = useMemo(() => teams.find((team) => team.id === selectedTeamId) || teams[0], [selectedTeamId, teams]);
+  const filteredTeams = useMemo(() => {
+    const q = globalSearch.toLowerCase().trim();
+    if (!q) return teams;
+
+    return teams.filter((team) => {
+      const roster = players.filter((player) => (team.players || []).includes(player.id || ''));
+      const teamMatch = team.name.toLowerCase().includes(q) || team.shortName.toLowerCase().includes(q);
+      const playerMatch = roster.some((player) => player.name.toLowerCase().includes(q) || player.role.toLowerCase().includes(q));
+      return teamMatch || playerMatch;
+    });
+  }, [globalSearch, teams, players]);
+
+  const selectedTeam = useMemo(
+    () => filteredTeams.find((team) => team.id === selectedTeamId) || filteredTeams[0],
+    [selectedTeamId, filteredTeams],
+  );
 
   const playerCountByTeam = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -30,14 +46,14 @@ export const TeamsManager = ({ teams, players }: TeamsManagerProps) => {
     return counts;
   }, [teams]);
 
-  if (teams.length === 0) {
-    return <p className="text-muted-foreground">No teams found in Firestore.</p>;
+  if (filteredTeams.length === 0) {
+    return <p className="text-muted-foreground">No teams match the current search.</p>;
   }
 
   return (
     <div className="space-y-4">
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {teams.map((team) => (
+        {filteredTeams.map((team) => (
           <Card
             key={team.id}
             className={`cursor-pointer transition-colors ${selectedTeam?.id === team.id ? 'border-primary' : 'hover:border-primary/40'}`}

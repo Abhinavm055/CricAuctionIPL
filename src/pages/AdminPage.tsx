@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { collection, onSnapshot, setDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { EditablePlayer } from '@/components/PlayerForm';
 import { PlayersManager } from '@/components/PlayersManager';
 import { TeamsManager } from '@/components/TeamsManager';
@@ -19,6 +20,7 @@ const defaultPlayerImage = (name: string) =>
 
 const AdminPage = () => {
   const [tab, setTab] = useState<'players' | 'teams'>('teams');
+  const [globalSearch, setGlobalSearch] = useState('');
   const [players, setPlayers] = useState<EditablePlayer[]>([]);
   const [teams, setTeams] = useState<TeamRecord[]>([]);
 
@@ -49,6 +51,14 @@ const AdminPage = () => {
     <div className="min-h-screen p-6 bg-background">
       <h1 className="text-3xl font-display mb-6">Super Admin Panel</h1>
 
+      <div className="mb-4 max-w-xl">
+        <Input
+          value={globalSearch}
+          onChange={(e) => setGlobalSearch(e.target.value)}
+          placeholder="Search players, teams or roles..."
+        />
+      </div>
+
       <div className="grid md:grid-cols-[220px_1fr] gap-6">
         <aside className="border rounded-xl p-3 h-fit bg-card">
           <p className="text-xs text-muted-foreground px-2 pb-2">Navigation</p>
@@ -69,8 +79,8 @@ const AdminPage = () => {
         </aside>
 
         <section className="border rounded-xl p-4 bg-card">
-          {tab === 'players' && <PlayersManager players={players} teams={teams} />}
-          {tab === 'teams' && <TeamsManager players={players} teams={teams} />}
+          {tab === 'players' && <PlayersManager players={players} teams={teams} globalSearch={globalSearch} />}
+          {tab === 'teams' && <TeamsManager players={players} teams={teams} globalSearch={globalSearch} />}
         </section>
       </div>
     </div>
