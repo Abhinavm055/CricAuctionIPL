@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { IPL_TEAMS, SQUAD_CONSTRAINTS, formatPrice } from "@/lib/constants";
+import { IPL_TEAMS, formatPrice, RETENTION_COSTS } from "@/lib/constants";
 import { listenSession, listenTeams, lockRetention } from "@/lib/sessionService";
 import type { Player } from "@/lib/samplePlayers";
 import { useGameData } from "@/contexts/GameDataContext";
@@ -31,8 +31,7 @@ const Retention = () => {
 
   useEffect(() => {
     if (!session?.retentions || !session?.allTeams) return;
-    const allTeamIds = session.allTeams.map((t: any) => t.id);
-    const allLocked = allTeamIds.every((id: string) => session.retentions[id]?.locked === true);
+    const allLocked = session.allTeams.map((t: any) => t.id).every((id: string) => session.retentions[id]?.locked === true);
     if (allLocked) navigate(`/retention-review/${gameCode}`);
   }, [session, gameCode, navigate]);
 
@@ -43,13 +42,36 @@ const Retention = () => {
 
   const squad: Player[] = useMemo(() => {
     if (!myTeam) return [];
-    return masterPlayerList.filter((p) => p.previousTeam && p.previousTeam.toLowerCase() === myTeam.toLowerCase());
+    return masterPlayerList.filter((p: any) => (p.previousTeamId || p.previousTeam || "").toLowerCase() === myTeam.toLowerCase());
   }, [masterPlayerList, myTeam]);
 
-  const cappedCount = useMemo(() => selected.filter((id) => squad.find((p) => p.id === id)?.isCapped).length, [selected, squad]);
+  const costById = useMemo(() => {
+    const cappedSorted = selected
+      .map((id) => squad.find((p) => p.id === id))
+      .filter((p): p is Player => !!p)
+      .filter((p: any) => Boolean((p as any).isCapped));
+
+    let cappedSlot = 0;
+    const map: Record<string, number> = {};
+
+    selected.forEach((id) => {
+      const p: any = squad.find((s) => s.id === id);
+      if (!p) return;
+      if (p.isCapped) {
+        map[id] = RETENTION_COSTS.CAPPED_SLOTS[Math.min(cappedSlot, RETENTION_COSTS.CAPPED_SLOTS.length - 1)];
+        cappedSlot += 1;
+      } else {
+        map[id] = RETENTION_COSTS.UNCAPPED;
+      }
+    });
+
+    return map;
+  }, [selected, squad]);
+
+  const cappedCount = useMemo(() => selected.filter((id) => Boolean((squad.find((p: any) => p.id === id) as any)?.isCapped)).length, [selected, squad]);
   const uncappedCount = selected.length - cappedCount;
-  const selectedSpend = selected.reduce((sum, id) => sum + Number(squad.find((p) => p.id === id)?.basePrice || 0), 0);
-  const currentTeamDoc = teams.find((t) => t.id === myTeam);
+  const selectedSpend = useMemo(() => selected.reduce((sum, id) => sum + Number(costById[id] || 0), 0), [selected, costById]);
+
   const basePurse = IPL_TEAMS.find((t) => t.id === myTeam)?.purse || 0;
   const remainingPurse = Math.max(0, basePurse - selectedSpend);
   const rtmPreview = Math.max(0, 6 - selected.length);
@@ -78,7 +100,7 @@ const Retention = () => {
   const handleToggle = (playerId: string) => {
     if (selected.includes(playerId)) return setSelected((prev) => prev.filter((id) => id !== playerId));
     if (selected.length >= 6) return;
-    const player = squad.find((p) => p.id === playerId);
+    const player: any = squad.find((p) => p.id === playerId);
     if (!player) return;
     if (player.isCapped && cappedCount >= 5) return;
     if (!player.isCapped && uncappedCount >= 2) return;
@@ -91,15 +113,17 @@ const Retention = () => {
     <div className="min-h-screen p-6">
       <h1 className="text-3xl font-display mb-4">Retention – {myTeam.toUpperCase()} (⏱ {timeLeft}s)</h1>
 
-      <div className="grid md:grid-cols-3 gap-3 mb-6 text-sm">
-        <div className="p-3 border rounded-lg">Remaining Purse: <strong>{formatPrice(remainingPurse)}</strong></div>
-        <div className="p-3 border rounded-lg">Retained Count: <strong>{selected.length}/6</strong></div>
+      <div className="grid md:grid-cols-4 gap-3 mb-6 text-sm">
+        <div className="p-3 border rounded-lg">Retained: <strong>{selected.length}/6</strong></div>
+        <div className="p-3 border rounded-lg">Total Cost: <strong>{formatPrice(selectedSpend)}</strong></div>
+        <div className="p-3 border rounded-lg">Purse Remaining: <strong>{formatPrice(remainingPurse)}</strong></div>
         <div className="p-3 border rounded-lg">RTM Cards: <strong>{rtmPreview}</strong></div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        {squad.map((player) => {
+        {squad.map((player: any) => {
           const isSelected = selected.includes(player.id);
+          const displayedCost = isSelected ? costById[player.id] : (player.isCapped ? RETENTION_COSTS.CAPPED_SLOTS[0] : RETENTION_COSTS.UNCAPPED);
           return (
             <div key={player.id} onClick={() => handleToggle(player.id)} className={`p-3 border rounded-lg cursor-pointer transition ${isSelected ? "border-primary bg-primary/10" : "border-border"}`}>
               <div className="flex gap-3 items-center mb-2">
@@ -111,7 +135,7 @@ const Retention = () => {
                   <p className="text-xs text-muted-foreground">{player.role}</p>
                 </div>
               </div>
-              <p className="text-xs">Retention Price: <strong>{formatPrice(player.basePrice)}</strong></p>
+              <p className="text-xs">Retention Cost: <strong>{formatPrice(displayedCost)}</strong></p>
               <p className="text-xs text-muted-foreground">{player.isCapped ? "Capped" : "Uncapped"}</p>
             </div>
           );
@@ -120,12 +144,17 @@ const Retention = () => {
 
       <div className="grid md:grid-cols-5 gap-2 mb-4 text-xs">
         {IPL_TEAMS.map((t) => {
+          const teamDoc = teams.find((tm) => tm.id === t.id);
           const r = session?.retentions?.[t.id];
-          return <div key={t.id} className="p-2 border rounded">{t.shortName}: Purse {formatPrice(teams.find((tm) => tm.id === t.id)?.purseRemaining || IPL_TEAMS.find((it) => it.id === t.id)?.purse || 0)} • Ret {r?.players?.length || 0} • RTM {teams.find((tm) => tm.id === t.id)?.rtmCards ?? r?.rtm ?? 0}</div>;
+          return (
+            <div key={t.id} className="p-2 border rounded">
+              {t.shortName}: Purse {formatPrice(teamDoc?.purseRemaining || t.purse)} • Ret {teamDoc?.retainedPlayers?.length ?? r?.players?.length ?? 0} • RTM {teamDoc?.rtmCards ?? r?.rtm ?? 0}
+            </div>
+          );
         })}
       </div>
 
-      <Button onClick={handleLock} disabled={selected.length === 0 || (currentTeamDoc?.retainedPlayers || []).length > 0}>Confirm Retention ({selected.length}/6)</Button>
+      <Button onClick={handleLock} disabled={selected.length === 0}>Confirm Retention ({selected.length}/6)</Button>
     </div>
   );
 };

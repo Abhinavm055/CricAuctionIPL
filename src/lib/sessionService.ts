@@ -146,6 +146,10 @@ export const lockRetention = async (
   cappedCount: number,
   uncappedCount: number
 ) => {
+  if (playerIds.length > 6) throw new Error("Max 6 retentions allowed");
+  if (cappedCount > 5) throw new Error("Max 5 capped retentions allowed");
+  if (uncappedCount > 2) throw new Error("Max 2 uncapped retentions allowed");
+
   const playersSnap = await getDocs(query(collection(db, "players")));
   const byId = new Map(playersSnap.docs.map((d) => [d.id, d.data()]));
 
@@ -166,6 +170,12 @@ export const lockRetention = async (
     retainedPriceMap[pid] = cost;
     if (getPlayerOverseasFlag(p)) overseasCount += 1;
   });
+
+  const computedCapped = playerIds.filter((pid) => Boolean((byId.get(pid) as any)?.isCapped)).length;
+  const computedUncapped = playerIds.length - computedCapped;
+  if (computedCapped !== cappedCount || computedUncapped !== uncappedCount) {
+    throw new Error("Retention counts mismatch");
+  }
 
   const teamBasePurse = IPL_TEAMS.find((t) => t.id === teamId)?.purse || 0;
   const rtmCards = Math.max(0, 6 - playerIds.length);
