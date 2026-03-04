@@ -6,6 +6,7 @@ interface TeamCardProps {
   name: string;
   shortName: string;
   color: string;
+  logo?: string;
   purseRemaining: number;
   playersCount: number;
   overseasCount: number;
@@ -19,6 +20,7 @@ interface TeamCardProps {
 export const TeamCard = ({
   shortName,
   color,
+  logo,
   purseRemaining,
   playersCount,
   overseasCount,
@@ -52,14 +54,15 @@ export const TeamCard = ({
         style={{ backgroundColor: `hsl(var(--${color}))` }}
       />
 
-      <div className="w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center font-display text-lg font-bold"
+      <div
+        className="w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center font-display text-xs font-bold overflow-hidden"
         style={{
           backgroundColor: `hsl(var(--${color}) / 0.2)`,
           color: `hsl(var(--${color}))`,
           border: `2px solid hsl(var(--${color}))`,
         }}
       >
-        {shortName}
+        {logo ? <img src={logo} alt={`${shortName} logo`} className="w-full h-full object-cover" /> : shortName}
       </div>
 
       <h3 className="font-display text-base text-center mb-2" style={{ color: `hsl(var(--${color}))` }}>

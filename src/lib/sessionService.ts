@@ -208,11 +208,23 @@ export const listenSession = (gameCode: string, callback: (data: any) => void) =
 };
 
 export const startAuction = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  const sessionSnap = await getDoc(sessionRef);
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+
+  const retainedIds = new Set<string>();
+  const retentions = (sessionSnap.data().retentions || {}) as Record<string, any>;
+  Object.values(retentions).forEach((ret: any) => {
+    (ret?.players || []).forEach((pid: string) => retainedIds.add(pid));
+  });
+
   const playersSnapshot = await getDocs(query(collection(db, "players")));
-  const players = playersSnapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const players = playersSnapshot.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((p: any) => !retainedIds.has(p.id));
   const queue = buildAuctionQueue(players);
 
-  await updateDoc(doc(db, "sessions", gameCode), {
+  await updateDoc(sessionRef, {
     phase: "AUCTION",
     auctionStartedAt: serverTimestamp(),
     auctionQueue: queue,

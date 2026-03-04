@@ -120,20 +120,18 @@ const Retention = () => {
         <div className="p-3 border rounded-lg">RTM Cards: <strong>{rtmPreview}</strong></div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {squad.map((player: any) => {
           const isSelected = selected.includes(player.id);
           const displayedCost = isSelected ? costById[player.id] : (player.isCapped ? RETENTION_COSTS.CAPPED_SLOTS[0] : RETENTION_COSTS.UNCAPPED);
           return (
             <div key={player.id} onClick={() => handleToggle(player.id)} className={`p-3 border rounded-lg cursor-pointer transition ${isSelected ? "border-primary bg-primary/10" : "border-border"}`}>
-              <div className="flex gap-3 items-center mb-2">
-                <div className="w-12 h-12 rounded-full bg-secondary flex items-center justify-center overflow-hidden">
-                  {player.imageUrl ? <img src={player.imageUrl} className="w-full h-full object-cover" /> : <User className="w-5 h-5" />}
+              <div className="mb-2">
+                <div className="w-full aspect-square rounded-md bg-secondary flex items-center justify-center overflow-hidden mb-2 border">
+                  {(player.image || player.imageUrl) ? <img src={(player.image || player.imageUrl)} className="w-full h-full object-cover" /> : <User className="w-8 h-8" />}
                 </div>
-                <div>
-                  <p className="font-semibold text-sm">{player.name}</p>
-                  <p className="text-xs text-muted-foreground">{player.role}</p>
-                </div>
+                <p className="font-semibold text-xs truncate">{player.name}</p>
+                <p className="text-[11px] text-muted-foreground">{player.role}</p>
               </div>
               <p className="text-xs">Retention Cost: <strong>{formatPrice(displayedCost)}</strong></p>
               <p className="text-xs text-muted-foreground">{player.isCapped ? "Capped" : "Uncapped"}</p>

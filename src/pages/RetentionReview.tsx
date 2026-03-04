@@ -50,12 +50,17 @@ const RetentionReview = () => {
 
           return (
             <div key={team.id} className="p-4 border rounded-xl bg-secondary/30">
-              <h2 className="font-display text-xl mb-2">{team.shortName}</h2>
+              <div className="flex items-center gap-3 mb-2">
+                <div className="w-10 h-10 rounded-md bg-secondary border border-white/10 overflow-hidden flex items-center justify-center">
+                  {teamDoc.logo ? <img src={teamDoc.logo} alt={`${team.shortName} logo`} className="w-full h-full object-cover" /> : <span className="text-xs font-bold">{team.shortName}</span>}
+                </div>
+                <h2 className="font-display text-xl">{team.shortName}</h2>
+              </div>
               <div className="flex gap-2 flex-wrap mb-3">
                 {retainedPlayers.map((p) => (
                   <div key={p.id} className="text-center">
                     <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden mx-auto" title={p.name}>
-                      {p.imageUrl ? <img src={p.imageUrl} className="w-full h-full object-cover" /> : <User className="w-4 h-4" />}
+                      {(p.image || p.imageUrl) ? <img src={(p.image || p.imageUrl)} className="w-full h-full object-cover" /> : <User className="w-4 h-4" />}
                     </div>
                     <p className="text-[10px] mt-1 w-16 truncate">{p.name}</p>
                     <p className="text-[10px] text-muted-foreground">{formatPrice(prices[p.id] || 0)}</p>
