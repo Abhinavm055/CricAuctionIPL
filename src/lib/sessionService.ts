@@ -9,9 +9,13 @@ import {
   writeBatch,
   arrayUnion,
   query,
+  runTransaction,
+  Timestamp,
+  getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { IPL_TEAMS } from "@/lib/constants";
+import { IPL_TEAMS, AUCTION_TIMER } from "@/lib/constants";
+import { createAuctionQueueFrom, Player } from "@/lib/samplePlayers";
 
 /* ===============================
    🎟 CODE GENERATOR
@@ -32,6 +36,18 @@ export const listenPlayers = (callback: (players: any[]) => void) => {
       ...d.data(),
     }));
     callback(playersData);
+  });
+};
+
+export const listenTeams = (gameCode: string, callback: (teams: any[]) => void) => {
+  const teamsRef = collection(db, "sessions", gameCode, "teams");
+  return onSnapshot(query(teamsRef), (snapshot) => {
+    callback(
+      snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      }))
+    );
   });
 };
 /* ===============================
@@ -73,6 +89,15 @@ export const createSession = async (gameCode: string, hostId: string) => {
     retentions: {},
     playersJoined: [hostId],
     allTeams: initialTeams,
+    auctionQueue: [],
+    queueIndex: -1,
+    currentAuction: {
+      activePlayerId: null,
+      currentBid: 0,
+      currentBidderId: null,
+      timerEndsAt: null,
+      status: "IDLE",
+    },
   });
 
   // Create subcollection for team details
@@ -106,7 +131,7 @@ export const selectTeam = async (gameCode: string, teamId: string, userId: strin
   if (!snap.exists()) return;
 
   const data = snap.data();
-  const allTeams = data.allTeams.map((t: any) => 
+  const allTeams = data.allTeams.map((t: any) =>
     t.id === teamId ? { ...t, isAI: false } : t
   );
 
@@ -177,8 +202,143 @@ export const listenSession = (gameCode: string, callback: (data: any) => void) =
 
 export const startAuction = async (gameCode: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
+  const playersSnapshot = await getDocs(query(collection(db, "players")));
+  const playerList = playersSnapshot.docs.map((playerDoc) => ({
+    id: playerDoc.id,
+    ...playerDoc.data(),
+  })) as Player[];
+
+  const queue = createAuctionQueueFrom(playerList).map((player) => player.id);
+
   await updateDoc(sessionRef, {
     phase: "AUCTION",
     auctionStartedAt: serverTimestamp(),
+    auctionQueue: queue,
+    queueIndex: -1,
+    currentAuction: {
+      activePlayerId: null,
+      currentBid: 0,
+      currentBidderId: null,
+      timerEndsAt: null,
+      status: "IDLE",
+    },
+  });
+};
+
+export const startNextPlayer = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+
+  await runTransaction(db, async (transaction) => {
+    const sessionSnap = await transaction.get(sessionRef);
+    if (!sessionSnap.exists()) {
+      throw new Error("Session not found");
+    }
+
+    const sessionData = sessionSnap.data();
+    const auctionQueue = (sessionData.auctionQueue || []) as string[];
+    const nextIndex = ((sessionData.queueIndex as number) ?? -1) + 1;
+
+    if (!auctionQueue[nextIndex]) {
+      transaction.update(sessionRef, {
+        currentAuction: {
+          activePlayerId: null,
+          currentBid: 0,
+          currentBidderId: null,
+          timerEndsAt: null,
+          status: "IDLE",
+        },
+      });
+      return;
+    }
+
+    const activePlayerId = auctionQueue[nextIndex];
+    const playerRef = doc(db, "players", activePlayerId);
+    const playerSnap = await transaction.get(playerRef);
+    const basePrice = Number(playerSnap.data()?.basePrice || 0);
+
+    transaction.update(sessionRef, {
+      queueIndex: nextIndex,
+      currentAuction: {
+        activePlayerId,
+        currentBid: basePrice,
+        currentBidderId: null,
+        timerEndsAt: Timestamp.fromMillis(Date.now() + AUCTION_TIMER * 1000),
+        status: "RUNNING",
+      },
+    });
+  });
+};
+
+export const placeBid = async (gameCode: string, teamId: string, amount: number) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+
+  await runTransaction(db, async (transaction) => {
+    const sessionSnap = await transaction.get(sessionRef);
+    if (!sessionSnap.exists()) throw new Error("Session not found");
+
+    const currentAuction = sessionSnap.data().currentAuction;
+    if (!currentAuction || currentAuction.status !== "RUNNING") {
+      throw new Error("No active auction");
+    }
+
+    if (amount <= Number(currentAuction.currentBid || 0)) {
+      throw new Error("Bid must be higher than current bid");
+    }
+
+    const teamRef = doc(db, "sessions", gameCode, "teams", teamId);
+    const teamSnap = await transaction.get(teamRef);
+    if (!teamSnap.exists()) throw new Error("Team not found");
+
+    const purseRemaining = Number(teamSnap.data().purseRemaining || 0);
+    if (purseRemaining < amount) {
+      throw new Error("Insufficient purse");
+    }
+
+    transaction.update(sessionRef, {
+      "currentAuction.currentBid": amount,
+      "currentAuction.currentBidderId": teamId,
+      "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + AUCTION_TIMER * 1000),
+    });
+  });
+};
+
+export const finalizePlayerSale = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+
+  await runTransaction(db, async (transaction) => {
+    const sessionSnap = await transaction.get(sessionRef);
+    if (!sessionSnap.exists()) throw new Error("Session not found");
+
+    const sessionData = sessionSnap.data();
+    const currentAuction = sessionData.currentAuction;
+    if (!currentAuction?.activePlayerId) {
+      throw new Error("No active player");
+    }
+
+    const { activePlayerId, currentBid, currentBidderId } = currentAuction;
+
+    if (currentBidderId) {
+      const winnerTeamRef = doc(db, "sessions", gameCode, "teams", currentBidderId);
+      const winnerTeamSnap = await transaction.get(winnerTeamRef);
+      if (!winnerTeamSnap.exists()) throw new Error("Winner team not found");
+
+      const winnerData = winnerTeamSnap.data();
+      const currentPlayers = (winnerData.players || []) as string[];
+
+      transaction.update(winnerTeamRef, {
+        purseRemaining: Number(winnerData.purseRemaining || 0) - Number(currentBid || 0),
+        players: [...currentPlayers, activePlayerId],
+      });
+    }
+
+    transaction.update(sessionRef, {
+      currentAuction: {
+        activePlayerId,
+        currentBid: Number(currentBid || 0),
+        currentBidderId: currentBidderId || null,
+        timerEndsAt: null,
+        status: currentBidderId ? "SOLD" : "UNSOLD",
+      },
+    });
   });
 };
