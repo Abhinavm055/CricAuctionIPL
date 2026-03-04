@@ -1,0 +1,278 @@
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Core Theme */
+    --background: 222 47% 8%;
+    --foreground: 210 40% 98%;
+
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Primary: Gold/Amber for auction energy */
+    --primary: 43 96% 56%;
+    --primary-foreground: 222 47% 8%;
+
+    /* Secondary: Slate blue */
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 217 33% 22%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 43 96% 56%;
+
+    --radius: 0.75rem;
+
+    /* IPL Team Colors */
+    --team-csk: 45 100% 50%;
+    --team-mi: 217 91% 60%;
+    --team-rcb: 0 84% 50%;
+    --team-kkr: 280 60% 35%;
+    --team-dc: 217 91% 55%;
+    --team-pbks: 0 80% 55%;
+    --team-rr: 330 80% 55%;
+    --team-srh: 25 100% 55%;
+    --team-gt: 200 60% 45%;
+    --team-lsg: 210 80% 50%;
+
+    /* Custom Effects */
+    --glow-gold: 0 0 30px hsl(43 96% 56% / 0.5);
+    --glow-primary: 0 0 20px hsl(43 96% 56% / 0.3);
+    --gradient-broadcast: linear-gradient(135deg, hsl(222 47% 8%) 0%, hsl(222 47% 14%) 50%, hsl(222 47% 8%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(222 47% 14%) 0%, hsl(222 47% 10%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(43 96% 56%) 0%, hsl(35 100% 50%) 100%);
+    --gradient-hero: linear-gradient(180deg, transparent 0%, hsl(222 47% 8% / 0.8) 100%);
+
+    /* Sidebar */
+    --sidebar-background: 222 47% 10%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 43 96% 56%;
+    --sidebar-primary-foreground: 222 47% 8%;
+    --sidebar-accent: 217 33% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 33% 20%;
+    --sidebar-ring: 43 96% 56%;
+  }
+
+  .dark {
+    --background: 222 47% 8%;
+    --foreground: 210 40% 98%;
+    --card: 222 47% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 43 96% 56%;
+    --primary-foreground: 222 47% 8%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 22%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217 33% 20%;
+    --input: 217 33% 20%;
+    --ring: 43 96% 56%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, .display-text {
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 0.05em;
+  }
+}
+
+@layer components {
+  .broadcast-container {
+    background: var(--gradient-broadcast);
+  }
+
+  .card-gradient {
+    background: var(--gradient-card);
+  }
+
+  .gold-gradient {
+    background: var(--gradient-gold);
+  }
+
+  .glow-gold {
+    box-shadow: var(--glow-gold);
+  }
+
+  .glow-primary {
+    box-shadow: var(--glow-primary);
+  }
+
+  .text-shadow-glow {
+    text-shadow: 0 0 20px hsl(43 96% 56% / 0.5);
+  }
+
+  /* Flag raise animation */
+  .flag-raised {
+    animation: flagRaise 0.3s ease-out forwards;
+  }
+
+  .flag-lowered {
+    animation: flagLower 0.3s ease-out forwards;
+  }
+
+  @keyframes flagRaise {
+    0% {
+      transform: translateY(0) scale(1);
+    }
+    50% {
+      transform: translateY(-10px) scale(1.05);
+    }
+    100% {
+      transform: translateY(-5px) scale(1.02);
+    }
+  }
+
+  @keyframes flagLower {
+    0% {
+      transform: translateY(-5px) scale(1.02);
+    }
+    100% {
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  /* Pulse animation for active bidder */
+  .pulse-bid {
+    animation: pulseBid 1s ease-in-out infinite;
+  }
+
+  @keyframes pulseBid {
+    0%, 100% {
+      box-shadow: 0 0 0 0 hsl(43 96% 56% / 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 15px hsl(43 96% 56% / 0);
+    }
+  }
+
+  /* Timer countdown */
+  .timer-urgent {
+    animation: timerPulse 0.5s ease-in-out infinite;
+  }
+
+  @keyframes timerPulse {
+    0%, 100% {
+      color: hsl(0 84% 60%);
+      transform: scale(1);
+    }
+    50% {
+      color: hsl(0 84% 70%);
+      transform: scale(1.1);
+    }
+  }
+
+  /* Slide up animation */
+  .slide-up {
+    animation: slideUp 0.5s ease-out forwards;
+  }
+
+  @keyframes slideUp {
+    0% {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Fade in */
+  .fade-in {
+    animation: fadeIn 0.4s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  /* Scale in */
+  .scale-in {
+    animation: scaleIn 0.3s ease-out forwards;
+  }
+
+  @keyframes scaleIn {
+    0% {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+
+  /* Star rating */
+  .star-filled {
+    color: hsl(43 96% 56%);
+    filter: drop-shadow(0 0 4px hsl(43 96% 56% / 0.5));
+  }
+
+  .star-empty {
+    color: hsl(217 33% 30%);
+  }
+
+  /* Broadcast overlay effects */
+  .broadcast-overlay {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      hsl(43 96% 56% / 0.1) 50%,
+      transparent 100%
+    );
+    animation: scanline 3s linear infinite;
+  }
+
+  @keyframes scanline {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(100%);
+    }
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
