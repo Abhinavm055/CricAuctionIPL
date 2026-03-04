@@ -1,4 +1,4 @@
-import { formatPrice } from '@/lib/constants';
+import { formatPrice, SQUAD_CONSTRAINTS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 
 interface TeamCardProps {
@@ -9,6 +9,7 @@ interface TeamCardProps {
   purseRemaining: number;
   playersCount: number;
   overseasCount: number;
+  rtmCards?: number;
   isCurrentBidder: boolean;
   isBidding: boolean;
   isUserTeam: boolean;
@@ -21,29 +22,28 @@ export const TeamCard = ({
   purseRemaining,
   playersCount,
   overseasCount,
+  rtmCards = 0,
   isCurrentBidder,
   isBidding,
   isUserTeam,
   onClick,
 }: TeamCardProps) => {
   return (
-    <div
+    <button
       onClick={onClick}
       className={cn(
-        "relative p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer",
+        "relative p-4 rounded-xl border-2 transition-all duration-300 w-full text-left",
         "card-gradient",
         isCurrentBidder && "glow-gold",
         isBidding && "flag-raised",
         !isBidding && isCurrentBidder && "flag-lowered",
         isUserTeam && "ring-2 ring-primary ring-offset-2 ring-offset-background",
-        `border-${color}/50 hover:border-${color}`
       )}
       style={{
         borderColor: isCurrentBidder ? `hsl(var(--${color}))` : undefined,
         boxShadow: isCurrentBidder ? `0 0 30px hsl(var(--${color}) / 0.5)` : undefined,
       }}
     >
-      {/* Flag indicator */}
       <div
         className={cn(
           "absolute -top-2 left-1/2 -translate-x-1/2 w-6 h-8 rounded-sm transition-all duration-300",
@@ -52,44 +52,33 @@ export const TeamCard = ({
         style={{ backgroundColor: `hsl(var(--${color}))` }}
       />
 
-      {/* Team badge */}
-      <div
-        className="w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center font-display text-xl"
-        style={{ 
+      <div className="w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center font-display text-lg font-bold"
+        style={{
           backgroundColor: `hsl(var(--${color}) / 0.2)`,
           color: `hsl(var(--${color}))`,
           border: `2px solid hsl(var(--${color}))`,
         }}
       >
-        {shortName.charAt(0)}
+        {shortName}
       </div>
 
-      {/* Team name */}
-      <h3 
-        className="font-display text-lg text-center mb-2"
-        style={{ color: `hsl(var(--${color}))` }}
-      >
+      <h3 className="font-display text-base text-center mb-2" style={{ color: `hsl(var(--${color}))` }}>
         {shortName}
       </h3>
 
-      {/* Purse */}
-      <p className="text-center text-sm font-semibold text-foreground mb-1">
-        {formatPrice(purseRemaining)}
-      </p>
+      <p className="text-center text-sm font-semibold text-foreground mb-2">{formatPrice(purseRemaining)}</p>
 
-      {/* Squad info */}
-      <div className="flex justify-center gap-2 text-xs text-muted-foreground">
-        <span>{playersCount}/25</span>
-        <span>•</span>
-        <span>{overseasCount}/8 OS</span>
+      <div className="grid grid-cols-2 gap-1 text-[11px] text-muted-foreground text-center">
+        <span>{playersCount}/{SQUAD_CONSTRAINTS.MAX_SQUAD}</span>
+        <span>{overseasCount}/{SQUAD_CONSTRAINTS.MAX_OVERSEAS} OS</span>
+        <span className="col-span-2">RTM: {rtmCards}</span>
       </div>
 
-      {/* User indicator */}
       {isUserTeam && (
         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-bold rounded-full">
           YOU
         </div>
       )}
-    </div>
+    </button>
   );
 };
