@@ -1,16 +1,19 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { listenSession, startAuction } from "@/lib/sessionService";
-import { IPL_TEAMS } from "@/lib/constants";
+import { listenSession, listenTeams, startAuction } from "@/lib/sessionService";
+import { IPL_TEAMS, formatPrice } from "@/lib/constants";
+import { useGameData } from "@/contexts/GameDataContext";
+import { User } from "lucide-react";
+import { TeamLogo } from "@/components/TeamLogo";
 
 const RetentionReview = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
   const navigate = useNavigate();
-
   const [session, setSession] = useState<any>(null);
+  const [teams, setTeams] = useState<any[]>([]);
   const [starting, setStarting] = useState(false);
-
+  const { masterPlayerList } = useGameData();
   const userId = localStorage.getItem("uid");
 
   useEffect(() => {
@@ -19,105 +22,84 @@ const RetentionReview = () => {
     return () => unsub();
   }, [gameCode]);
 
-  // Auto-navigate all users to auction when phase changes
   useEffect(() => {
-    if (session?.phase === "AUCTION") {
-      console.log("Phase is AUCTION, navigating to auction page");
-      navigate(`/auction/${gameCode}`);
-    }
+    if (!gameCode) return;
+    const unsub = listenTeams(gameCode, setTeams);
+    return () => unsub();
+  }, [gameCode]);
+
+  useEffect(() => {
+    if (session?.phase === "AUCTION") navigate(`/auction/${gameCode}`);
   }, [session?.phase, gameCode, navigate]);
+
+  const playerById = useMemo(() => new Map(masterPlayerList.map((p) => [p.id, p])), [masterPlayerList]);
 
   if (!session) return <p className="p-6">Loading review…</p>;
 
   const isHost = session.hostId === userId;
-  const retentions = session.retentions || {};
-
-  const allLocked =
-    Object.keys(retentions).length === 10 &&
-    Object.values(retentions).every((r: any) => r.locked);
 
   return (
     <div className="min-h-screen p-6">
-      <h1 className="text-3xl font-display mb-6">
-        Retention Review
-      </h1>
+      <h1 className="text-3xl font-display mb-6">Retention Review</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
         {IPL_TEAMS.map((team) => {
-          const r = retentions[team.id];
+          const teamDoc = teams.find((t) => t.id === team.id) || {};
+          const retainedIds = (teamDoc.retainedPlayers || session?.retentions?.[team.id]?.players || []) as string[];
+          const retainedPlayers = retainedIds.map((id) => playerById.get(id)).filter(Boolean) as any[];
+          const prices = teamDoc.playerPurchasePrices || {};
 
           return (
-            <div
-              key={team.id}
-              className="p-4 border rounded-xl bg-secondary/30"
-            >
-              <h2 className="font-display text-xl mb-2">
-                {team.shortName}
-              </h2>
+            <div key={team.id} className="p-4 border rounded-xl bg-secondary/30">
+              <div className="flex items-center gap-3 mb-2">
+                <TeamLogo logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
+                <h2 className="font-display text-xl">{team.shortName}</h2>
+              </div>
+              <div className="flex gap-2 flex-wrap mb-3">
+                {retainedPlayers.map((p) => (
+                  <div key={p.id} className="text-center">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden mx-auto" title={p.name}>
+                      {(p.image || p.imageUrl) ? <img src={(p.image || p.imageUrl)} className="w-full h-full object-cover" /> : <User className="w-4 h-4" />}
+                    </div>
+                    <p className="text-[10px] mt-1 w-16 truncate">{p.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{formatPrice(prices[p.id] || 0)}</p>
+                  </div>
+                ))}
+              </div>
 
-              {!r ? (
-                <p className="text-sm text-muted-foreground">
-                  Not locked yet
-                </p>
-              ) : (
-                <>
-                  <p className="text-sm mb-1">
-                    Retained: {r.players.length}/6
-                  </p>
-                  <p className="text-sm mb-1">
-                    RTM Cards: {r.rtm}
-                  </p>
-                  <p className="text-xs text-green-500 font-semibold">
-                    LOCKED
-                  </p>
-                </>
-              )}
+              <p className="text-sm mb-1">Retained: {retainedIds.length}/6</p>
+              <p className="text-sm mb-1">RTM Cards: {teamDoc.rtmCards ?? session?.retentions?.[team.id]?.rtm ?? 0}</p>
+              <p className="text-sm mb-1">Remaining Purse: {formatPrice(teamDoc.purseRemaining ?? team.purse)}</p>
+              <p className="text-xs text-green-500 font-semibold">{retainedIds.length ? "LOCKED" : "Not locked yet"}</p>
             </div>
           );
         })}
       </div>
 
-      <div className="mt-6">
-        {/* DEBUG: Show retention status */}
-        <div className="mb-4 text-xs text-muted-foreground p-2 bg-muted/20 rounded">
-          <div>isHost: {isHost ? "yes" : "no"}</div>
-          <div>allLocked: {allLocked ? "yes" : "no"}</div>
-          <div>starting: {starting ? "yes" : "no"}</div>
-          <div>phase: {session?.phase}</div>
+      {isHost ? (
+        <Button
+          variant="gold"
+          size="xl"
+          className="w-full"
+          disabled={starting}
+          onClick={async () => {
+            if (!gameCode) return;
+            try {
+              setStarting(true);
+              await startAuction(gameCode);
+              navigate(`/auction/${gameCode}`);
+            } finally {
+              setStarting(false);
+            }
+          }}
+        >
+          {starting ? "Starting…" : "Start Auction"}
+        </Button>
+      ) : (
+        <div className="text-center py-6">
+          <p className="text-lg text-muted-foreground font-medium">Host will start the auction shortly</p>
         </div>
-
-        {isHost ? (
-          <Button
-            variant="gold"
-            size="xl"
-            className="w-full"
-            disabled={starting}
-            onClick={async () => {
-              if (!gameCode) return;
-              console.log("Start Auction clicked, starting...");
-              try {
-                setStarting(true);
-                console.log("Calling startAuction(", gameCode, ")");
-                await startAuction(gameCode);
-                console.log("startAuction completed, navigating to auction");
-                navigate(`/auction/${gameCode}`);
-              } catch (err) {
-                console.error("Error starting auction:", err);
-              } finally {
-                setStarting(false);
-              }
-            }}
-          >
-            {starting ? "Starting…" : "Start Auction"}
-          </Button>
-        ) : (
-          <div className="text-center py-6">
-            <p className="text-lg text-muted-foreground font-medium">
-              Host will start the auction shortly
-            </p>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 };

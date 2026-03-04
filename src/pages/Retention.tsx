@@ -1,176 +1,160 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { listenSession, lockRetention } from "@/lib/sessionService";
+import { IPL_TEAMS, formatPrice, RETENTION_COSTS } from "@/lib/constants";
+import { listenSession, listenTeams, lockRetention } from "@/lib/sessionService";
 import type { Player } from "@/lib/samplePlayers";
-import { useGameData } from '@/contexts/GameDataContext';
+import { useGameData } from "@/contexts/GameDataContext";
+import { User } from "lucide-react";
+import { TeamLogo } from "@/components/TeamLogo";
 
 const Retention = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
   const navigate = useNavigate();
-
   const [session, setSession] = useState<any>(null);
+  const [teams, setTeams] = useState<any[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
-  
-  // Timer state (Server Sync)
   const [timeLeft, setTimeLeft] = useState(30);
-  
-  // Local state for players (using global master list)
   const { masterPlayerList } = useGameData();
-  const players = masterPlayerList;
-
   const userId = localStorage.getItem("uid");
 
-  /* ===================== LISTEN SESSION ===================== */
   useEffect(() => {
     if (!gameCode) return;
     const unsub = listenSession(gameCode, setSession);
     return () => unsub();
   }, [gameCode]);
 
+  useEffect(() => {
+    if (!gameCode) return;
+    const unsub = listenTeams(gameCode, setTeams);
+    return () => unsub();
+  }, [gameCode]);
 
-  /* ===================== AUTO NAVIGATE ===================== */
-  // ✅ FIX: Check if ALL 10 TEAMS are locked (AI + Humans)
-  // keep effect for auto-navigation, but user also navigates on lock button
   useEffect(() => {
     if (!session?.retentions || !session?.allTeams) return;
-
-    const allTeamIds = session.allTeams.map((t: any) => t.id);
-
-    const allLocked = allTeamIds.every(
-      (id: string) => session.retentions[id]?.locked === true
-    );
-
-    if (allLocked) {
-      navigate(`/retention-review/${gameCode}`);
-    }
+    const allLocked = session.allTeams.map((t: any) => t.id).every((id: string) => session.retentions[id]?.locked === true);
+    if (allLocked) navigate(`/retention-review/${gameCode}`);
   }, [session, gameCode, navigate]);
 
-  /* ===================== DERIVED DATA ===================== */
   const myTeam = useMemo(() => {
     if (!session || !userId) return null;
-    return Object.entries(session.selectedTeams || {}).find(
-      ([, uid]) => uid === userId
-    )?.[0] ?? null;
+    return Object.entries(session.selectedTeams || {}).find(([, uid]) => uid === userId)?.[0] ?? null;
   }, [session, userId]);
 
-  // ✅ FIX: Case-insensitive filter + Safety check
   const squad: Player[] = useMemo(() => {
-    if (!myTeam || players.length === 0) return [];
-    
-    return players.filter((p) => 
-      p.previousTeam && 
-      p.previousTeam.toLowerCase() === myTeam.toLowerCase()
-    );
-  }, [players, myTeam]);
+    if (!myTeam) return [];
+    return masterPlayerList.filter((p: any) => (p.previousTeamId || p.previousTeam || "").toLowerCase() === myTeam.toLowerCase());
+  }, [masterPlayerList, myTeam]);
 
-  const cappedCount = useMemo(() => {
-    return selected.filter(
-      (id) => squad.find((p) => p.id === id)?.isCapped
-    ).length;
+  const costById = useMemo(() => {
+    const cappedSorted = selected
+      .map((id) => squad.find((p) => p.id === id))
+      .filter((p): p is Player => !!p)
+      .filter((p: any) => Boolean((p as any).isCapped));
+
+    let cappedSlot = 0;
+    const map: Record<string, number> = {};
+
+    selected.forEach((id) => {
+      const p: any = squad.find((s) => s.id === id);
+      if (!p) return;
+      if (p.isCapped) {
+        map[id] = RETENTION_COSTS.CAPPED_SLOTS[Math.min(cappedSlot, RETENTION_COSTS.CAPPED_SLOTS.length - 1)];
+        cappedSlot += 1;
+      } else {
+        map[id] = RETENTION_COSTS.UNCAPPED;
+      }
+    });
+
+    return map;
   }, [selected, squad]);
 
+  const cappedCount = useMemo(() => selected.filter((id) => Boolean((squad.find((p: any) => p.id === id) as any)?.isCapped)).length, [selected, squad]);
   const uncappedCount = selected.length - cappedCount;
+  const selectedSpend = useMemo(() => selected.reduce((sum, id) => sum + Number(costById[id] || 0), 0), [selected, costById]);
 
-  /* ===================== LOCK RETENTION ===================== */
+  const basePurse = IPL_TEAMS.find((t) => t.id === myTeam)?.purse || 0;
+  const remainingPurse = Math.max(0, basePurse - selectedSpend);
+  const rtmPreview = Math.max(0, 6 - selected.length);
+
   const handleLock = useCallback(async () => {
     if (!gameCode || !myTeam) return;
-
-    await lockRetention(
-      gameCode,
-      myTeam,
-      selected,
-      cappedCount,
-      uncappedCount
-    );
-
-    // after locking, navigate the user to review page immediately
+    await lockRetention(gameCode, myTeam, selected, cappedCount, uncappedCount);
     navigate(`/retention-review/${gameCode}`);
   }, [gameCode, myTeam, selected, cappedCount, uncappedCount, navigate]);
 
-  /* ===================== SERVER SYNC TIMER ===================== */
   useEffect(() => {
     if (!session?.retentionStartedAt) return;
-
     const start = session.retentionStartedAt.toDate().getTime();
-
     const interval = setInterval(() => {
-      const now = Date.now();
-      const diff = Math.floor((now - start) / 1000);
-      const remaining = 30 - diff;
-
-      if (remaining <= 0) {
-        setTimeLeft(0);
-        clearInterval(interval);
-      } else {
-        setTimeLeft(remaining);
-      }
+      const remaining = 30 - Math.floor((Date.now() - start) / 1000);
+      setTimeLeft(Math.max(0, remaining));
+      if (remaining <= 0) clearInterval(interval);
     }, 1000);
-
     return () => clearInterval(interval);
   }, [session?.retentionStartedAt]);
 
-  // Trigger lock when time expires
   useEffect(() => {
-    if (timeLeft === 0) {
-      handleLock();
-    }
+    if (timeLeft === 0) handleLock();
   }, [timeLeft, handleLock]);
 
-  /* ===================== UI HANDLERS ===================== */
   const handleToggle = (playerId: string) => {
-    if (selected.includes(playerId)) {
-      setSelected((prev) => prev.filter((id) => id !== playerId));
-      return;
-    }
-
+    if (selected.includes(playerId)) return setSelected((prev) => prev.filter((id) => id !== playerId));
     if (selected.length >= 6) return;
-
-    const player = squad.find((p) => p.id === playerId);
+    const player: any = squad.find((p) => p.id === playerId);
     if (!player) return;
-
     if (player.isCapped && cappedCount >= 5) return;
     if (!player.isCapped && uncappedCount >= 2) return;
-
     setSelected((prev) => [...prev, playerId]);
   };
 
-  /* ===================== RENDER ===================== */
-  if (!session || !myTeam) {
-    return <p className="p-6">Loading retention…</p>;
-  }
+  if (!session || !myTeam) return <p className="p-6">Loading retention…</p>;
 
   return (
     <div className="min-h-screen p-6">
-      <h1 className="text-3xl font-display mb-4">
-        Retention – {myTeam} (⏱ {timeLeft}s)
-      </h1>
+      <h1 className="text-3xl font-display mb-4">Retention – {myTeam.toUpperCase()} (⏱ {timeLeft}s)</h1>
+
+      <div className="grid md:grid-cols-4 gap-3 mb-6 text-sm">
+        <div className="p-3 border rounded-lg">Retained: <strong>{selected.length}/6</strong></div>
+        <div className="p-3 border rounded-lg">Total Cost: <strong>{formatPrice(selectedSpend)}</strong></div>
+        <div className="p-3 border rounded-lg">Purse Remaining: <strong>{formatPrice(remainingPurse)}</strong></div>
+        <div className="p-3 border rounded-lg">RTM Cards: <strong>{rtmPreview}</strong></div>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        {squad.map((player) => {
+        {squad.map((player: any) => {
           const isSelected = selected.includes(player.id);
+          const displayedCost = isSelected ? costById[player.id] : (player.isCapped ? RETENTION_COSTS.CAPPED_SLOTS[0] : RETENTION_COSTS.UNCAPPED);
           return (
-            <div
-              key={player.id}
-              onClick={() => handleToggle(player.id)}
-              className={`p-4 border rounded-lg cursor-pointer transition ${
-                isSelected
-                  ? "border-primary bg-primary/10"
-                  : "border-border"
-              }`}
-            >
-              <p className="font-semibold">{player.name}</p>
-              <p className="text-xs text-muted-foreground">
-                {player.isCapped ? "Capped" : "Uncapped"}
-              </p>
+            <div key={player.id} onClick={() => handleToggle(player.id)} className={`p-3 border rounded-lg cursor-pointer transition ${isSelected ? "border-primary bg-primary/10" : "border-border"}`}>
+              <div className="mb-2">
+                <div className="w-full aspect-square rounded-md bg-secondary flex items-center justify-center overflow-hidden mb-2 border">
+                  {(player.image || player.imageUrl) ? <img src={(player.image || player.imageUrl)} className="w-full h-full object-cover" /> : <User className="w-8 h-8" />}
+                </div>
+                <p className="font-semibold text-xs truncate">{player.name}</p>
+                <p className="text-[11px] text-muted-foreground">{player.role}</p>
+              </div>
+              <p className="text-xs">Retention Cost: <strong>{formatPrice(displayedCost)}</strong></p>
+              <p className="text-xs text-muted-foreground">{player.isCapped ? "Capped" : "Uncapped"}</p>
             </div>
           );
         })}
       </div>
 
-      <Button onClick={handleLock} disabled={selected.length === 0}>
-        Confirm Retention ({selected.length}/6)
-      </Button>
+      <div className="grid md:grid-cols-5 gap-2 mb-4 text-xs">
+        {IPL_TEAMS.map((t) => {
+          const teamDoc = teams.find((tm) => tm.id === t.id);
+          const r = session?.retentions?.[t.id];
+          return (
+            <div key={t.id} className="p-2 border rounded flex items-center gap-2">
+              <TeamLogo logo={(teamDoc as any)?.logo || (t as any).logo} shortName={t.shortName} size="sm" />
+              <div>{t.shortName}: Purse {formatPrice(teamDoc?.purseRemaining || t.purse)} • Ret {teamDoc?.retainedPlayers?.length ?? r?.players?.length ?? 0} • RTM {teamDoc?.rtmCards ?? r?.rtm ?? 0}</div>
+            </div>
+          );
+        })}
+      </div>
+
+      <Button onClick={handleLock} disabled={selected.length === 0}>Confirm Retention ({selected.length}/6)</Button>
     </div>
   );
 };

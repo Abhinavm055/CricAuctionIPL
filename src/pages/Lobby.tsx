@@ -12,6 +12,7 @@ import {
   fillAITeams,
 } from "@/lib/sessionService";
 import { startRetention } from "@/lib/sessionService";
+import { TeamLogo } from "@/components/TeamLogo";
 
 
 const Lobby = () => {
@@ -192,6 +193,7 @@ const Lobby = () => {
                 )}
               >
                 <div>
+                  <TeamLogo logo={(team as any).logo} shortName={team.shortName} size="md" className="mb-2" />
                   <div className="font-display text-xl leading-none mb-1">{team.shortName}</div>
                   <div className="text-[10px] uppercase text-muted-foreground font-medium truncate">{team.name}</div>
                 </div>
