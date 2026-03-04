@@ -14,7 +14,7 @@ import {
   getDocs,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { IPL_TEAMS, AUCTION_TIMER } from "@/lib/constants";
+import { IPL_TEAMS, AUCTION_TIMER, getNextBid, SQUAD_CONSTRAINTS } from "@/lib/constants";
 import { createAuctionQueueFrom, Player } from "@/lib/samplePlayers";
 
 /* ===============================
@@ -281,8 +281,15 @@ export const placeBid = async (gameCode: string, teamId: string, amount: number)
       throw new Error("No active auction");
     }
 
-    if (amount <= Number(currentAuction.currentBid || 0)) {
-      throw new Error("Bid must be higher than current bid");
+    const currentBid = Number(currentAuction.currentBid || 0);
+    const expectedNextBid = getNextBid(currentBid);
+
+    if (amount !== expectedNextBid) {
+      throw new Error("Bid must match the next valid increment");
+    }
+
+    if (currentAuction.currentBidderId === teamId) {
+      throw new Error("Team cannot bid twice consecutively");
     }
 
     const teamRef = doc(db, "sessions", gameCode, "teams", teamId);
@@ -290,8 +297,14 @@ export const placeBid = async (gameCode: string, teamId: string, amount: number)
     if (!teamSnap.exists()) throw new Error("Team not found");
 
     const purseRemaining = Number(teamSnap.data().purseRemaining || 0);
+    const playerIds = (teamSnap.data().players || []) as string[];
+
     if (purseRemaining < amount) {
       throw new Error("Insufficient purse");
+    }
+
+    if (playerIds.length >= SQUAD_CONSTRAINTS.MAX_SQUAD) {
+      throw new Error("Squad is full");
     }
 
     transaction.update(sessionRef, {

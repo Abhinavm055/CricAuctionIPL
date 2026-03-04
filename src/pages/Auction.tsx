@@ -6,14 +6,18 @@ import { TeamCard } from "@/components/TeamCard";
 import { BidTimer } from "@/components/BidTimer";
 import { BidControls } from "@/components/BidControls";
 import { Player } from "@/lib/samplePlayers";
-import { useGameData } from '@/contexts/GameDataContext';
-import {
-  getNextBid,
-  SQUAD_CONSTRAINTS,
-} from "@/lib/constants";
+import { useGameData } from "@/contexts/GameDataContext";
+import { getNextBid, SQUAD_CONSTRAINTS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Trophy, ArrowLeft } from "lucide-react";
-import { finalizePlayerSale, listenSession, listenTeams, placeBid, startNextPlayer } from "@/lib/sessionService";
+import {
+  finalizePlayerSale,
+  listenSession,
+  listenTeams,
+  placeBid,
+  startNextPlayer,
+} from "@/lib/sessionService";
+import { getAIBid } from "@/lib/aiEngine";
 
 export interface TeamState {
   id: string;
@@ -35,7 +39,7 @@ const Auction = () => {
   const userId =
     localStorage.getItem("uid") ||
     (() => {
-      const id = "user-" + Math.random().toString(36).slice(2, 9);
+      const id = `user-${Math.random().toString(36).slice(2, 9)}`;
       localStorage.setItem("uid", id);
       return id;
     })();
@@ -49,18 +53,27 @@ const Auction = () => {
   }, [gameCode]);
 
   useEffect(() => {
-    if (!gameCode) return;
+    if (!gameCode || !session) return;
+
     const unsub = listenTeams(gameCode, (teamDocs) => {
-      const normalizedTeams = teamDocs.map((team) => ({
-        ...team,
-        players: ((team.players || []) as string[])
-          .map((playerId) => masterPlayerList.find((player) => player.id === playerId))
-          .filter(Boolean),
-      }));
+      const normalizedTeams = teamDocs.map((team) => {
+        const retainedPlayerIds = (session?.retentions?.[team.id]?.players || []) as string[];
+        const auctionPlayerIds = (team.players || []) as string[];
+        const allPlayerIds = Array.from(new Set([...retainedPlayerIds, ...auctionPlayerIds]));
+
+        return {
+          ...team,
+          players: allPlayerIds
+            .map((playerId) => masterPlayerList.find((player) => player.id === playerId))
+            .filter(Boolean),
+        };
+      });
+
       setTeams(normalizedTeams as TeamState[]);
     });
+
     return () => unsub();
-  }, [gameCode, masterPlayerList]);
+  }, [gameCode, masterPlayerList, session]);
 
   useEffect(() => {
     if (session && session.phase !== "AUCTION") {
@@ -75,7 +88,7 @@ const Auction = () => {
     ([_, uid]) => uid === userId
   )?.[0] as string | undefined;
 
-  const userTeam = teams.find((t) => t.id === myTeamId);
+  const userTeam = teams.find((team) => team.id === myTeamId);
 
   const currentAuction = session?.currentAuction;
   const activePlayerId = currentAuction?.activePlayerId;
@@ -85,37 +98,68 @@ const Auction = () => {
     [masterPlayerList, activePlayerId]
   );
 
-  const currentBidderTeam = teams.find(
-    (t) => t.id === currentAuction?.currentBidderId
+  const currentBidderTeam = teams.find((team) => team.id === currentAuction?.currentBidderId);
+
+  const nextBid = getNextBid(currentAuction?.currentBid || 0);
+  const timerSeconds = Math.max(
+    1,
+    Math.ceil(((currentAuction?.timerEndsAt?.toMillis?.() || Date.now()) - Date.now()) / 1000)
   );
 
-  const canTeamBid = (
-    team: TeamState | undefined,
-    player: Player | null,
-    bid: number
-  ) => {
+  const canTeamBid = (team: TeamState | undefined, player: Player | null, bidAmount: number) => {
     if (!team || !player) return false;
-    if (team.purseRemaining < bid) return false;
+    if (currentAuction?.status !== "RUNNING") return false;
+    if (currentAuction?.currentBidderId === team.id) return false;
+    if (team.purseRemaining < bidAmount) return false;
     if (team.players.length >= SQUAD_CONSTRAINTS.MAX_SQUAD) return false;
     return true;
   };
 
   const handleHostStartNext = useCallback(async () => {
-    if (!gameCode) return;
+    if (!gameCode || !isHost) return;
     await startNextPlayer(gameCode);
-  }, [gameCode]);
+  }, [gameCode, isHost]);
 
-  const handleBid = useCallback(async (amount: number) => {
-    if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
-    if (!canTeamBid(userTeam, currentPlayer, amount)) return;
-
-    await placeBid(gameCode, myTeamId, amount);
-  }, [gameCode, myTeamId, userTeam, currentPlayer]);
+  const handleBid = useCallback(
+    async (amount: number) => {
+      if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
+      if (!canTeamBid(userTeam, currentPlayer, amount)) return;
+      await placeBid(gameCode, myTeamId, amount);
+    },
+    [gameCode, myTeamId, userTeam, currentPlayer, currentAuction?.status, currentAuction?.currentBidderId]
+  );
 
   const handleFinalize = useCallback(async () => {
     if (!gameCode || !isHost) return;
     await finalizePlayerSale(gameCode);
   }, [gameCode, isHost]);
+
+  useEffect(() => {
+    if (!isHost || !gameCode || !currentPlayer) return;
+    if (currentAuction?.status !== "RUNNING") return;
+
+    const aiDecision = getAIBid(teams, currentPlayer, currentAuction.currentBid, currentAuction.currentBidderId);
+    if (!aiDecision) return;
+
+    const delayMs = 1200 + Math.random() * 3500;
+    const timeout = setTimeout(async () => {
+      try {
+        await placeBid(gameCode, aiDecision.teamId, aiDecision.bid);
+      } catch {
+        // Ignore stale bid races in realtime environment.
+      }
+    }, delayMs);
+
+    return () => clearTimeout(timeout);
+  }, [
+    isHost,
+    gameCode,
+    teams,
+    currentPlayer,
+    currentAuction?.status,
+    currentAuction?.currentBid,
+    currentAuction?.currentBidderId,
+  ]);
 
   const auctionEnded =
     queueLength > 0 &&
@@ -155,15 +199,15 @@ const Auction = () => {
         <div className="grid grid-cols-12 gap-6 max-w-7xl mx-auto">
           <div className="col-span-3 grid grid-cols-2 gap-2">
             {teams.map((team) => (
-             <TeamCard
-               key={team.id}
-               {...team}
-               playersCount={team.players.length}
-               overseasCount={team.players.filter((p) => p.isOverseas).length}
-               isCurrentBidder={team.id === currentAuction?.currentBidderId}
-               isBidding={team.id === currentAuction?.currentBidderId}
-               isUserTeam={team.id === myTeamId}
-            />
+              <TeamCard
+                key={team.id}
+                {...team}
+                playersCount={team.players.length}
+                overseasCount={team.players.filter((player) => player.isOverseas).length}
+                isCurrentBidder={team.id === currentAuction?.currentBidderId}
+                isBidding={team.id === currentAuction?.currentBidderId}
+                isUserTeam={team.id === myTeamId}
+              />
             ))}
           </div>
 
@@ -172,10 +216,7 @@ const Auction = () => {
               <>
                 <BidTimer
                   key={`${currentAuction.activePlayerId}-${currentAuction.timerEndsAt?.seconds || "no-timer"}`}
-                  duration={Math.max(
-                    1,
-                    ((currentAuction?.timerEndsAt?.toMillis?.() || Date.now()) - Date.now()) / 1000
-                  )}
+                  duration={timerSeconds}
                   isActive={true}
                   onTimeout={handleFinalize}
                 />
@@ -204,11 +245,7 @@ const Auction = () => {
               currentBid={currentAuction?.currentBid || 0}
               purseRemaining={userTeam.purseRemaining}
               isYourTurn={true}
-              canBid={canTeamBid(
-                userTeam,
-                currentPlayer,
-                getNextBid(currentAuction?.currentBid || 0)
-              ) && currentAuction?.status === "RUNNING"}
+              canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
               onBid={handleBid}
               onPass={() => {}}
               isHost={isHost}

@@ -8,11 +8,11 @@ interface BidTimerProps {
 }
 
 export const BidTimer = ({ duration, isActive, onTimeout }: BidTimerProps) => {
-  const [timeLeft, setTimeLeft] = useState(duration);
+  const [timeLeft, setTimeLeft] = useState(Math.max(0, Math.ceil(duration)));
 
   useEffect(() => {
     if (!isActive) {
-      setTimeLeft(duration);
+      setTimeLeft(Math.max(0, Math.ceil(duration)));
       return;
     }
 
@@ -37,10 +37,11 @@ export const BidTimer = ({ duration, isActive, onTimeout }: BidTimerProps) => {
   }, [timeLeft, isActive, onTimeout]);
 
   useEffect(() => {
-    setTimeLeft(duration);
+    setTimeLeft(Math.max(0, Math.ceil(duration)));
   }, [duration]);
 
-  const percentage = (timeLeft / duration) * 100;
+  const safeDuration = Math.max(1, Math.ceil(duration));
+  const percentage = (timeLeft / safeDuration) * 100;
   const isUrgent = timeLeft <= 10;
   const circumference = 2 * Math.PI * 45;
   const strokeDashoffset = circumference - (percentage / 100) * circumference;
@@ -80,7 +81,7 @@ export const BidTimer = ({ duration, isActive, onTimeout }: BidTimerProps) => {
             isUrgent ? "timer-urgent" : "text-foreground"
           )}
         >
-          {timeLeft}
+          {Math.max(0, Math.ceil(timeLeft))}
         </span>
       </div>
 
