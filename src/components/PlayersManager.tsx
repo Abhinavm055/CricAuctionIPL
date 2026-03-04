@@ -37,6 +37,11 @@ interface PlayersManagerProps {
   globalSearch?: string;
 }
 
+const teamShortNameById = (teams: TeamRecord[]) => teams.reduce<Record<string, string>>((acc, team) => {
+  acc[team.id] = team.shortName;
+  return acc;
+}, {});
+
 export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersManagerProps) => {
   const { toast } = useToast();
   const [search, setSearch] = useState('');
@@ -46,6 +51,8 @@ export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersMan
   const [ratingRange, setRatingRange] = useState<number[]>([1, 5]);
   const [editing, setEditing] = useState<EditablePlayer | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
+
+  const shortNameById = useMemo(() => teamShortNameById(teams), [teams]);
 
   const teamNameById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -104,13 +111,17 @@ export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersMan
 
   const savePlayer = async (player: EditablePlayer) => {
     const payload = {
+      id: player.id,
       name: player.name,
       role: player.role,
       rating: Number(player.rating),
+      starRating: Number(player.rating),
       basePrice: Number(player.basePrice),
       overseas: !!player.overseas,
+      isOverseas: !!player.overseas,
       pool: player.pool,
       previousTeamId: player.previousTeamId,
+      previousTeam: shortNameById[player.previousTeamId] || '',
       image: player.image,
     };
 

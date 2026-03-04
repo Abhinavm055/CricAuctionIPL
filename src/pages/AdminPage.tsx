@@ -19,6 +19,21 @@ interface TeamRecord {
 const defaultPlayerImage = (name: string) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'IPL Player')}&background=0f172a&color=ffffff&size=256`;
 
+
+const teamIdByShortName = IPL_TEAMS.reduce<Record<string, string>>((acc, team) => {
+  acc[team.shortName.toLowerCase()] = team.id;
+  return acc;
+}, {});
+
+const normalizeTeamId = (value?: string) => {
+  if (!value) return '';
+  const raw = value.trim();
+  if (!raw) return '';
+  const lower = raw.toLowerCase();
+  if (IPL_TEAMS.some((team) => team.id === lower)) return lower;
+  return teamIdByShortName[lower] || '';
+};
+
 const AdminPage = () => {
   const [tab, setTab] = useState<'players' | 'teams'>('teams');
   const [globalSearch, setGlobalSearch] = useState('');
@@ -27,7 +42,26 @@ const AdminPage = () => {
 
   useEffect(() => {
     const unsubPlayers = onSnapshot(collection(db, 'players'), (snap) => {
-      const mapped = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<EditablePlayer, 'id'>) }));
+      const mapped = snap.docs.map((d) => {
+        const raw = d.data() as Record<string, unknown>;
+        const name = String(raw.name || '').trim();
+        const teamId = normalizeTeamId(raw.previousTeamId || raw.previousTeam || '');
+        const rating = Number(raw.rating ?? raw.starRating ?? 3);
+        const overseas = Boolean(raw.overseas ?? raw.isOverseas ?? false);
+
+        return {
+          id: d.id,
+          name,
+          role: String(raw.role || 'Batsman'),
+          rating: Number.isFinite(rating) ? rating : 3,
+          basePrice: Number(raw.basePrice ?? 0),
+          overseas,
+          image: String(raw.image || raw.imageUrl || ''),
+          pool: String(raw.pool || 'Batters'),
+          previousTeamId: teamId,
+        } as EditablePlayer;
+      }).filter((player) => player.name);
+
       setPlayers(mapped);
 
       mapped.forEach((player) => {

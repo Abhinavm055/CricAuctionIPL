@@ -33,6 +33,14 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [editingPlayer, setEditingPlayer] = useState<EditablePlayer | null>(null);
+  const shortNameById = useMemo(
+    () => teams.reduce<Record<string, string>>((acc, item) => {
+      acc[item.id] = item.shortName;
+      return acc;
+    }, {}),
+    [teams],
+  );
+
 
   const teamPlayerIds = useMemo(() => {
     const fromTeamArray = team.players || [];
@@ -68,7 +76,7 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
       await updateDoc(doc(db, 'teams', targetTeamId), { players: arrayUnion(player.id) });
     }
 
-    await setDoc(doc(db, 'players', player.id), { previousTeamId: targetTeamId }, { merge: true });
+    await setDoc(doc(db, 'players', player.id), { previousTeamId: targetTeamId, previousTeam: shortNameById[targetTeamId] || '' }, { merge: true });
   };
 
   const addPlayerToTeam = async (player: EditablePlayer) => {
@@ -85,7 +93,7 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
   const removePlayerFromTeam = async (player: EditablePlayer) => {
     if (!player.id) return;
     await updateDoc(doc(db, 'teams', team.id), { players: arrayRemove(player.id) });
-    await setDoc(doc(db, 'players', player.id), { previousTeamId: '' }, { merge: true });
+    await setDoc(doc(db, 'players', player.id), { previousTeamId: '', previousTeam: '' }, { merge: true });
     toast({ title: 'Player removed', description: `${player.name} removed from ${team.shortName}.` });
   };
 
@@ -106,11 +114,14 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
         name: player.name,
         role: player.role,
         rating: Number(player.rating),
+        starRating: Number(player.rating),
         basePrice: Number(player.basePrice),
         overseas: !!player.overseas,
+        isOverseas: !!player.overseas,
         pool: player.pool,
         image: player.image,
         previousTeamId: player.previousTeamId,
+        previousTeam: shortNameById[player.previousTeamId] || '',
       },
       { merge: true },
     );
