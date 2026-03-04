@@ -8,11 +8,11 @@ interface BidTimerProps {
 }
 
 export const BidTimer = ({ duration, isActive, onTimeout }: BidTimerProps) => {
-  const [timeLeft, setTimeLeft] = useState(Math.max(0, Math.ceil(duration)));
+  const [timeLeft, setTimeLeft] = useState(Math.max(0, Math.floor(duration)));
 
   useEffect(() => {
     if (!isActive) {
-      setTimeLeft(Math.max(0, Math.ceil(duration)));
+      setTimeLeft(Math.max(0, Math.floor(duration)));
       return;
     }
 
@@ -37,10 +37,10 @@ export const BidTimer = ({ duration, isActive, onTimeout }: BidTimerProps) => {
   }, [timeLeft, isActive, onTimeout]);
 
   useEffect(() => {
-    setTimeLeft(Math.max(0, Math.ceil(duration)));
+    setTimeLeft(Math.max(0, Math.floor(duration)));
   }, [duration]);
 
-  const safeDuration = Math.max(1, Math.ceil(duration));
+  const safeDuration = Math.max(1, Math.floor(duration));
   const percentage = (timeLeft / safeDuration) * 100;
   const isUrgent = timeLeft <= 10;
   const circumference = 2 * Math.PI * 45;
@@ -81,7 +81,7 @@ export const BidTimer = ({ duration, isActive, onTimeout }: BidTimerProps) => {
             isUrgent ? "timer-urgent" : "text-foreground"
           )}
         >
-          {Math.max(0, Math.ceil(timeLeft))}
+          {Math.max(0, Math.floor(timeLeft))}
         </span>
       </div>
 

@@ -63,6 +63,10 @@ const getPlayerOverseasFlag = (playerData: any) => Boolean(playerData?.overseas 
 const getPlayerPreviousTeamId = (playerData: any) => String(playerData?.previousTeamId ?? playerData?.previousTeam ?? "").toLowerCase();
 const getPlayerRating = (playerData: any) => Number(playerData?.rating ?? playerData?.starRating ?? 0);
 
+const buildRecentPurchases = (existing: Array<{ playerId: string; price: number; teamId: string }>, purchase: { playerId: string; price: number; teamId: string }) => {
+  return [purchase, ...(existing || [])].slice(0, 5);
+};
+
 export const generateGameCode = () => `CAIPL${Math.floor(1000 + Math.random() * 9000)}`;
 
 export const listenPlayers = (callback: (players: any[]) => void) => {
@@ -94,6 +98,8 @@ export const createSession = async (gameCode: string, hostId: string) => {
     auctionQueue: [],
     queueIndex: -1,
     unsoldPlayers: [],
+    recentPurchases: [],
+    isAcceleratedRound: false,
     pendingRtm: null,
     currentAuction: {
       activePlayerId: null,
@@ -240,6 +246,8 @@ export const startAuction = async (gameCode: string) => {
     auctionQueue: queue,
     queueIndex: -1,
     unsoldPlayers: [],
+    recentPurchases: [],
+    isAcceleratedRound: false,
     pendingRtm: null,
     currentAuction: {
       activePlayerId: null,
@@ -257,23 +265,25 @@ export const startNextPlayer = async (gameCode: string) => {
     const sessionSnap = await tx.get(sessionRef);
     if (!sessionSnap.exists()) throw new Error("Session not found");
     const sessionData = sessionSnap.data();
+    const auctionQueue = (sessionData.auctionQueue || []) as string[];
 
     const teamSnaps = await Promise.all(IPL_TEAMS.map((t) => tx.get(doc(db, "sessions", gameCode, "teams", t.id))));
     const allTeamsFull = teamSnaps.every((snap) => Number(snap.data()?.squadSize || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD);
     if (allTeamsFull) {
       tx.update(sessionRef, {
         phase: "AUCTION_COMPLETE",
+        queueIndex: auctionQueue.length,
         currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE" },
       });
       return;
     }
 
-    const auctionQueue = (sessionData.auctionQueue || []) as string[];
     const nextIndex = Number(sessionData.queueIndex ?? -1) + 1;
 
     if (!auctionQueue[nextIndex]) {
       tx.update(sessionRef, {
         phase: "AUCTION_COMPLETE",
+        queueIndex: auctionQueue.length,
         currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE" },
       });
       return;
@@ -287,7 +297,7 @@ export const startNextPlayer = async (gameCode: string) => {
         activePlayerId: auctionQueue[nextIndex],
         currentBid: Number(playerSnap.data()?.basePrice || 0),
         currentBidderId: null,
-        timerEndsAt: Timestamp.fromMillis(Date.now() + AUCTION_TIMER * 1000),
+        timerEndsAt: Timestamp.fromMillis(Date.now() + (sessionData.isAcceleratedRound ? BID_RESET_TIMER : AUCTION_TIMER) * 1000),
         status: "RUNNING",
       },
     });
@@ -410,6 +420,7 @@ export const finalizePlayerSale = async (gameCode: string) => {
     await applySaleToTeam(tx, gameCode, winningTeamId, playerId, finalBid, isOverseas, false);
     tx.update(sessionRef, {
       pendingRtm: null,
+      recentPurchases: buildRecentPurchases((sessionData.recentPurchases || []) as any[], { playerId, price: finalBid, teamId: winningTeamId }),
       currentAuction: { activePlayerId: playerId, currentBid: finalBid, currentBidderId: winningTeamId, timerEndsAt: null, status: "SOLD" },
     });
   });
@@ -420,7 +431,8 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
   await runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef);
     if (!sessionSnap.exists()) throw new Error("Session not found");
-    const pending = sessionSnap.data().pendingRtm;
+    const sessionData = sessionSnap.data();
+    const pending = sessionData.pendingRtm;
     if (!pending) return;
 
     const playerSnap = await tx.get(doc(db, "players", pending.playerId));
@@ -431,6 +443,7 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
         await applySaleToTeam(tx, gameCode, pending.winningTeamId, pending.playerId, Number(pending.finalBid), isOverseas, false);
         tx.update(sessionRef, {
           pendingRtm: null,
+          recentPurchases: buildRecentPurchases((sessionData.recentPurchases || []) as any[], { playerId: pending.playerId, price: Number(pending.finalBid), teamId: pending.winningTeamId }),
           currentAuction: { activePlayerId: pending.playerId, currentBid: Number(pending.finalBid), currentBidderId: pending.winningTeamId, timerEndsAt: null, status: "SOLD" },
         });
         return;
@@ -446,6 +459,7 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
         await applySaleToTeam(tx, gameCode, pending.originalTeamId, pending.playerId, Number(pending.finalBid), isOverseas, true);
         tx.update(sessionRef, {
           pendingRtm: null,
+          recentPurchases: buildRecentPurchases((sessionData.recentPurchases || []) as any[], { playerId: pending.playerId, price: Number(pending.finalBid), teamId: pending.originalTeamId }),
           currentAuction: { activePlayerId: pending.playerId, currentBid: Number(pending.finalBid), currentBidderId: pending.originalTeamId, timerEndsAt: null, status: "SOLD" },
         });
         return;
@@ -465,6 +479,7 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
         await applySaleToTeam(tx, gameCode, pending.originalTeamId, pending.playerId, Number(pending.finalBid), isOverseas, true);
         tx.update(sessionRef, {
           pendingRtm: null,
+          recentPurchases: buildRecentPurchases((sessionData.recentPurchases || []) as any[], { playerId: pending.playerId, price: Number(pending.finalBid), teamId: pending.originalTeamId }),
           currentAuction: { activePlayerId: pending.playerId, currentBid: Number(pending.finalBid), currentBidderId: pending.originalTeamId, timerEndsAt: null, status: "SOLD" },
         });
         return;
@@ -473,6 +488,7 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
         await applySaleToTeam(tx, gameCode, pending.winningTeamId, pending.playerId, Number(pending.finalBid), isOverseas, false);
         tx.update(sessionRef, {
           pendingRtm: null,
+          recentPurchases: buildRecentPurchases((sessionData.recentPurchases || []) as any[], { playerId: pending.playerId, price: Number(pending.finalBid), teamId: pending.winningTeamId }),
           currentAuction: { activePlayerId: pending.playerId, currentBid: Number(pending.finalBid), currentBidderId: pending.winningTeamId, timerEndsAt: null, status: "SOLD" },
         });
       }
@@ -539,25 +555,19 @@ export const startAcceleratedRound = async (gameCode: string) => {
   await runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef);
     if (!sessionSnap.exists()) throw new Error("Session not found");
-    const unsold = shuffleArray((sessionSnap.data().unsoldPlayers || []) as string[]);
+    const sessionData = sessionSnap.data();
+    const hasFinishedNormalQueue = Number(sessionData.queueIndex ?? -1) >= Number((sessionData.auctionQueue || []).length);
+    if (!hasFinishedNormalQueue) throw new Error("Accelerated round can start only after normal queue ends");
+
+    const unsold = shuffleArray((sessionData.unsoldPlayers || []) as string[]);
     tx.update(sessionRef, {
       phase: "AUCTION",
       auctionQueue: unsold,
       queueIndex: -1,
       unsoldPlayers: [],
+      isAcceleratedRound: true,
       currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE" },
     });
-  });
-};
-
-export const bringBackUnsoldPlayer = async (gameCode: string, playerId: string) => {
-  const sessionRef = doc(db, "sessions", gameCode);
-  await runTransaction(db, async (tx) => {
-    const sessionSnap = await tx.get(sessionRef);
-    if (!sessionSnap.exists()) throw new Error("Session not found");
-    const unsold = ((sessionSnap.data().unsoldPlayers || []) as string[]).filter((id) => id !== playerId);
-    const queue = [ ...((sessionSnap.data().auctionQueue || []) as string[]), playerId ];
-    tx.update(sessionRef, { unsoldPlayers: unsold, auctionQueue: queue });
   });
 };
 

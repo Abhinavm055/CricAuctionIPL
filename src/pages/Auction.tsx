@@ -19,11 +19,11 @@ import {
   skipCurrentPlayer,
   togglePauseAuction,
   startAcceleratedRound,
-  bringBackUnsoldPlayer,
 } from "@/lib/sessionService";
 import { getAIBid } from "@/lib/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
 import { RTMModal } from "@/components/RTMModal";
+import { HammerSoldEffect } from "@/components/HammerSoldEffect";
 
 export interface TeamState {
   id: string;
@@ -51,6 +51,7 @@ const Auction = () => {
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [commentary, setCommentary] = useState<string[]>([]);
   const [banner, setBanner] = useState<{ kind: 'SOLD' | 'UNSOLD'; text: string } | null>(null);
+  const [showHammer, setShowHammer] = useState(false);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -182,7 +183,9 @@ const Auction = () => {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
       const text = `SOLD TO ${team?.shortName || "TEAM"} • ₹${(Number(currentAuction.currentBid || 0) / 10000000).toFixed(2)} Cr`;
       setBanner({ kind: 'SOLD', text });
+      setShowHammer(true);
       setCommentary((prev) => [text, ...prev].slice(0, 8));
+      setTimeout(() => setShowHammer(false), 1400);
       setTimeout(() => setBanner(null), 3000);
       playTone(260, 0.2, 0.08);
     }
@@ -211,15 +214,19 @@ const Auction = () => {
   const rtmOriginalTeam = teams.find((t) => t.id === pendingRtm?.originalTeamId);
   const rtmWinningTeam = teams.find((t) => t.id === pendingRtm?.winningTeamId);
 
-  const topPurchases = useMemo(() => {
-    const all: Array<{ playerId: string; price: number; teamId: string }> = [];
-    teams.forEach((team) => {
-      Object.entries(team.playerPurchasePrices || {}).forEach(([pid, price]) => all.push({ playerId: pid, price: Number(price), teamId: team.id }));
-    });
-    return all.sort((a, b) => b.price - a.price).slice(0, 5);
-  }, [teams]);
+  const recentPurchases = useMemo(() => {
+    const purchases = (session?.recentPurchases || []) as Array<{ playerId: string; price: number; teamId: string }>;
+    return purchases.slice(0, 5);
+  }, [session?.recentPurchases]);
 
   const purseBoard = useMemo(() => [...teams].sort((a, b) => Number(b.purseRemaining) - Number(a.purseRemaining)).slice(0, 5), [teams]);
+
+  const showAcceleratedButton = useMemo(() => {
+    if (!isHost) return false;
+    const queueIndex = Number(session?.queueIndex ?? -1);
+    const endedNormalQueue = queueLength > 0 && queueIndex >= queueLength;
+    return endedNormalQueue && Number((session?.unsoldPlayers || []).length) > 0;
+  }, [isHost, session?.queueIndex, session?.unsoldPlayers, queueLength]);
 
   const auctionEnded =
     (session?.phase === "AUCTION_COMPLETE") ||
@@ -230,6 +237,8 @@ const Auction = () => {
   return (
     <div className="min-h-screen broadcast-container flex flex-col">
       <AuctionHeader gameCode={gameCode!} currentPool={(currentPlayer as any)?.pool} playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)} totalPlayers={queueLength} />
+
+      <HammerSoldEffect open={showHammer} text={banner?.kind === "SOLD" ? banner.text : ""} />
 
       {banner && (
         <div className={`fixed inset-0 z-50 flex items-center justify-center pointer-events-none ${banner.kind === 'SOLD' ? 'bg-yellow-500/20' : 'bg-red-500/20'} animate-pulse`}>
@@ -294,10 +303,7 @@ const Auction = () => {
               onPauseToggle={() => togglePauseAuction(gameCode!)}
               isPaused={currentAuction?.status === 'PAUSED'}
               onStartAccelerated={() => startAcceleratedRound(gameCode!)}
-              onBringBackUnsold={() => {
-                const unsold = (session?.unsoldPlayers || []) as string[];
-                if (unsold[0]) bringBackUnsoldPlayer(gameCode!, unsold[0]);
-              }}
+              showStartAccelerated={showAcceleratedButton}
             />
 
             <div className="p-3 border rounded-xl bg-card/40">
@@ -309,12 +315,14 @@ const Auction = () => {
 
             <div className="p-3 border rounded-xl bg-card/40">
               <h3 className="font-semibold mb-2">Auction Analytics</h3>
-              <p className="text-xs font-medium mb-1">Top Purchases</p>
+              <p className="text-xs font-medium mb-1">Recent Purchases</p>
               <div className="text-xs space-y-1 mb-2">
-                {topPurchases.map((p) => {
+                {recentPurchases.map((p) => {
                   const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
-                  return <p key={`${p.playerId}-${p.teamId}`}>{pl?.name || p.playerId} – ₹{(p.price / 10000000).toFixed(2)} Cr</p>;
+                  const team = teams.find((t) => t.id === p.teamId);
+                  return <p key={`${p.playerId}-${p.teamId}`}>{pl?.name || p.playerId} – ₹{(p.price / 10000000).toFixed(2)} Cr – {team?.shortName || p.teamId}</p>;
                 })}
+                {!recentPurchases.length && <p className="text-muted-foreground">No purchases yet.</p>}
               </div>
               <p className="text-xs font-medium mb-1">Purse Leaderboard</p>
               <div className="text-xs space-y-1 mb-2">{purseBoard.map((t) => <p key={t.id}>{t.shortName} – ₹{(Number(t.purseRemaining) / 10000000).toFixed(2)} Cr</p>)}</div>

@@ -1,6 +1,6 @@
 import { Button } from './ui/button';
 import { formatPrice, getNextBid } from '@/lib/constants';
-import { Gavel, Hand, SkipForward, Pause, Play, FastForward, RotateCcw } from 'lucide-react';
+import { Gavel, Hand, SkipForward, Pause, Play, FastForward } from 'lucide-react';
 
 interface BidControlsProps {
   currentBid: number;
@@ -15,7 +15,7 @@ interface BidControlsProps {
   onPauseToggle?: () => void;
   isPaused?: boolean;
   onStartAccelerated?: () => void;
-  onBringBackUnsold?: () => void;
+  showStartAccelerated?: boolean;
 }
 
 export const BidControls = ({
@@ -31,7 +31,7 @@ export const BidControls = ({
   onPauseToggle,
   isPaused,
   onStartAccelerated,
-  onBringBackUnsold,
+  showStartAccelerated,
 }: BidControlsProps) => {
   const nextBid = getNextBid(currentBid);
   const canAfford = purseRemaining >= nextBid;
@@ -68,17 +68,10 @@ export const BidControls = ({
           </Button>
         )}
 
-        {isHost && onStartAccelerated && (
+        {isHost && showStartAccelerated && onStartAccelerated && (
           <Button variant="outline" size="lg" onClick={onStartAccelerated} className="w-full">
             <FastForward className="w-5 h-5" />
             Start Accelerated Round
-          </Button>
-        )}
-
-        {isHost && onBringBackUnsold && (
-          <Button variant="outline" size="lg" onClick={onBringBackUnsold} className="w-full">
-            <RotateCcw className="w-5 h-5" />
-            Bring Back Unsold
           </Button>
         )}
       </div>
