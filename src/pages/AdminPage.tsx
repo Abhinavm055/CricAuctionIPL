@@ -3,6 +3,7 @@ import { collection, onSnapshot, setDoc, doc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { IPL_TEAMS } from '@/lib/constants';
 import { EditablePlayer } from '@/components/PlayerForm';
 import { PlayersManager } from '@/components/PlayersManager';
 import { TeamsManager } from '@/components/TeamsManager';
@@ -37,7 +38,18 @@ const AdminPage = () => {
     });
 
     const unsubTeams = onSnapshot(collection(db, 'teams'), (snap) => {
-      const mapped = snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<TeamRecord, 'id'>) }));
+      const mapped = snap.docs.map((d) => {
+        const data = d.data() as Omit<TeamRecord, 'id'>;
+        const fallback = IPL_TEAMS.find((team) => team.id === d.id);
+        return {
+          id: d.id,
+          ...data,
+          name: data.name || fallback?.name || d.id.toUpperCase(),
+          shortName: data.shortName || fallback?.shortName || d.id.toUpperCase(),
+          logo: data.logo || fallback?.logo,
+          players: data.players || [],
+        };
+      });
       setTeams(mapped);
     });
 
