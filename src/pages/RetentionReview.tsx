@@ -5,6 +5,7 @@ import { listenSession, listenTeams, startAuction } from "@/lib/sessionService";
 import { IPL_TEAMS, formatPrice } from "@/lib/constants";
 import { useGameData } from "@/contexts/GameDataContext";
 import { User } from "lucide-react";
+import { TeamLogo } from "@/components/TeamLogo";
 
 const RetentionReview = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
@@ -51,9 +52,7 @@ const RetentionReview = () => {
           return (
             <div key={team.id} className="p-4 border rounded-xl bg-secondary/30">
               <div className="flex items-center gap-3 mb-2">
-                <div className="w-10 h-10 rounded-md bg-secondary border border-white/10 overflow-hidden flex items-center justify-center">
-                  {teamDoc.logo ? <img src={teamDoc.logo} alt={`${team.shortName} logo`} className="w-full h-full object-cover" /> : <span className="text-xs font-bold">{team.shortName}</span>}
-                </div>
+                <TeamLogo logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
                 <h2 className="font-display text-xl">{team.shortName}</h2>
               </div>
               <div className="flex gap-2 flex-wrap mb-3">

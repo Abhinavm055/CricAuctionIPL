@@ -1,13 +1,12 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { generateGameCode } from '@/lib/constants';
-import { Gavel, Users, Bot } from 'lucide-react';
+import { Gavel, Users, Bot, Shield } from 'lucide-react';
 
 const Landing = () => {
   const navigate = useNavigate();
 
-  const handleCreateGame = () => navigate('/multiplayer');
-  const handleJoinGame = () => navigate('/multiplayer');
+  const handlePlayMultiplayer = () => navigate('/multiplayer');
   const handlePlayWithAI = () => {
     const code = generateGameCode();
     navigate(`/lobby/${code}?host=true&ai=true`);
@@ -30,17 +29,14 @@ const Landing = () => {
           </h2>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6 mb-10 w-full max-w-5xl">
+        <div className="grid md:grid-cols-2 gap-6 w-full max-w-5xl">
           <div className="p-6 card-gradient rounded-2xl border border-border/50">
             <Users className="w-10 h-10 text-primary mb-3" />
             <h3 className="font-display text-2xl mb-2">VS Multiplayer Auction</h3>
             <p className="text-sm text-muted-foreground mb-4">
               Host or join a live IPL auction with friends. Human players control selected teams while unselected teams are handled by the AI engine.
             </p>
-            <div className="flex gap-2">
-              <Button variant="gold" size="lg" onClick={handleCreateGame} className="flex-1">Create</Button>
-              <Button variant="outline" size="lg" onClick={handleJoinGame} className="flex-1">Join</Button>
-            </div>
+            <Button variant="gold" size="lg" onClick={handlePlayMultiplayer} className="w-full">Play Multiplayer</Button>
           </div>
 
           <div className="p-6 card-gradient rounded-2xl border border-border/50">
@@ -53,6 +49,14 @@ const Landing = () => {
           </div>
         </div>
       </main>
+
+      <Link
+        to="/admin"
+        className="fixed bottom-5 right-5 z-50 w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center"
+        aria-label="Open admin panel"
+      >
+        <Shield className="w-5 h-5" />
+      </Link>
     </div>
   );
 };

@@ -6,6 +6,7 @@ import { listenSession, listenTeams, lockRetention } from "@/lib/sessionService"
 import type { Player } from "@/lib/samplePlayers";
 import { useGameData } from "@/contexts/GameDataContext";
 import { User } from "lucide-react";
+import { TeamLogo } from "@/components/TeamLogo";
 
 const Retention = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
@@ -145,8 +146,9 @@ const Retention = () => {
           const teamDoc = teams.find((tm) => tm.id === t.id);
           const r = session?.retentions?.[t.id];
           return (
-            <div key={t.id} className="p-2 border rounded">
-              {t.shortName}: Purse {formatPrice(teamDoc?.purseRemaining || t.purse)} • Ret {teamDoc?.retainedPlayers?.length ?? r?.players?.length ?? 0} • RTM {teamDoc?.rtmCards ?? r?.rtm ?? 0}
+            <div key={t.id} className="p-2 border rounded flex items-center gap-2">
+              <TeamLogo logo={(teamDoc as any)?.logo || (t as any).logo} shortName={t.shortName} size="sm" />
+              <div>{t.shortName}: Purse {formatPrice(teamDoc?.purseRemaining || t.purse)} • Ret {teamDoc?.retainedPlayers?.length ?? r?.players?.length ?? 0} • RTM {teamDoc?.rtmCards ?? r?.rtm ?? 0}</div>
             </div>
           );
         })}

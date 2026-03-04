@@ -7,7 +7,7 @@ import { BidTimer } from "@/components/BidTimer";
 import { BidControls } from "@/components/BidControls";
 import { Player } from "@/lib/samplePlayers";
 import { useGameData } from "@/contexts/GameDataContext";
-import { getNextBid, SQUAD_CONSTRAINTS } from "@/lib/constants";
+import { getNextBid, IPL_TEAMS, SQUAD_CONSTRAINTS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Trophy, ArrowLeft } from "lucide-react";
 import {
@@ -27,6 +27,7 @@ export interface TeamState {
   name: string;
   shortName: string;
   color: string;
+  logo?: string;
   purseRemaining: number;
   players: string[];
   retainedPlayers: string[];
@@ -57,7 +58,13 @@ const Auction = () => {
 
   useEffect(() => {
     if (!gameCode) return;
-    const unsub = listenTeams(gameCode, (teamDocs) => setTeams(teamDocs as TeamState[]));
+    const unsub = listenTeams(gameCode, (teamDocs) => {
+      const enriched = (teamDocs as any[]).map((team) => ({
+        ...IPL_TEAMS.find((t) => t.id === team.id),
+        ...team,
+      }));
+      setTeams(enriched as TeamState[]);
+    });
     return () => unsub();
   }, [gameCode]);
 

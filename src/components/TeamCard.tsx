@@ -1,5 +1,6 @@
 import { formatPrice, SQUAD_CONSTRAINTS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
+import { TeamLogo } from './TeamLogo';
 
 interface TeamCardProps {
   id: string;
@@ -54,16 +55,7 @@ export const TeamCard = ({
         style={{ backgroundColor: `hsl(var(--${color}))` }}
       />
 
-      <div
-        className="w-12 h-12 rounded-full mx-auto mb-2 flex items-center justify-center font-display text-xs font-bold overflow-hidden"
-        style={{
-          backgroundColor: `hsl(var(--${color}) / 0.2)`,
-          color: `hsl(var(--${color}))`,
-          border: `2px solid hsl(var(--${color}))`,
-        }}
-      >
-        {logo ? <img src={logo} alt={`${shortName} logo`} className="w-full h-full object-cover" /> : shortName}
-      </div>
+      <TeamLogo logo={logo} shortName={shortName} size="lg" className="mx-auto mb-2 rounded-full" />
 
       <h3 className="font-display text-base text-center mb-2" style={{ color: `hsl(var(--${color}))` }}>
         {shortName}
