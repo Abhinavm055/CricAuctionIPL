@@ -19,6 +19,7 @@ import {
   skipCurrentPlayer,
   togglePauseAuction,
   startAcceleratedRound,
+  skipAcceleratedRound,
 } from "@/lib/sessionService";
 import { getAIBid } from "@/lib/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
@@ -42,6 +43,43 @@ export interface TeamState {
 }
 
 const isOverseasPlayer = (player: any) => Boolean(player?.overseas ?? player?.isOverseas);
+
+const normalizeRoleKey = (role: string) => {
+  const key = String(role || "").toLowerCase();
+  if (key.includes("wicket")) return "wk";
+  if (key.includes("all")) return "ar";
+  if (key.includes("bowl")) return "bowl";
+  return "bat";
+};
+
+const buildLeaderboard = (teams: TeamState[], resolved: Record<string, { retained: Player[]; bought: Player[] }>) => {
+  return teams
+    .map((team) => {
+      const roster = [...(resolved[team.id]?.retained || []), ...(resolved[team.id]?.bought || [])];
+      const ratings = roster.map((p: any) => Number(p?.rating ?? p?.starRating ?? 0)).filter((v) => Number.isFinite(v) && v > 0);
+      const averagePlayerRating = ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : 0;
+      const roleSet = new Set(roster.map((p) => normalizeRoleKey(String((p as any).role || ""))));
+      const squadBalanceBonus = roleSet.size * 2.5;
+      const squadSize = Number(team.squadSize || roster.length);
+      const squadSizeBonus = Math.max(0, Math.min(10, squadSize - SQUAD_CONSTRAINTS.MIN_SQUAD));
+      const eliminated = squadSize < SQUAD_CONSTRAINTS.MIN_SQUAD;
+      const teamScore = Number((averagePlayerRating * 10 + squadBalanceBonus + squadSizeBonus).toFixed(2));
+
+      return {
+        ...team,
+        squadSize,
+        averagePlayerRating,
+        squadBalanceBonus,
+        squadSizeBonus,
+        teamScore,
+        eliminated,
+      };
+    })
+    .sort((a, b) => {
+      if (a.eliminated !== b.eliminated) return a.eliminated ? 1 : -1;
+      return b.teamScore - a.teamScore;
+    });
+};
 
 const Auction = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
@@ -280,13 +318,19 @@ const Auction = () => {
   const showAcceleratedButton = useMemo(() => {
     if (!isHost) return false;
     const queueIndex = Number(session?.queueIndex ?? -1);
-    const endedNormalQueue = queueLength > 0 && queueIndex >= queueLength;
-    return endedNormalQueue && Number((session?.unsoldPlayers || []).length) > 0;
-  }, [isHost, session?.queueIndex, session?.unsoldPlayers, queueLength]);
+    const endedQueue = queueLength > 0 && queueIndex >= queueLength;
+    return endedQueue && Number((session?.unsoldPlayers || []).length) > 0 && !session?.isAcceleratedRound;
+  }, [isHost, session?.queueIndex, session?.unsoldPlayers, session?.isAcceleratedRound, queueLength]);
 
-  const auctionEnded =
-    (session?.phase === "AUCTION_COMPLETE") ||
-    (queueLength > 0 && session?.queueIndex >= queueLength - 1 && ["SOLD", "UNSOLD", "IDLE"].includes(currentAuction?.status || "") && !pendingRtm);
+  const leaderboard = useMemo(() => buildLeaderboard(teams, teamPlayersResolved), [teams, teamPlayersResolved]);
+
+  const showAcceleratedDecision = useMemo(() => {
+    const queueIndex = Number(session?.queueIndex ?? -1);
+    const endedQueue = queueLength > 0 && queueIndex >= queueLength;
+    return endedQueue && Number((session?.unsoldPlayers || []).length) > 0 && !session?.isAcceleratedRound && !session?.acceleratedRoundSkipped;
+  }, [queueLength, session?.queueIndex, session?.unsoldPlayers, session?.isAcceleratedRound, session?.acceleratedRoundSkipped]);
+
+  const auctionEnded = (session?.phase === "AUCTION_COMPLETE") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
 
   if (!session || !userTeam) return <p className="p-6">Loading auction…</p>;
 
@@ -311,7 +355,40 @@ const Auction = () => {
         </div>
       )}
 
-      <main className="flex-1 p-4 md:p-6">
+      {auctionEnded && showAcceleratedDecision && (
+        <div className="p-6 mx-auto max-w-3xl w-full">
+          <div className="border rounded-xl p-6 bg-card/60 space-y-4 text-center">
+            <h2 className="text-2xl font-display">Main Auction Complete</h2>
+            <p className="text-muted-foreground">{(session?.unsoldPlayers || []).length} players are unsold. Start the accelerated round (10s timer) or skip to leaderboard.</p>
+            {isHost ? (
+              <div className="flex gap-3 justify-center">
+                <Button onClick={() => startAcceleratedRound(gameCode!)}>Start Accelerated Round</Button>
+                <Button variant="outline" onClick={() => skipAcceleratedRound(gameCode!)}>Skip to Leaderboard</Button>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Waiting for host decision…</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {auctionEnded && !showAcceleratedDecision && (
+        <div className="p-6 mx-auto max-w-3xl w-full">
+          <div className="border rounded-xl p-6 bg-card/60 space-y-3">
+            <h2 className="text-2xl font-display">Final Leaderboard</h2>
+            <div className="space-y-2">
+              {leaderboard.map((team, index) => (
+                <div key={team.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
+                  <p className="font-semibold">{index + 1}. {team.shortName}{team.eliminated ? ' (Eliminated)' : ''}</p>
+                  <p className="text-sm text-muted-foreground">Score {team.teamScore.toFixed(2)} • Squad {team.squadSize}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!auctionEnded && <main className="flex-1 p-4 md:p-6">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 max-w-7xl mx-auto">
           <div className="lg:col-span-3 overflow-x-auto">
             <div className="grid grid-flow-col lg:grid-flow-row auto-cols-[180px] lg:auto-cols-auto lg:grid-cols-2 gap-2">
@@ -394,7 +471,7 @@ const Auction = () => {
             </div>
           </div>
         </div>
-      </main>
+      </main>}
 
       <TeamDetailsPanel
         open={!!selectedTeamId}

@@ -127,7 +127,19 @@ export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersMan
 
     if (player.id) {
       const existing = players.find((p) => p.id === player.id);
-      await setDoc(doc(db, 'players', player.id), payload, { merge: true });
+      await updateDoc(doc(db, 'players', player.id), {
+        name: payload.name,
+        role: payload.role,
+        rating: payload.rating,
+        starRating: payload.rating,
+        basePrice: payload.basePrice,
+        overseas: payload.overseas,
+        isOverseas: payload.overseas,
+        previousTeamId: payload.previousTeamId,
+        previousTeam: payload.previousTeam,
+        image: payload.image,
+        pool: payload.pool,
+      });
       await syncTeamMembership(player.id, player.previousTeamId, existing?.previousTeamId || '');
       toast({ title: 'Player updated', description: `${player.name} saved.` });
     } else {
