@@ -41,7 +41,6 @@ const Lobby = () => {
 
   useEffect(() => {
     if (!isHost || !session || !gameCode) return;
-    if (session.mode !== 'VS_AI') return;
     if (session.isAIFilled) return;
 
     const selectedTeams = session.selectedTeams || {};
@@ -72,7 +71,7 @@ const Lobby = () => {
   const selectedTeams = session.selectedTeams || {};
   const myConfirmedTeam = Object.entries(selectedTeams).find(([_, uid]) => uid === userId)?.[0];
   const confirmedTeamsCount = Object.keys(selectedTeams).length;
-  const canStartRetention = session.mode === 'VS_AI' ? confirmedTeamsCount >= 10 : confirmedTeamsCount >= 2;
+  const canStartRetention = confirmedTeamsCount >= 10;
 
   const handleConfirmTeam = async () => {
     if (!draftTeam || !gameCode) return;
@@ -123,7 +122,7 @@ const Lobby = () => {
           <p className="text-muted-foreground">
             {session.mode === 'VS_AI'
               ? 'Pick one team. Remaining 9 teams will be controlled by AI.'
-              : 'Choose your team. Once confirmed, your choice is locked.'}
+              : 'Human players can lock teams. Unlocked teams auto-fill as AI.'}
           </p>
         </div>
 
