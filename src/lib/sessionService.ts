@@ -130,6 +130,7 @@ export const createSession = async (gameCode: string, hostId: string, mode: "MUL
     unsoldPlayers: [],
     recentPurchases: [],
     isAcceleratedRound: false,
+    acceleratedRoundSkipped: false,
     pendingRtm: null,
     currentAuction: {
       activePlayerId: null,
@@ -334,6 +335,7 @@ export const startAuction = async (gameCode: string) => {
     unsoldPlayers: [],
     recentPurchases: [],
     isAcceleratedRound: false,
+    acceleratedRoundSkipped: false,
     pendingRtm: null,
     currentAuction: {
       activePlayerId: null,
@@ -652,8 +654,19 @@ export const startAcceleratedRound = async (gameCode: string) => {
       queueIndex: -1,
       unsoldPlayers: [],
       isAcceleratedRound: true,
+      acceleratedRoundSkipped: false,
       currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE" },
     });
+  });
+};
+
+
+export const skipAcceleratedRound = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await updateDoc(sessionRef, {
+    phase: "AUCTION_COMPLETE",
+    acceleratedRoundSkipped: true,
+    currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE" },
   });
 };
 

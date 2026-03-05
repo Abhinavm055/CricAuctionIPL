@@ -15,14 +15,12 @@ export const PLAYER_ROLES = ['Batsman', 'Bowler', 'All-Rounder', 'Wicket-Keeper'
 
 export const AUCTION_POOLS = ['Marquee', 'Batters', 'All-Rounders', 'Wicketkeepers', 'Bowlers', 'Uncapped', 'Accelerated'] as const;
 
-// Official IPL-style increments requested by product rules
+// Official IPL bid increments
 export const PRICE_INCREMENTS = [
-  { threshold: 0, increment: 1000000 },         // 20L - 1Cr: +10L
-  { threshold: 10000000, increment: 2000000 },  // 1Cr - 2Cr: +20L
-  { threshold: 20000000, increment: 2500000 },  // 2Cr - 5Cr: +25L
-  { threshold: 50000000, increment: 5000000 },  // 5Cr - 10Cr: +50L
-  { threshold: 100000000, increment: 10000000 },// 10Cr - 20Cr: +1Cr
-  { threshold: 200000000, increment: 20000000 },// 20Cr+: +2Cr
+  { threshold: 0, increment: 500000 },         // Up to 1Cr: +5L
+  { threshold: 10000000, increment: 1000000 }, // 1Cr to <2Cr: +10L
+  { threshold: 20000000, increment: 2000000 }, // 2Cr to <5Cr: +20L
+  { threshold: 50000000, increment: 2500000 }, // 5Cr onward: +25L
 ] as const;
 
 export const RETENTION_COSTS = {
@@ -70,7 +68,7 @@ export const formatPrice = (price: number): string => {
 
 export const getNextBid = (currentBid: number): number => {
   const slab = PRICE_INCREMENTS.slice().reverse().find((p) => currentBid >= p.threshold);
-  return currentBid + (slab?.increment || 1000000);
+  return currentBid + (slab?.increment || 500000);
 };
 
 export const generateGameCode = (): string => {
