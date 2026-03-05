@@ -49,6 +49,16 @@ export const SQUAD_CONSTRAINTS = {
   MAX_OVERSEAS: 8,
 } as const;
 
+
+export const AI_STRATEGIES = ['aggressive', 'balanced', 'budget', 'starHunter', 'roleFocused'] as const;
+
+export const TEAM_NEEDS_TEMPLATE = {
+  batter: 6,
+  bowler: 6,
+  allRounder: 4,
+  wicketkeeper: 2,
+} as const;
+
 export const AUCTION_TIMER = 30;
 export const BID_RESET_TIMER = 10;
 

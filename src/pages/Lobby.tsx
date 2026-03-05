@@ -1,25 +1,17 @@
-import { useEffect, useState, useMemo } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { IPL_TEAMS } from "@/lib/constants";
-import { cn } from "@/lib/utils";
-import { Check, Copy, Users, Play, ArrowLeft, ShieldCheck } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import {
-  selectTeam,
-  listenSession,
-  startAuction,
-  fillAITeams,
-} from "@/lib/sessionService";
-import { startRetention } from "@/lib/sessionService";
-import { TeamLogo } from "@/components/TeamLogo";
-
+import { useEffect, useState, useMemo } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { IPL_TEAMS } from '@/lib/constants';
+import { cn } from '@/lib/utils';
+import { Check, Copy, Users, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
+import { selectTeam, listenSession, fillAITeams, startRetention } from '@/lib/sessionService';
+import { TeamLogo } from '@/components/TeamLogo';
 
 const Lobby = () => {
-  // 1. HOOKS (Must always be at the top and always execute in the same order)
   const { gameCode } = useParams<{ gameCode: string }>();
   const [searchParams] = useSearchParams();
-  const isHost = searchParams.get("host") === "true";
+  const isHost = searchParams.get('host') === 'true';
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -28,67 +20,46 @@ const Lobby = () => {
   const [draftTeam, setDraftTeam] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Stable userId
   const userId = useMemo(() => {
-    const existing = localStorage.getItem("uid");
+    const existing = localStorage.getItem('uid');
     if (existing) return existing;
-    const id = "user-" + Math.random().toString(36).slice(2, 9);
-    localStorage.setItem("uid", id);
+    const id = `user-${Math.random().toString(36).slice(2, 9)}`;
+    localStorage.setItem('uid', id);
     return id;
   }, []);
 
-  // Effect 1: Real-time listener
   useEffect(() => {
     if (!gameCode) return;
     const unsub = listenSession(gameCode, (data) => setSession(data));
     return () => unsub();
   }, [gameCode]);
 
-  // Effect 2: Auto-navigation
   useEffect(() => {
-    if (session?.phase === "AUCTION") {
-      navigate(`/auction/${gameCode}`);
-    }
+    if (session?.phase === 'AUCTION') navigate(`/auction/${gameCode}`);
+    if (session?.phase === 'RETENTION') navigate(`/retention/${gameCode}`);
   }, [session?.phase, gameCode, navigate]);
 
-  // Effect 3: AI Auto-fill Logic (Safe top-level Hook)
   useEffect(() => {
-    // Exit early inside the effect, not by skipping the hook itself
-    if (!isHost || !session || session.aiFillDone) return;
+    if (!isHost || !session || !gameCode) return;
+    if (session.isAIFilled) return;
 
     const selectedTeams = session.selectedTeams || {};
-    const playersJoined = session.playersJoined || [];
-    
-    // Check if every human in the lobby has chosen a team
-    const allHumansSelected = playersJoined.length > 0 && playersJoined.every((uid: string) => 
-      Object.values(selectedTeams).includes(uid)
-    );
+    const humanSelected = Object.values(selectedTeams).some((uid: string) => !uid.startsWith('AI-'));
+    if (!humanSelected) return;
 
-    if (allHumansSelected) {
-      const fillRemainingTeams = async () => {
-        const takenTeamIds = Object.keys(selectedTeams);
-        const remainingTeams = IPL_TEAMS.filter(t => !takenTeamIds.includes(t.id));
-        
-        try {
-          for (const team of remainingTeams) {
-            await selectTeam(gameCode!, team.id, `AI-${team.id}`);
-          }
-          await fillAITeams(gameCode!);
-        } catch (error) {
-          console.error("AI Fill failed:", error);
-        }
-      };
-      fillRemainingTeams();
-    }
+    const fillRemainingTeams = async () => {
+      const takenTeamIds = Object.keys(selectedTeams);
+      const remainingTeams = IPL_TEAMS.filter((team) => !takenTeamIds.includes(team.id));
+
+      for (const team of remainingTeams) {
+        await selectTeam(gameCode, team.id, `AI-${team.id}`);
+      }
+      await fillAITeams(gameCode);
+    };
+
+    fillRemainingTeams().catch((error) => console.error('AI Fill failed:', error));
   }, [isHost, session, gameCode]);
-  useEffect(() => {
-  if (session?.phase === "RETENTION") {
-    navigate(`/retention/${gameCode}`);
-  }
-}, [session?.phase, gameCode, navigate]);
 
-
-  // 2. EARLY RETURN (Only allowed AFTER all hooks are declared)
   if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -97,61 +68,46 @@ const Lobby = () => {
     );
   }
 
-  // 3. LOGIC & HELPERS
   const selectedTeams = session.selectedTeams || {};
-  const playersJoined = session.playersJoined || [];
-  
-  const myConfirmedTeam = Object.entries(selectedTeams).find(
-    ([_, uid]) => uid === userId
-  )?.[0];
-
+  const myConfirmedTeam = Object.entries(selectedTeams).find(([_, uid]) => uid === userId)?.[0];
   const confirmedTeamsCount = Object.keys(selectedTeams).length;
-  const canStartAuction = confirmedTeamsCount >= 2;
-
+  const canStartRetention = confirmedTeamsCount >= 10;
 
   const handleConfirmTeam = async () => {
     if (!draftTeam || !gameCode) return;
     setIsSubmitting(true);
     try {
       await selectTeam(gameCode, draftTeam, userId);
-      toast({ title: "Team Locked!", description: "Waiting for host..." });
-    } catch (e: any) {
-      toast({
-        title: "Selection Failed",
-        description: e.message,
-        variant: "destructive",
-      });
+      toast({ title: 'Team Locked!', description: 'Waiting for host...' });
+    } catch (error: any) {
+      toast({ title: 'Selection Failed', description: error.message, variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const copyCode = () => {
-    navigator.clipboard.writeText(gameCode || "");
+    navigator.clipboard.writeText(gameCode || '');
     setCopied(true);
-    toast({ title: "Code Copied" });
+    toast({ title: 'Code Copied' });
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="min-h-screen broadcast-container p-6">
       <div className="relative z-10 max-w-6xl mx-auto">
-        {/* HEADER */}
         <header className="flex items-center justify-between mb-10">
-          <Button variant="ghost" onClick={() => navigate("/")} className="text-muted-foreground">
+          <Button variant="ghost" onClick={() => navigate('/')} className="text-muted-foreground">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
 
           <h1 className="font-display text-3xl tracking-tighter text-primary">
-            CRIC<span className="text-foreground">AUCTION</span>
+            {session.mode === 'VS_AI' ? 'VS AI LOBBY' : 'CRICAUCTION'}
           </h1>
 
           <div className="flex flex-col items-end">
             <span className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Room Code</span>
-            <button
-              onClick={copyCode}
-              className="flex items-center gap-3 px-4 py-2 bg-secondary/50 hover:bg-secondary border border-white/10 rounded-lg transition-colors"
-            >
+            <button onClick={copyCode} className="flex items-center gap-3 px-4 py-2 bg-secondary/50 hover:bg-secondary border border-white/10 rounded-lg transition-colors">
               <code className="font-mono text-xl font-bold">{gameCode}</code>
               {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-primary" />}
             </button>
@@ -161,23 +117,22 @@ const Lobby = () => {
         <div className="mb-8">
           <h2 className="font-display text-2xl mb-2 flex items-center gap-2">
             <Users className="w-6 h-6 text-primary" />
-            {myConfirmedTeam ? "Lobby Ready" : "Select Your Franchise"}
+            {myConfirmedTeam ? 'Lobby Ready' : 'Select Your Franchise'}
           </h2>
           <p className="text-muted-foreground">
-            {myConfirmedTeam 
-              ? "Waiting for the host to finalize teams and start." 
-              : "Choose your team. Once confirmed, your choice is locked."}
+            {session.mode === 'VS_AI'
+              ? 'Pick one team. Remaining 9 teams will be controlled by AI.'
+              : 'Human players can lock teams. Unlocked teams auto-fill as AI.'}
           </p>
         </div>
 
-        {/* TEAM GRID */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
           {IPL_TEAMS.map((team) => {
             const takenBy = selectedTeams[team.id];
             const isTaken = !!takenBy;
             const isMine = myConfirmedTeam === team.id;
             const isDraft = draftTeam === team.id;
-            const isAI = takenBy?.startsWith("AI-");
+            const isAI = String(takenBy || '').startsWith('AI-');
 
             return (
               <button
@@ -185,11 +140,11 @@ const Lobby = () => {
                 disabled={!!myConfirmedTeam || (isTaken && !isMine)}
                 onClick={() => setDraftTeam(team.id)}
                 className={cn(
-                  "relative p-4 rounded-xl border-2 transition-all duration-300 text-left h-32 flex flex-col justify-between overflow-hidden",
-                  "bg-card/40 backdrop-blur-sm border-white/5",
-                  isDraft && !myConfirmedTeam && "border-yellow-500 bg-yellow-500/10 shadow-[0_0_15px_rgba(234,179,8,0.2)]",
-                  isMine && "border-primary bg-primary/10",
-                  isTaken && !isMine && "opacity-40 cursor-not-allowed grayscale"
+                  'relative p-4 rounded-xl border-2 transition-all duration-300 text-left h-32 flex flex-col justify-between overflow-hidden',
+                  'bg-card/40 backdrop-blur-sm border-white/5',
+                  isDraft && !myConfirmedTeam && 'border-yellow-500 bg-yellow-500/10',
+                  isMine && 'border-primary bg-primary/10',
+                  isTaken && !isMine && 'opacity-50 cursor-not-allowed grayscale',
                 )}
               >
                 <div>
@@ -203,67 +158,27 @@ const Lobby = () => {
                     <ShieldCheck className="w-3 h-3" /> SECURED
                   </div>
                 )}
-                
-                {isAI && (
-                  <div className="text-[10px] font-bold text-muted-foreground italic">AI BOT</div>
-                )}
-
-                {isTaken && !isMine && !isAI && (
-                  <div className="text-[10px] font-bold text-red-500">OCCUPIED</div>
-                )}
+                {isAI && <div className="text-[10px] font-bold text-muted-foreground italic">AI BOT</div>}
+                {isTaken && !isMine && !isAI && <div className="text-[10px] font-bold text-red-500">OCCUPIED</div>}
               </button>
             );
           })}
         </div>
 
-        {/* ACTION AREA */}
         <div className="flex flex-col items-center gap-6 py-8 border-t border-white/5">
           {!myConfirmedTeam && draftTeam && (
-            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <Button
-                variant="gold"
-                size="xl"
-                className="px-12 shadow-lg shadow-yellow-600/20"
-                onClick={handleConfirmTeam}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Locking..." : `Confirm ${draftTeam}`}
-              </Button>
-            </div>
-          )}
-           {isHost && (
-              <div className="flex justify-center">
-                  <Button
-                   variant="gold"
-                   size="xl"
-                   disabled={!canStartAuction}
-                   onClick={() => startRetention(gameCode!)}
-                   >
-                  Proceed to Retention
-                </Button>
-               </div>
-             )}
-
-          {/* always-available button for routing to retention */}
-          <div className="flex justify-center mt-4 w-full">
-            <Button
-              variant="gold"
-              size="xl"
-              className="w-full"
-              onClick={() => navigate(`/retention/${gameCode}`)}
-            >
-              Start Retention
+            <Button variant="gold" size="xl" className="px-12" onClick={handleConfirmTeam} disabled={isSubmitting}>
+              {isSubmitting ? 'Locking...' : `Confirm ${draftTeam.toUpperCase()}`}
             </Button>
-          </div>
-
-
-          {!isHost && myConfirmedTeam && (
-            <div className="flex flex-col items-center gap-2">
-              <p className="text-muted-foreground animate-pulse">
-                The auctioneer is preparing the room...
-              </p>
-            </div>
           )}
+
+          {isHost && (
+            <Button variant="gold" size="xl" disabled={!canStartRetention} onClick={() => startRetention(gameCode!)}>
+              Proceed to Retention
+            </Button>
+          )}
+
+          {!isHost && myConfirmedTeam && <p className="text-muted-foreground animate-pulse">Host is preparing the auction...</p>}
         </div>
       </div>
     </div>

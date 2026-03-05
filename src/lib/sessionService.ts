@@ -20,7 +20,10 @@ import {
   getNextBid,
   RETENTION_COSTS,
   SQUAD_CONSTRAINTS,
+  AI_STRATEGIES,
+  TEAM_NEEDS_TEMPLATE,
 } from "@/lib/constants";
+import { runAIRetentionEngine } from "@/lib/aiRetentionEngine";
 
 const OFFICIAL_POOL_ORDER = [
   "marquee",
@@ -80,10 +83,36 @@ export const listenTeams = (gameCode: string, callback: (teams: any[]) => void) 
 };
 
 export const fillAITeams = async (gameCode: string) => {
-  await updateDoc(doc(db, "sessions", gameCode), { aisAI: true, updatedAt: serverTimestamp() });
+  const sessionRef = doc(db, "sessions", gameCode);
+  const snap = await getDoc(sessionRef);
+  if (!snap.exists()) return;
+
+  const sessionData = snap.data() as any;
+  const selectedTeams = { ...(sessionData.selectedTeams || {}) } as Record<string, string>;
+
+  IPL_TEAMS.forEach((team) => {
+    if (!selectedTeams[team.id]) selectedTeams[team.id] = `AI-${team.id}`;
+  });
+
+  const allTeams = IPL_TEAMS.map((team) => ({
+    id: team.id,
+    name: team.name,
+    isAI: String(selectedTeams[team.id] || '').startsWith('AI-'),
+  }));
+
+  const batch = writeBatch(db);
+  batch.update(sessionRef, { selectedTeams, allTeams, isAIFilled: true, updatedAt: serverTimestamp() });
+
+  IPL_TEAMS.forEach((team) => {
+    batch.update(doc(db, "sessions", gameCode, "teams", team.id), {
+      isAI: String(selectedTeams[team.id] || '').startsWith('AI-'),
+    });
+  });
+
+  await batch.commit();
 };
 
-export const createSession = async (gameCode: string, hostId: string) => {
+export const createSession = async (gameCode: string, hostId: string, mode: "MULTIPLAYER" | "VS_AI" = "MULTIPLAYER") => {
   const sessionRef = doc(db, "sessions", gameCode);
   const batch = writeBatch(db);
 
@@ -94,6 +123,7 @@ export const createSession = async (gameCode: string, hostId: string) => {
     selectedTeams: {},
     retentions: {},
     playersJoined: [hostId],
+    mode,
     allTeams: IPL_TEAMS.map((t) => ({ id: t.id, name: t.name, isAI: true })),
     auctionQueue: [],
     queueIndex: -1,
@@ -110,7 +140,7 @@ export const createSession = async (gameCode: string, hostId: string) => {
     },
   });
 
-  IPL_TEAMS.forEach((team) => {
+  IPL_TEAMS.forEach((team, index) => {
     batch.set(doc(collection(sessionRef, "teams"), team.id), {
       ...team,
       purseRemaining: team.purse,
@@ -120,7 +150,9 @@ export const createSession = async (gameCode: string, hostId: string) => {
       squadSize: 0,
       overseasCount: 0,
       rtmCards: 0,
-      isAI: true,
+      isAI: mode === "VS_AI",
+      aiStrategy: AI_STRATEGIES[index % AI_STRATEGIES.length],
+      teamNeeds: { ...TEAM_NEEDS_TEMPLATE },
       createdAt: serverTimestamp(),
     });
   });
@@ -137,9 +169,15 @@ export const selectTeam = async (gameCode: string, teamId: string, userId: strin
   const snap = await getDoc(sessionRef);
   if (!snap.exists()) return;
 
-  const allTeams = (snap.data().allTeams || []).map((t: any) => (t.id === teamId ? { ...t, isAI: false } : t));
+  const selectedTeams = { ...(snap.data().selectedTeams || {}), [teamId]: userId };
+  const allTeams = IPL_TEAMS.map((team) => ({
+    id: team.id,
+    name: team.name,
+    isAI: String(selectedTeams[team.id] || '').startsWith('AI-'),
+  }));
+
   await updateDoc(sessionRef, { [`selectedTeams.${teamId}`]: userId, allTeams });
-  await updateDoc(doc(db, "sessions", gameCode, "teams", teamId), { isAI: false });
+  await updateDoc(doc(db, "sessions", gameCode, "teams", teamId), { isAI: userId.startsWith("AI-") });
 };
 
 export const startRetention = async (gameCode: string) => {
@@ -147,12 +185,60 @@ export const startRetention = async (gameCode: string) => {
   const snap = await getDoc(sessionRef);
   if (!snap.exists()) return;
 
-  const initialRetentions: any = {};
-  (snap.data().allTeams || []).forEach((team: any) => {
-    if (team.isAI) initialRetentions[team.id] = { players: [], capped: 0, uncapped: 0, rtm: 6, locked: true };
+  await fillAITeams(gameCode);
+
+  const refreshed = await getDoc(sessionRef);
+  if (!refreshed.exists()) return;
+  const sessionData = refreshed.data() as any;
+  const selectedTeams = (sessionData.selectedTeams || {}) as Record<string, string>;
+
+  const playersSnap = await getDocs(query(collection(db, "players")));
+  const players = playersSnap.docs.map((d) => ({ id: d.id, ...(d.data() as any) }));
+
+  const retentions: Record<string, { players: string[]; capped: number; uncapped: number; rtm: number; locked: boolean; lockedAt?: any }> = {
+    ...(sessionData.retentions || {}),
+  };
+
+  const batch = writeBatch(db);
+
+  IPL_TEAMS.forEach((team) => {
+    const owner = String(selectedTeams[team.id] || '');
+    const isAI = owner.startsWith('AI-');
+
+    if (!isAI) {
+      if (!retentions[team.id]) {
+        retentions[team.id] = { players: [], capped: 0, uncapped: 0, rtm: 6, locked: false };
+      }
+      return;
+    }
+
+    const aiResult = runAIRetentionEngine(team.id, team.shortName, players);
+    retentions[team.id] = {
+      players: aiResult.retainedIds,
+      capped: aiResult.cappedCount,
+      uncapped: aiResult.uncappedCount,
+      rtm: Math.max(0, 6 - aiResult.retainedIds.length),
+      locked: true,
+      lockedAt: serverTimestamp(),
+    };
+
+    batch.update(doc(db, "sessions", gameCode, "teams", team.id), {
+      retainedPlayers: aiResult.retainedIds,
+      rtmCards: Math.max(0, 6 - aiResult.retainedIds.length),
+      purseRemaining: Math.max(0, team.purse - aiResult.spend),
+      playerPurchasePrices: aiResult.priceMap,
+      squadSize: aiResult.retainedIds.length,
+      overseasCount: aiResult.overseasCount,
+    });
   });
 
-  await updateDoc(sessionRef, { phase: "RETENTION", retentionStartedAt: serverTimestamp(), retentions: initialRetentions });
+  batch.update(sessionRef, {
+    phase: "RETENTION",
+    retentionStartedAt: serverTimestamp(),
+    retentions,
+  });
+
+  await batch.commit();
 };
 
 export const lockRetention = async (
