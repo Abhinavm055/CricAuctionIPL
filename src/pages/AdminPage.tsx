@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, setDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,10 +15,6 @@ interface TeamRecord {
   logo?: string;
   players?: string[];
 }
-
-const defaultPlayerImage = (name: string) =>
-  `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'IPL Player')}&background=0f172a&color=ffffff&size=256`;
-
 
 const teamIdByShortName = IPL_TEAMS.reduce<Record<string, string>>((acc, team) => {
   acc[team.shortName.toLowerCase()] = team.id;
@@ -63,12 +59,6 @@ const AdminPage = () => {
       }).filter((player) => player.name);
 
       setPlayers(mapped);
-
-      mapped.forEach((player) => {
-        if (!player.image) {
-          setDoc(doc(db, 'players', player.id!), { image: defaultPlayerImage(player.name) }, { merge: true });
-        }
-      });
     });
 
     const unsubTeams = onSnapshot(collection(db, 'teams'), (snap) => {

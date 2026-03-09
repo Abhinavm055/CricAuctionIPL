@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { FormEvent, useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,7 +42,8 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = async () => {
+  const handleSave = async (event: FormEvent) => {
+    event.preventDefault();
     setSaving(true);
     try {
       await onSave(form);
@@ -52,7 +53,7 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
   };
 
   return (
-    <div className="space-y-4 p-4 border rounded-lg bg-card">
+    <form onSubmit={handleSave} className="space-y-4 p-4 border rounded-lg bg-card">
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Name</Label>
@@ -142,9 +143,9 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
       </div>
 
       <div className="flex gap-2">
-        <Button disabled={saving} onClick={handleSave}>{submitLabel}</Button>
-        <Button variant="outline" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" disabled={saving}>{submitLabel}</Button>
+        <Button type="button" variant="outline" onClick={onCancel}>Cancel</Button>
       </div>
-    </div>
+    </form>
   );
 };
