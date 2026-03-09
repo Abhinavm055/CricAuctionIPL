@@ -37,7 +37,7 @@ export const PlayerTable = ({ players, teamNameByPlayerId, teamIdByPlayerId = {}
             <TableRow key={player.id}>
               <TableCell>
                 {player.image ? (
-                  <img src={player.image} alt={player.name} className="w-9 h-9 rounded object-cover border" />
+                  <img src={player.image || "https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=128"} alt={player.name} className="w-9 h-9 rounded object-cover border" onError={(event) => { event.currentTarget.src = "https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=128"; }} />
                 ) : (
                   <div className="w-9 h-9 rounded bg-muted" />
                 )}

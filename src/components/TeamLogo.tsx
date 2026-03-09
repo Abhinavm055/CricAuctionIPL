@@ -23,7 +23,7 @@ export const TeamLogo = ({ teamId, logo, shortName = 'Team', size = 'md', classN
   return (
     <div className={cn('rounded-md bg-secondary/60 border border-white/10 overflow-hidden flex items-center justify-center', sizeClass[size], className)}>
       {resolvedLogo ? (
-        <img src={resolvedLogo} alt={`${shortName} logo`} className="w-[90%] h-[90%] object-contain" />
+        <img src={resolvedLogo} alt={`${shortName} logo`} className="w-[90%] h-[90%] object-contain" onError={(event) => { event.currentTarget.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(shortName)}&background=111827&color=ffffff&size=128`; }} />
       ) : (
         <ImageOff className="w-4 h-4 text-muted-foreground" />
       )}

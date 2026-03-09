@@ -19,6 +19,7 @@ interface TeamCardProps {
 }
 
 export const TeamCard = ({
+  id,
   shortName,
   color,
   logo,

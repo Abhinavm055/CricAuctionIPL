@@ -9,6 +9,7 @@ import {
   getDocs,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
   writeBatch,
@@ -25,6 +26,7 @@ import { PLAYER_ROLES } from '@/lib/constants';
 import { EditablePlayer, PlayerForm } from './PlayerForm';
 import { PlayerTable } from './PlayerTable';
 import { parsePlayersCsv } from '@/lib/csvImportPlayers';
+import { ensureTeamDocument } from '@/lib/initializeTeams';
 
 interface TeamRecord {
   id: string;
@@ -110,11 +112,13 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
 
   const syncTeamMembership = async (playerId: string, newTeamId: string, previousTeamId: string) => {
     if (previousTeamId && previousTeamId !== newTeamId) {
-      await updateDoc(doc(db, 'teams', previousTeamId), { players: arrayRemove(playerId) });
+      await ensureTeamDocument(previousTeamId);
+      await setDoc(doc(db, 'teams', previousTeamId), { players: arrayRemove(playerId) }, { merge: true });
     }
 
     if (newTeamId) {
-      await updateDoc(doc(db, 'teams', newTeamId), { players: arrayUnion(playerId) });
+      await ensureTeamDocument(newTeamId);
+      await setDoc(doc(db, 'teams', newTeamId), { players: arrayUnion(playerId) }, { merge: true });
     }
   };
 
@@ -153,7 +157,8 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
         createdAt: serverTimestamp(),
       });
       if (player.previousTeamId) {
-        await updateDoc(doc(db, 'teams', player.previousTeamId), { players: arrayUnion(created.id) });
+        await ensureTeamDocument(player.previousTeamId);
+        await setDoc(doc(db, 'teams', player.previousTeamId), { players: arrayUnion(created.id) }, { merge: true });
       }
       toast({ title: 'Player created', description: `${player.name} added to Firestore.` });
       setCreateOpen(false);
@@ -166,7 +171,8 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
     const player = players.find((p) => p.id === playerId);
     await deleteDoc(doc(db, 'players', playerId));
     if (player?.previousTeamId) {
-      await updateDoc(doc(db, 'teams', player.previousTeamId), { players: arrayRemove(playerId) });
+      await ensureTeamDocument(player.previousTeamId);
+      await setDoc(doc(db, 'teams', player.previousTeamId), { players: arrayRemove(playerId) }, { merge: true });
     }
     toast({ title: 'Player deleted' });
   };

@@ -33,7 +33,18 @@ interface PlayerFormProps {
 }
 
 export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Save Player' }: PlayerFormProps) => {
-  const [form, setForm] = useState<EditablePlayer>(initial);
+  const [form, setForm] = useState<EditablePlayer>({
+    id: initial.id,
+    name: initial.name || '',
+    role: initial.role || 'Batsman',
+    rating: Number(initial.rating ?? 3),
+    basePrice: Number(initial.basePrice ?? 0),
+    overseas: Boolean(initial.overseas),
+    pool: initial.pool || 'Batters',
+    previousTeamId: initial.previousTeamId || '',
+    nationality: initial.nationality || '',
+    image: initial.image || '',
+  });
   const [saving, setSaving] = useState(false);
 
   const imagePreview = useMemo(() => form.image.trim(), [form.image]);
@@ -142,7 +153,7 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
       {imagePreview && (
         <div className="space-y-2">
           <Label>Image Preview</Label>
-          <img src={imagePreview} alt={`${form.name || 'player'} preview`} className="w-20 h-20 object-cover rounded" />
+          <img src={imagePreview} alt={`${form.name || 'player'} preview`} className="w-20 h-20 object-cover rounded" onError={(event) => { event.currentTarget.src = "https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=128"; }} />
         </div>
       )}
 

@@ -4,6 +4,7 @@ import { db } from '@/lib/firebase';
 import { EditablePlayer } from '@/components/PlayerForm';
 import { PlayersManager } from '@/components/PlayersManager';
 import { IPL_TEAMS } from '@/lib/constants';
+import { initializeTeamsCollection } from '@/lib/initializeTeams';
 
 interface TeamRecord {
   id: string;
@@ -17,6 +18,7 @@ const AdminPlayersPage = () => {
   const [teams, setTeams] = useState<TeamRecord[]>([]);
 
   useEffect(() => {
+    initializeTeamsCollection().catch(() => undefined);
     const unsubPlayers = onSnapshot(collection(db, 'players'), (snapshot) => {
       const data = snapshot.docs.map((playerDoc) => {
         const raw = playerDoc.data() as Record<string, unknown>;
