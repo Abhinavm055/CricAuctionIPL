@@ -17,6 +17,7 @@ import {
   IPL_TEAMS,
   AUCTION_TIMER,
   BID_RESET_TIMER,
+  RTM_TIMER,
   getNextBid,
   RETENTION_COSTS,
   SQUAD_CONSTRAINTS,
@@ -497,6 +498,7 @@ export const finalizePlayerSale = async (gameCode: string) => {
             finalBid,
             status: "AWAIT_ORIGINAL",
             counterBid: getNextBid(finalBid),
+            expiresAt: Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
           },
           "currentAuction.status": "SOLD",
           "currentAuction.timerEndsAt": null,
@@ -537,7 +539,10 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
         return;
       }
       if (action === "ORIGINAL_YES") {
-        tx.update(sessionRef, { "pendingRtm.status": "AWAIT_WINNER_COUNTER" });
+        tx.update(sessionRef, {
+          "pendingRtm.status": "AWAIT_WINNER_COUNTER",
+          "pendingRtm.expiresAt": Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
+        });
       }
       return;
     }
@@ -557,6 +562,7 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
           "pendingRtm.status": "AWAIT_ORIGINAL_MATCH",
           "pendingRtm.finalBid": Number(pending.counterBid),
           "pendingRtm.counterBid": getNextBid(Number(pending.counterBid)),
+          "pendingRtm.expiresAt": Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
         });
       }
       return;
@@ -584,6 +590,29 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
   });
 };
 
+
+
+
+export const resolveRtmTimeout = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  const sessionSnap = await getDoc(sessionRef);
+  if (!sessionSnap.exists()) return;
+
+  const pending = sessionSnap.data().pendingRtm;
+  if (!pending) return;
+
+  if (pending.status === "AWAIT_ORIGINAL") {
+    await resolveRtmDecision(gameCode, "ORIGINAL_NO");
+    return;
+  }
+  if (pending.status === "AWAIT_WINNER_COUNTER") {
+    await resolveRtmDecision(gameCode, "WINNER_COUNTER_NO");
+    return;
+  }
+  if (pending.status === "AWAIT_ORIGINAL_MATCH") {
+    await resolveRtmDecision(gameCode, "ORIGINAL_MATCH_NO");
+  }
+};
 
 export const skipCurrentPlayer = async (gameCode: string) => {
   const sessionRef = doc(db, "sessions", gameCode);

@@ -15,6 +15,7 @@ import {
   listenTeams,
   placeBid,
   resolveRtmDecision,
+  resolveRtmTimeout,
   startNextPlayer,
   skipCurrentPlayer,
   togglePauseAuction,
@@ -91,6 +92,7 @@ const Auction = () => {
   const [banner, setBanner] = useState<{ kind: 'SOLD' | 'UNSOLD'; text: string } | null>(null);
   const [showHammer, setShowHammer] = useState(false);
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
+  const [nowMs, setNowMs] = useState<number>(Date.now());
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -121,11 +123,23 @@ const Auction = () => {
     }
   }, []);
 
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, []);
+
   useEffect(() => {
     if (!gameCode) return;
     const unsub = listenSession(gameCode, setSession);
     return () => unsub();
   }, [gameCode]);
+
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, []);
 
   useEffect(() => {
     if (!gameCode) return;
@@ -146,11 +160,27 @@ const Auction = () => {
   const userTeam = teams.find((team) => team.id === myTeamId);
 
   const currentAuction = session?.currentAuction;
+
+  const playerById = useMemo(() => new Map(masterPlayerList.map((p: any) => [p.id, p])), [masterPlayerList]);
+
+  const remainingRoleCounts = useMemo(() => {
+    const queue = (session?.auctionQueue || []) as string[];
+    const queueIndex = Number(session?.queueIndex ?? -1);
+    const remainingIds = queue.slice(Math.max(queueIndex + 1, 0));
+    return remainingIds.reduce<Record<string, number>>((acc, playerId) => {
+      const role = String((playerById.get(playerId) as any)?.role || '').toLowerCase();
+      if (role.includes('wicket')) acc.wicketkeeper += 1;
+      else if (role.includes('all')) acc.allRounder += 1;
+      else if (role.includes('bowl')) acc.bowler += 1;
+      else acc.batter += 1;
+      return acc;
+    }, { batter: 0, bowler: 0, allRounder: 0, wicketkeeper: 0 });
+  }, [session?.auctionQueue, session?.queueIndex, playerById]);
   const currentPlayer = useMemo(() => masterPlayerList.find((p: any) => p.id === currentAuction?.activePlayerId) || null, [masterPlayerList, currentAuction?.activePlayerId]);
   const currentBidderTeam = teams.find((team) => team.id === currentAuction?.currentBidderId);
 
   const nextBid = getNextBid(currentAuction?.currentBid || 0);
-  const timerSeconds = Math.max(0, Math.floor(((currentAuction?.timerEndsAt?.toMillis?.() || Date.now()) - Date.now()) / 1000));
+  const timerSeconds = Math.max(0, Math.floor(((currentAuction?.timerEndsAt?.toMillis?.() || nowMs) - nowMs) / 1000));
 
   const teamPlayersResolved = useMemo(() => {
     const lookup = new Map(masterPlayerList.map((p: any) => [p.id, p]));
@@ -203,13 +233,21 @@ const Auction = () => {
       })),
       currentPlayer,
       currentAuction.currentBid,
-      currentAuction.currentBidderId
+      currentAuction.currentBidderId,
+      {
+        remainingPlayersInAuction: Math.max(queueLength - (Number(session?.queueIndex ?? -1) + 1), 0),
+        remainingRoleCounts,
+        teamPlayersByTeamId: teams.reduce<Record<string, Player[]>>((acc, team) => {
+          acc[team.id] = [...(teamPlayersResolved[team.id]?.retained || []), ...(teamPlayersResolved[team.id]?.bought || [])];
+          return acc;
+        }, {}),
+      }
     );
 
     if (!aiDecision) return;
     const timer = setTimeout(() => placeBid(gameCode, aiDecision.teamId, aiDecision.bid).catch(() => undefined), aiDecision.delayMs);
     return () => clearTimeout(timer);
-  }, [isHost, gameCode, teams, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId]);
+  }, [isHost, gameCode, teams, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId, queueLength, session?.queueIndex, remainingRoleCounts, teamPlayersResolved]);
 
   useEffect(() => {
     return () => {
@@ -303,6 +341,18 @@ const Auction = () => {
     if (timerSeconds === 0 && currentAuction?.status === "RUNNING") playTone(220, 0.2, 0.08);
   }, [timerSeconds, currentAuction?.status, playTone]);
 
+
+  useEffect(() => {
+    if (!isHost || !gameCode || !session?.pendingRtm?.expiresAt) return;
+
+    const ms = Math.max(0, session.pendingRtm.expiresAt.toMillis() - Date.now());
+    const timeout = window.setTimeout(() => {
+      resolveRtmTimeout(gameCode).catch(() => undefined);
+    }, ms + 100);
+
+    return () => window.clearTimeout(timeout);
+  }, [isHost, gameCode, session?.pendingRtm?.status, session?.pendingRtm?.expiresAt]);
+
   const pendingRtm = session?.pendingRtm;
   const rtmPlayer = masterPlayerList.find((p: any) => p.id === pendingRtm?.playerId) || null;
   const rtmOriginalTeam = teams.find((t) => t.id === pendingRtm?.originalTeamId);
@@ -372,7 +422,7 @@ const Auction = () => {
         </div>
       )}
 
-      {auctionEnded && !showAcceleratedDecision && (
+      {auctionEnded && !showAcceleratedDecision && !pendingRtm && (
         <div className="p-6 mx-auto max-w-3xl w-full">
           <div className="border rounded-xl p-6 bg-card/60 space-y-3">
             <h2 className="text-2xl font-display">Final Leaderboard</h2>
@@ -490,6 +540,7 @@ const Auction = () => {
           originalTeamName={rtmOriginalTeam?.name}
           winningTeamName={rtmWinningTeam?.name}
           finalBid={Number(pendingRtm.finalBid || 0)}
+          countdownSeconds={Math.max(0, Math.ceil(((pendingRtm?.expiresAt?.toMillis?.() || nowMs) - nowMs) / 1000))}
           onPrimary={() => {
             const actionByStage: Record<string, any> = {
               AWAIT_ORIGINAL: "ORIGINAL_YES",
