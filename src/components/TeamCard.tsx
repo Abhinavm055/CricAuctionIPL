@@ -55,7 +55,7 @@ export const TeamCard = ({
         style={{ backgroundColor: `hsl(var(--${color}))` }}
       />
 
-      <TeamLogo logo={logo} shortName={shortName} size="lg" className="mx-auto mb-2 rounded-full" />
+      <TeamLogo teamId={id} logo={logo} shortName={shortName} size="lg" className="mx-auto mb-2 rounded-full" />
 
       <h3 className="font-display text-base text-center mb-2" style={{ color: `hsl(var(--${color}))` }}>
         {shortName}

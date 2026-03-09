@@ -327,6 +327,9 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
           teamNameByPlayerId={Object.fromEntries(
             players.map((player) => [player.id || '', teamNameById[player.previousTeamId] || 'Unassigned']),
           )}
+          teamIdByPlayerId={Object.fromEntries(
+            players.map((player) => [player.id || '', player.previousTeamId || '']),
+          )}
           onEdit={setEditing}
           onDelete={handleDeletePlayer}
         />

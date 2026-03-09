@@ -1,14 +1,27 @@
+export const TEAM_LOGOS = {
+  csk: 'https://documents.iplt20.com/ipl/franchises/1764224441_1731684872_1702465555_CSKroundbig.png',
+  dc: 'https://documents.iplt20.com/ipl/franchises/1764224517_1731685245_1702465727_DCroundbig.png',
+  gt: 'https://documents.iplt20.com/ipl/franchises/1764224585_1731685262_1702465836_GTroundbig.png',
+  kkr: 'https://documents.iplt20.com/ipl/franchises/1764224710_1731685297_1702465948_KKRroundbig.png',
+  lsg: 'https://documents.iplt20.com/ipl/franchises/1764224788_1731684320_1702466030_LSGroundbig.png',
+  mi: 'https://documents.iplt20.com/ipl/franchises/1764224870_1731684308_1702466090_MIroundbig.png',
+  pbks: 'https://documents.iplt20.com/ipl/franchises/1764224961_1731685190_1702466143_PBKSroundbig.png',
+  rr: 'https://documents.iplt20.com/ipl/franchises/1764225018_1743157275_RRroundbig.png',
+  rcb: 'https://documents.iplt20.com/ipl/franchises/1764225174_1731684948_1702466217_RCBroundbig.png',
+  srh: 'https://documents.iplt20.com/ipl/franchises/1764225435_1731685022_1702466366_SRHroundbig.png',
+} as const;
+
 export const IPL_TEAMS = [
-  { id: 'csk', name: 'Chennai Super Kings', shortName: 'CSK', color: 'team-csk', purse: 1200000000, logo: 'https://upload.wikimedia.org/wikipedia/en/2/2f/Chennai_Super_Kings_Logo.svg' },
-  { id: 'mi', name: 'Mumbai Indians', shortName: 'MI', color: 'team-mi', purse: 1200000000, logo: 'https://upload.wikimedia.org/wikipedia/en/c/cd/Mumbai_Indians_Logo.svg' },
-  { id: 'rcb', name: 'Royal Challengers Bengaluru', shortName: 'RCB', color: 'team-rcb', purse: 1200000000, logo: 'https://upload.wikimedia.org/wikipedia/en/d/d4/Royal_Challengers_Bengaluru_Logo.svg' },
-  { id: 'kkr', name: 'Kolkata Knight Riders', shortName: 'KKR', color: 'team-kkr', purse: 1200000000, logo: 'https://upload.wikimedia.org/wikipedia/en/9/9a/Kolkata_Knight_Riders_Logo.svg' },
-  { id: 'dc', name: 'Delhi Capitals', shortName: 'DC', color: 'team-dc', purse: 1200000000, logo: 'https://upload.wikimedia.org/wikipedia/en/f/f5/Delhi_Capitals_Logo.svg' },
-  { id: 'pbks', name: 'Punjab Kings', shortName: 'PBKS', color: 'team-pbks', purse: 1200000000, logo: 'https://upload.wikimedia.org/wikipedia/en/d/d4/Punjab_Kings_Logo.svg' },
-  { id: 'rr', name: 'Rajasthan Royals', shortName: 'RR', color: 'team-rr', purse: 1200000000, logo: 'https://upload.wikimedia.org/wikipedia/en/6/60/Rajasthan_Royals_Logo.svg' },
-  { id: 'srh', name: 'Sunrisers Hyderabad', shortName: 'SRH', color: 'team-srh', purse: 1200000000, logo: 'https://upload.wikimedia.org/wikipedia/en/8/81/Sunrisers_Hyderabad.svg' },
-  { id: 'gt', name: 'Gujarat Titans', shortName: 'GT', color: 'team-gt', purse: 1200000000, logo: 'https://upload.wikimedia.org/wikipedia/en/0/09/Gujarat_Titans_Logo.svg' },
-  { id: 'lsg', name: 'Lucknow Super Giants', shortName: 'LSG', color: 'team-lsg', purse: 1200000000, logo: 'https://upload.wikimedia.org/wikipedia/en/3/35/Lucknow_Super_Giants_IPL_Logo.svg' },
+  { id: 'csk', name: 'Chennai Super Kings', shortName: 'CSK', color: 'team-csk', purse: 1200000000, logo: TEAM_LOGOS.csk },
+  { id: 'mi', name: 'Mumbai Indians', shortName: 'MI', color: 'team-mi', purse: 1200000000, logo: TEAM_LOGOS.mi },
+  { id: 'rcb', name: 'Royal Challengers Bengaluru', shortName: 'RCB', color: 'team-rcb', purse: 1200000000, logo: TEAM_LOGOS.rcb },
+  { id: 'kkr', name: 'Kolkata Knight Riders', shortName: 'KKR', color: 'team-kkr', purse: 1200000000, logo: TEAM_LOGOS.kkr },
+  { id: 'dc', name: 'Delhi Capitals', shortName: 'DC', color: 'team-dc', purse: 1200000000, logo: TEAM_LOGOS.dc },
+  { id: 'pbks', name: 'Punjab Kings', shortName: 'PBKS', color: 'team-pbks', purse: 1200000000, logo: TEAM_LOGOS.pbks },
+  { id: 'rr', name: 'Rajasthan Royals', shortName: 'RR', color: 'team-rr', purse: 1200000000, logo: TEAM_LOGOS.rr },
+  { id: 'srh', name: 'Sunrisers Hyderabad', shortName: 'SRH', color: 'team-srh', purse: 1200000000, logo: TEAM_LOGOS.srh },
+  { id: 'gt', name: 'Gujarat Titans', shortName: 'GT', color: 'team-gt', purse: 1200000000, logo: TEAM_LOGOS.gt },
+  { id: 'lsg', name: 'Lucknow Super Giants', shortName: 'LSG', color: 'team-lsg', purse: 1200000000, logo: TEAM_LOGOS.lsg },
 ] as const;
 
 export const PLAYER_ROLES = ['Batsman', 'Bowler', 'All-Rounder', 'Wicket-Keeper'] as const;
@@ -17,10 +30,10 @@ export const AUCTION_POOLS = ['Marquee', 'Batters', 'All-Rounders', 'Wicketkeepe
 
 // Official IPL bid increments
 export const PRICE_INCREMENTS = [
-  { threshold: 0, increment: 500000 },         // Up to 1Cr: +5L
-  { threshold: 10000000, increment: 1000000 }, // 1Cr to <2Cr: +10L
-  { threshold: 20000000, increment: 2000000 }, // 2Cr to <5Cr: +20L
-  { threshold: 50000000, increment: 2500000 }, // 5Cr onward: +25L
+  { threshold: 0, increment: 500000 },
+  { threshold: 10000000, increment: 1000000 },
+  { threshold: 20000000, increment: 2000000 },
+  { threshold: 50000000, increment: 2500000 },
 ] as const;
 
 export const RETENTION_COSTS = {
@@ -46,7 +59,6 @@ export const SQUAD_CONSTRAINTS = {
   MAX_SQUAD: 25,
   MAX_OVERSEAS: 8,
 } as const;
-
 
 export const AI_STRATEGIES = ['aggressive', 'balanced', 'budget', 'starHunter', 'roleFocused'] as const;
 

@@ -52,7 +52,7 @@ const RetentionReview = () => {
           return (
             <div key={team.id} className="p-4 border rounded-xl bg-secondary/30">
               <div className="flex items-center gap-3 mb-2">
-                <TeamLogo logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
+                <TeamLogo teamId={team.id} logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
                 <h2 className="font-display text-xl">{team.shortName}</h2>
               </div>
               <div className="flex gap-2 flex-wrap mb-3">

@@ -26,6 +26,7 @@ import { getAIBid } from "@/lib/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
 import { RTMModal } from "@/components/RTMModal";
 import { HammerSoldEffect } from "@/components/HammerSoldEffect";
+import { TeamLogo } from "@/components/TeamLogo";
 
 export interface TeamState {
   id: string;
@@ -429,7 +430,10 @@ const Auction = () => {
             <div className="space-y-2">
               {leaderboard.map((team, index) => (
                 <div key={team.id} className="flex items-center justify-between rounded-lg border px-3 py-2">
-                  <p className="font-semibold">{index + 1}. {team.shortName}{team.eliminated ? ' (Eliminated)' : ''}</p>
+                  <div className="flex items-center gap-2">
+                    <TeamLogo teamId={team.id} logo={team.logo} shortName={team.shortName} size="sm" />
+                    <p className="font-semibold">{index + 1}. {team.shortName}{team.eliminated ? ' (Eliminated)' : ''}</p>
+                  </div>
                   <p className="text-sm text-muted-foreground">Score {team.teamScore.toFixed(2)} • Squad {team.squadSize}</p>
                 </div>
               ))}
