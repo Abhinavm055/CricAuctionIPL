@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { arrayRemove, arrayUnion, deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -69,11 +68,11 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
     const previousTeamId = player.previousTeamId || '';
 
     if (previousTeamId && previousTeamId !== targetTeamId) {
-      await updateDoc(doc(db, 'teams', previousTeamId), { players: arrayRemove(player.id) });
+      await setDoc(doc(db, 'teams', previousTeamId), { players: arrayRemove(player.id) }, { merge: true });
     }
 
     if (targetTeamId) {
-      await updateDoc(doc(db, 'teams', targetTeamId), { players: arrayUnion(player.id) });
+      await setDoc(doc(db, 'teams', targetTeamId), { players: arrayUnion(player.id) }, { merge: true });
     }
 
     await setDoc(doc(db, 'players', player.id), { previousTeamId: targetTeamId, previousTeam: shortNameById[targetTeamId] || '' }, { merge: true });
@@ -92,14 +91,14 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
 
   const removePlayerFromTeam = async (player: EditablePlayer) => {
     if (!player.id) return;
-    await updateDoc(doc(db, 'teams', team.id), { players: arrayRemove(player.id) });
+    await setDoc(doc(db, 'teams', team.id), { players: arrayRemove(player.id) }, { merge: true });
     await setDoc(doc(db, 'players', player.id), { previousTeamId: '', previousTeam: '' }, { merge: true });
     toast({ title: 'Player removed', description: `${player.name} removed from ${team.shortName}.` });
   };
 
   const deletePlayerFromTeam = async (player: EditablePlayer) => {
     if (!player.id) return;
-    await updateDoc(doc(db, 'teams', team.id), { players: arrayRemove(player.id) });
+    await setDoc(doc(db, 'teams', team.id), { players: arrayRemove(player.id) }, { merge: true });
     await deleteDoc(doc(db, 'players', player.id));
     toast({ title: 'Player deleted', description: `${player.name} deleted from players database.` });
   };
@@ -128,10 +127,10 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
 
     if ((existing?.previousTeamId || '') !== (player.previousTeamId || '')) {
       if (existing?.previousTeamId) {
-        await updateDoc(doc(db, 'teams', existing.previousTeamId), { players: arrayRemove(player.id) });
+        await setDoc(doc(db, 'teams', existing.previousTeamId), { players: arrayRemove(player.id) }, { merge: true });
       }
       if (player.previousTeamId) {
-        await updateDoc(doc(db, 'teams', player.previousTeamId), { players: arrayUnion(player.id) });
+        await setDoc(doc(db, 'teams', player.previousTeamId), { players: arrayUnion(player.id) }, { merge: true });
       }
     }
 
@@ -214,6 +213,29 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
         />
       )}
 
+
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+        {teamPlayers.map((player) => (
+          <div key={`card-${player.id}`} className="border rounded-xl p-3 space-y-2 bg-card/60">
+            <div className="flex items-center gap-2">
+              {player.image ? <img src={player.image} alt={player.name} className="w-14 h-14 rounded object-cover" /> : <div className="w-14 h-14 rounded bg-muted" />}
+              <div>
+                <p className="font-semibold">{player.name}</p>
+                <p className="text-xs text-muted-foreground">{player.role}</p>
+              </div>
+            </div>
+            <p className="text-xs">Rating: <strong>{player.rating}</strong></p>
+            <p className="text-xs">Nationality: <strong>{player.nationality || 'Unknown'}</strong></p>
+            <p className="text-xs">Base Price: <strong>{formatPrice(Number(player.basePrice || 0))}</strong></p>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">Previous Team</span>
+              <TeamLogo teamId={player.previousTeamId || null} shortName={player.previousTeamId || 'N/A'} size="sm" />
+            </div>
+            <Button size="sm" variant="outline" onClick={() => setEditingPlayer(player)}>Edit</Button>
+          </div>
+        ))}
+      </div>
+
       <div className="border rounded-lg">
         <Table>
           <TableHeader>
@@ -238,7 +260,7 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
                 <TableCell>{player.rating}</TableCell>
                 <TableCell>{formatPrice(Number(player.basePrice || 0))}</TableCell>
                 <TableCell>
-                  <Badge variant={player.overseas ? 'default' : 'secondary'}>{player.overseas ? 'Overseas' : 'Local'}</Badge>
+                  {player.overseas ? <span className="text-yellow-400 text-lg" title="Overseas">✈️</span> : <span className="text-muted-foreground">—</span>}
                 </TableCell>
                 <TableCell className="space-x-2">
                   <Button size="sm" variant="outline" onClick={() => setEditingPlayer(player)}>Edit</Button>

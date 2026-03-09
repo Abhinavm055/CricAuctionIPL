@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { IPL_TEAMS } from '@/lib/constants';
 import { EditablePlayer } from '@/components/PlayerForm';
 import { PlayersManager } from '@/components/PlayersManager';
-import { TeamsManager } from '@/components/TeamsManager';
+import AdminTeamsPage from './AdminTeamsPage';
 
 interface TeamRecord {
   id: string;
@@ -125,7 +125,7 @@ const AdminPage = () => {
 
         <section className="border rounded-xl p-4 bg-card">
           {tab === 'players' && <PlayersManager players={players} teams={teams} globalSearch={globalSearch} />}
-          {tab === 'teams' && <TeamsManager players={players} teams={teams} globalSearch={globalSearch} />}
+          {tab === 'teams' && <AdminTeamsPage players={players} teams={teams} />}
         </section>
       </div>
     </div>

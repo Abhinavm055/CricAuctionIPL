@@ -487,7 +487,8 @@ export const finalizePlayerSale = async (gameCode: string) => {
     }
 
     const previousTeamId = getPlayerPreviousTeamId(playerSnap.data());
-    if (previousTeamId && previousTeamId !== winningTeamId) {
+    const playerRating = getPlayerRating(playerSnap.data());
+    if (previousTeamId && previousTeamId !== winningTeamId && playerRating >= 4) {
       const prevTeamSnap = await tx.get(doc(db, "sessions", gameCode, "teams", previousTeamId));
       if (prevTeamSnap.exists() && Number(prevTeamSnap.data().rtmCards || 0) > 0) {
         tx.update(sessionRef, {

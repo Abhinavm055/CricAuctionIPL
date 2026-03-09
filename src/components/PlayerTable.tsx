@@ -52,7 +52,7 @@ export const PlayerTable = ({ players, teamNameByPlayerId, teamIdByPlayerId = {}
               </TableCell>
               <TableCell>{player.rating}</TableCell>
               <TableCell>{formatPrice(Number(player.basePrice || 0))}</TableCell>
-              <TableCell>{player.overseas ? 'Overseas' : 'Local'}</TableCell>
+              <TableCell>{player.overseas ? <span className="text-yellow-400 text-lg" title="Overseas">✈️</span> : <span className="text-muted-foreground">—</span>}</TableCell>
               <TableCell className="space-x-2">
                 <Button size="sm" variant="outline" onClick={() => onEdit(player)}>Edit</Button>
                 <Button size="sm" variant="destructive" onClick={() => player.id && onDelete(player.id)}>Delete</Button>

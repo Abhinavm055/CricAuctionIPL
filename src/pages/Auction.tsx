@@ -470,7 +470,7 @@ const Auction = () => {
             {currentPlayer && currentAuction?.status === "RUNNING" && (
               <>
                 <BidTimer key={`${currentAuction.activePlayerId}-${currentAuction.timerEndsAt?.seconds || "no-timer"}`} duration={Math.max(0, Math.floor(timerSeconds))} isActive={currentAuction?.status === 'RUNNING'} onTimeout={handleFinalize} />
-                <PlayerCard player={currentPlayer as any} currentBid={currentAuction.currentBid} currentBidder={currentBidderTeam?.shortName || null} teamColor={currentBidderTeam?.color} />
+                <PlayerCard player={currentPlayer as any} currentBid={currentAuction.currentBid} currentBidder={currentBidderTeam?.shortName || null} currentBidderId={currentBidderTeam?.id || null} teamColor={currentBidderTeam?.color} />
               </>
             )}
 
@@ -478,7 +478,7 @@ const Auction = () => {
 
             {(!currentPlayer || !["RUNNING", "PAUSED"].includes(currentAuction?.status)) && !['SOLD', 'UNSOLD'].includes(currentAuction?.status || '') && (
               <div className="mt-8">
-                {isHost ? <Button onClick={() => startNextPlayer(gameCode!)}>Start Auction</Button> : <p className="text-muted-foreground">Waiting for host…</p>}
+                {isHost ? <Button onClick={() => startNextPlayer(gameCode!)}>Start Auction</Button> : <p className="text-muted-foreground">Waiting for host to start auction.</p>}
               </div>
             )}
           </div>
