@@ -15,6 +15,7 @@ export interface EditablePlayer {
   overseas: boolean;
   pool: string;
   previousTeamId: string;
+  nationality: string;
   image: string;
 }
 
@@ -57,7 +58,7 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
       <div className="grid md:grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label>Name</Label>
-          <Input value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Player name" />
+          <Input required value={form.name} onChange={(e) => update('name', e.target.value)} placeholder="Player name" />
         </div>
 
         <div className="space-y-2">
@@ -80,6 +81,8 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
             type="number"
             min={1}
             max={5}
+            step={0.1}
+            required
             value={form.rating}
             onChange={(e) => update('rating', Number(e.target.value))}
           />
@@ -90,6 +93,7 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
           <Input
             type="number"
             min={0}
+            required
             value={form.basePrice}
             onChange={(e) => update('basePrice', Number(e.target.value))}
           />
@@ -123,6 +127,11 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
             </SelectContent>
           </Select>
         </div>
+
+        <div className="space-y-2">
+          <Label>Nationality</Label>
+          <Input value={form.nationality} onChange={(e) => update('nationality', e.target.value)} placeholder="India / Australia / ..." />
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -133,7 +142,7 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
       {imagePreview && (
         <div className="space-y-2">
           <Label>Image Preview</Label>
-          <img src={imagePreview} alt={`${form.name || 'player'} preview`} className="w-24 h-24 object-cover rounded-md border" />
+          <img src={imagePreview} alt={`${form.name || 'player'} preview`} className="w-20 h-20 object-cover rounded" />
         </div>
       )}
 
