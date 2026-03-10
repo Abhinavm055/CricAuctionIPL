@@ -3,7 +3,11 @@ import { TeamCard } from './TeamCard';
 interface TeamInfo {
   id: string;
   shortName: string;
+  name: string;
   logo?: string;
+  purseRemaining: number;
+  squadSize: number;
+  rtmCards: number;
 }
 
 interface TeamGridProps {
@@ -15,7 +19,7 @@ interface TeamGridProps {
 
 export const TeamGrid = ({ aiTeams, userTeam, currentBidderId, onSelectTeam }: TeamGridProps) => {
   return (
-    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 grid grid-rows-[auto_1fr_auto] gap-3">
+    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 grid grid-rows-[auto_1fr_auto] gap-3 overflow-hidden">
       <p className="text-xs uppercase tracking-widest text-yellow-300">Teams</p>
 
       <div className="grid grid-cols-3 gap-2 content-start">
@@ -24,7 +28,11 @@ export const TeamGrid = ({ aiTeams, userTeam, currentBidderId, onSelectTeam }: T
             key={team.id}
             id={team.id}
             shortName={team.shortName}
+            name={team.name}
             logo={team.logo}
+            purseRemaining={team.purseRemaining}
+            squadSize={team.squadSize}
+            rtmCards={team.rtmCards}
             isCurrentBidder={team.id === currentBidderId}
             onClick={() => onSelectTeam(team.id)}
           />
@@ -37,7 +45,11 @@ export const TeamGrid = ({ aiTeams, userTeam, currentBidderId, onSelectTeam }: T
           <TeamCard
             id={userTeam.id}
             shortName={userTeam.shortName}
+            name={userTeam.name}
             logo={userTeam.logo}
+            purseRemaining={userTeam.purseRemaining}
+            squadSize={userTeam.squadSize}
+            rtmCards={userTeam.rtmCards}
             isCurrentBidder={userTeam.id === currentBidderId}
             isUserTeam
             logoSize="large"

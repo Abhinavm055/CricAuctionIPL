@@ -1,82 +1,69 @@
 import { Button } from './ui/button';
-import { formatPrice, getNextBid } from '@/lib/constants';
-import { Gavel, Hand, SkipForward, Pause, Play, FastForward } from 'lucide-react';
+import { formatPrice } from '@/lib/constants';
+
+interface RecentPurchase {
+  playerName: string;
+  teamShortName: string;
+  price: number;
+}
 
 interface BidControlsProps {
   currentBid: number;
   purseRemaining: number;
-  isYourTurn: boolean;
   canBid: boolean;
   onBid: (amount: number) => void;
-  onPass: () => void;
   isHost?: boolean;
   onSkip?: () => void;
-  skipDisabled?: boolean;
   onPauseToggle?: () => void;
   isPaused?: boolean;
-  onStartAccelerated?: () => void;
-  showStartAccelerated?: boolean;
+  recentPurchases?: RecentPurchase[];
 }
 
 export const BidControls = ({
   currentBid,
   purseRemaining,
-  isYourTurn,
   canBid,
   onBid,
-  onPass,
   isHost,
   onSkip,
-  skipDisabled,
   onPauseToggle,
   isPaused,
-  onStartAccelerated,
-  showStartAccelerated,
+  recentPurchases = [],
 }: BidControlsProps) => {
-  const nextBid = getNextBid(currentBid);
-  const canAfford = purseRemaining >= nextBid;
+  const inc25L = currentBid + 2500000;
+  const inc50L = currentBid + 5000000;
+  const inc1Cr = currentBid + 10000000;
 
   return (
-    <div className="flex flex-col gap-4 p-6 card-gradient rounded-2xl border border-border/50">
-      <div className="text-center mb-2">
-        <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Your Purse</p>
-        <p className="font-display text-3xl text-foreground">{formatPrice(purseRemaining)}</p>
+    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 space-y-3">
+      <p className="text-xs uppercase tracking-widest text-yellow-300">Control Panel</p>
+
+      <div className="space-y-1 text-sm text-slate-200">
+        <p>YOUR PURSE</p>
+        <p className="text-2xl font-bold text-yellow-300">{formatPrice(purseRemaining)}</p>
       </div>
 
-      <div className="flex flex-col gap-3">
-        <Button variant="bid" size="xl" onClick={() => onBid(nextBid)} disabled={!canBid || !canAfford} className="w-full">
-          <Gavel className="w-5 h-5" />
-          Bid {formatPrice(nextBid)}
-        </Button>
-
-        <Button variant="danger" size="lg" onClick={onPass} disabled={!isYourTurn} className="w-full">
-          <Hand className="w-5 h-5" />
-          Pass
-        </Button>
-
-        {isHost && onSkip && (
-          <Button variant="broadcast" size="lg" onClick={onSkip} disabled={skipDisabled} className="w-full">
-            <SkipForward className="w-5 h-5" />
-            Skip Player (Unsold)
-          </Button>
-        )}
-
-        {isHost && onPauseToggle && (
-          <Button variant="outline" size="lg" onClick={onPauseToggle} className="w-full">
-            {isPaused ? <Play className="w-5 h-5" /> : <Pause className="w-5 h-5" />}
-            {isPaused ? 'Resume Auction' : 'Pause Auction'}
-          </Button>
-        )}
-
-        {isHost && showStartAccelerated && onStartAccelerated && (
-          <Button variant="outline" size="lg" onClick={onStartAccelerated} className="w-full">
-            <FastForward className="w-5 h-5" />
-            Start Accelerated Round
-          </Button>
-        )}
+      <div className="grid grid-cols-3 gap-2">
+        <Button variant="outline" className="border-yellow-500/60 text-yellow-200" onClick={() => onBid(inc25L)} disabled={!canBid}>+25L</Button>
+        <Button variant="outline" className="border-yellow-500/60 text-yellow-200" onClick={() => onBid(inc50L)} disabled={!canBid}>+50L</Button>
+        <Button variant="outline" className="border-yellow-500/60 text-yellow-200" onClick={() => onBid(inc1Cr)} disabled={!canBid}>+1Cr</Button>
       </div>
 
-      {!canAfford && <p className="text-sm text-destructive text-center">Insufficient funds for next bid</p>}
+      <Button className="w-full bg-yellow-400 text-black hover:bg-yellow-300 font-bold" onClick={() => onBid(inc25L)} disabled={!canBid}>BID</Button>
+
+      <div className="grid grid-cols-2 gap-2">
+        <Button variant="outline" onClick={onSkip} disabled={!isHost || !onSkip}>SKIP PLAYER</Button>
+        <Button variant="outline" onClick={onPauseToggle} disabled={!isHost || !onPauseToggle}>{isPaused ? 'RESUME' : 'PAUSE'}</Button>
+      </div>
+
+      <div>
+        <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Recent Purchases</p>
+        <div className="max-h-28 overflow-auto space-y-1 text-xs text-slate-200">
+          {recentPurchases.length ? recentPurchases.map((p, idx) => (
+            <p key={`${p.playerName}-${idx}`}>{p.playerName} → {p.teamShortName} → {formatPrice(p.price)}</p>
+          )) : <p className="text-muted-foreground">No purchases yet.</p>}
+        </div>
+      </div>
     </div>
   );
 };
