@@ -166,6 +166,7 @@ export const createSession = async (gameCode: string, hostId: string, mode: "MUL
       overseasCount: 0,
       rtmCards: 0,
       isAI: mode === "VS_AI",
+      ownerId: null,
       aiStrategy: AI_STRATEGIES[index % AI_STRATEGIES.length],
       teamNeeds: { ...TEAM_NEEDS_TEMPLATE },
       createdAt: serverTimestamp(),
@@ -192,7 +193,8 @@ export const selectTeam = async (gameCode: string, teamId: string, userId: strin
   }));
 
   await updateDoc(sessionRef, { [`selectedTeams.${teamId}`]: userId, allTeams });
-  await updateDoc(doc(db, "sessions", gameCode, "teams", teamId), { isAI: userId.startsWith("AI-") });
+  const isAI = userId.startsWith("AI-");
+  await updateDoc(doc(db, "sessions", gameCode, "teams", teamId), { isAI, ownerId: isAI ? null : userId });
 };
 
 export const startRetention = async (gameCode: string) => {
@@ -200,11 +202,7 @@ export const startRetention = async (gameCode: string) => {
   const snap = await getDoc(sessionRef);
   if (!snap.exists()) return;
 
-  await fillAITeams(gameCode);
-
-  const refreshed = await getDoc(sessionRef);
-  if (!refreshed.exists()) return;
-  const sessionData = refreshed.data() as any;
+  const sessionData = snap.data() as any;
   const selectedTeams = (sessionData.selectedTeams || {}) as Record<string, string>;
 
   const playersSnap = await getDocs(query(collection(db, "players")));
@@ -216,9 +214,19 @@ export const startRetention = async (gameCode: string) => {
 
   const batch = writeBatch(db);
 
+  const humanSelectedTeams = selectedTeams as Record<string, string>;
+  const allTeams = IPL_TEAMS.map((team) => {
+    const assignedId = humanSelectedTeams[team.id] || null;
+    const ownerId = assignedId && !String(assignedId).startsWith("AI-") ? assignedId : null;
+    const isAI = !ownerId;
+    batch.update(doc(db, "sessions", gameCode, "teams", team.id), { isAI, ownerId });
+    return { id: team.id, name: team.name, isAI, ownerId };
+  });
+
   IPL_TEAMS.forEach((team) => {
-    const owner = String(selectedTeams[team.id] || '');
-    const isAI = owner.startsWith('AI-');
+    const assignedId = humanSelectedTeams[team.id] || null;
+    const ownerId = assignedId && !String(assignedId).startsWith("AI-") ? assignedId : null;
+    const isAI = !ownerId;
 
     if (!isAI) {
       if (!retentions[team.id]) {
@@ -251,6 +259,7 @@ export const startRetention = async (gameCode: string) => {
     phase: "RETENTION",
     retentionStartedAt: serverTimestamp(),
     retentions,
+    allTeams,
   });
 
   await batch.commit();

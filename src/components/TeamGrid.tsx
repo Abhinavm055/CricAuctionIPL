@@ -18,11 +18,15 @@ interface TeamGridProps {
 }
 
 export const TeamGrid = ({ teams, myTeamId, currentBidderId, onSelectTeam }: TeamGridProps) => {
+  const myTeam = teams.find((team) => team.id === myTeamId) || null;
+  const gridTeams = (myTeam ? teams.filter((team) => team.id !== myTeam.id) : teams).slice(0, 9);
+
   return (
     <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-y-auto">
       <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Teams</p>
+
       <div className="grid grid-cols-3 gap-2 content-start">
-        {teams.map((team) => (
+        {gridTeams.map((team) => (
           <TeamCard
             key={team.id}
             id={team.id}
@@ -34,11 +38,30 @@ export const TeamGrid = ({ teams, myTeamId, currentBidderId, onSelectTeam }: Tea
             rtmCards={team.rtmCards}
             isCurrentBidder={team.id === currentBidderId}
             isUserTeam={team.id === myTeamId}
-            logoSize={team.id === myTeamId ? 'large' : 'normal'}
+            logoSize="normal"
             onClick={() => onSelectTeam(team.id)}
           />
         ))}
       </div>
+
+      {myTeam && (
+        <div className="mt-3 border-t border-yellow-500/30 pt-3">
+          <p className="text-[10px] uppercase tracking-widest text-yellow-300 mb-2">My Team</p>
+          <TeamCard
+            id={myTeam.id}
+            shortName={myTeam.shortName}
+            name={myTeam.name}
+            logo={myTeam.logo}
+            purseRemaining={myTeam.purseRemaining}
+            squadSize={myTeam.squadSize}
+            rtmCards={myTeam.rtmCards}
+            isCurrentBidder={myTeam.id === currentBidderId}
+            isUserTeam
+            logoSize="large"
+            onClick={() => onSelectTeam(myTeam.id)}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -105,6 +105,8 @@ const Auction = () => {
   const [banner, setBanner] = useState<{ kind: 'SOLD' | 'UNSOLD'; text: string } | null>(null);
   const [showHammer, setShowHammer] = useState(false);
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
+  const [optimisticBid, setOptimisticBid] = useState<number | null>(null);
+  const [optimisticBidderId, setOptimisticBidderId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(Date.now());
 
   const userId = localStorage.getItem("uid") || "";
@@ -178,14 +180,28 @@ const Auction = () => {
 
   const currentAuction = session?.currentAuction;
 
+  useEffect(() => {
+    const serverBid = Number(currentAuction?.currentBid || 0);
+    const serverBidder = currentAuction?.currentBidderId || null;
+
+    if (optimisticBid === null && optimisticBidderId === null) return;
+
+    if (serverBid >= Number(optimisticBid || 0) || serverBidder !== optimisticBidderId || currentAuction?.status !== "RUNNING") {
+      setOptimisticBid(null);
+      setOptimisticBidderId(null);
+    }
+  }, [currentAuction?.currentBid, currentAuction?.currentBidderId, currentAuction?.status, optimisticBid, optimisticBidderId]);
+
   const aiEngine = useMemo(() => new AIEngine(), []);
 
   const playerById = useMemo(() => new Map(masterPlayerList.map((p: any) => [p.id, p])), [masterPlayerList]);
 
   const currentPlayer = useMemo(() => masterPlayerList.find((p: any) => p.id === currentAuction?.activePlayerId) || null, [masterPlayerList, currentAuction?.activePlayerId]);
-  const currentBidderTeam = teams.find((team) => team.id === currentAuction?.currentBidderId);
+  const displayedCurrentBid = optimisticBid ?? Number(currentAuction?.currentBid || 0);
+  const displayedCurrentBidderId = optimisticBidderId ?? (currentAuction?.currentBidderId || null);
+  const currentBidderTeam = teams.find((team) => team.id === displayedCurrentBidderId);
 
-  const nextBid = getNextBid(currentAuction?.currentBid || 0);
+  const nextBid = getNextBid(displayedCurrentBid || 0);
   const timerSeconds = Math.max(0, Math.floor(((currentAuction?.timerEndsAt?.toMillis?.() || nowMs) - nowMs) / 1000));
 
   const teamPlayersResolved = useMemo(() => {
@@ -202,7 +218,7 @@ const Auction = () => {
   const canTeamBid = (team: TeamState | undefined, player: Player | null, amount: number) => {
     if (!team || !player) return false;
     if (currentAuction?.status !== "RUNNING") return false;
-    if (currentAuction?.currentBidderId === team.id) return false;
+    if (displayedCurrentBidderId === team.id) return false;
     if (Number(team.purseRemaining || 0) < amount) return false;
     if (Number(team.squadSize || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD) return false;
     if (isOverseasPlayer(player) && Number(team.overseasCount || 0) >= SQUAD_CONSTRAINTS.MAX_OVERSEAS) return false;
@@ -217,7 +233,16 @@ const Auction = () => {
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
     if (!canTeamBid(userTeam, currentPlayer, amount)) return;
-    await placeBid(gameCode, myTeamId, amount);
+
+    setOptimisticBid(amount);
+    setOptimisticBidderId(myTeamId);
+
+    try {
+      await placeBid(gameCode, myTeamId, amount);
+    } catch {
+      setOptimisticBid(null);
+      setOptimisticBidderId(null);
+    }
   }, [gameCode, myTeamId, userTeam, currentPlayer, currentAuction?.status, currentAuction?.currentBidderId]);
 
   const handleFinalize = useCallback(async () => {
@@ -533,7 +558,7 @@ const Auction = () => {
                   {currentPlayer && currentAuction?.status === 'RUNNING' && (
                     <PlayerCard
                       player={currentPlayer as any}
-                      currentBid={Number(currentAuction.currentBid || 0)}
+                      currentBid={displayedCurrentBid}
                       currentBidderId={currentBidderTeam?.id || null}
                       currentBidderName={currentBidderTeam?.shortName || 'BID'}
                     />
@@ -551,7 +576,7 @@ const Auction = () => {
 
               <div className="h-full">
                 <BidControls
-                  currentBid={currentAuction?.currentBid || 0}
+                  currentBid={displayedCurrentBid}
                   purseRemaining={Number(userTeam.purseRemaining || 0)}
                   canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
                   onBid={handleBid}
