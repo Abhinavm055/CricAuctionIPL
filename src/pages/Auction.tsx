@@ -43,6 +43,18 @@ export interface TeamState {
   isAI: boolean;
 }
 
+interface PendingRtmState {
+  teamId?: string;
+  playerId: string;
+  price?: number;
+  winningTeamId?: string;
+  originalTeamId?: string;
+  finalBid?: number;
+  status?: string;
+  counterBid?: number;
+  expiresAt?: { toMillis?: () => number };
+}
+
 const isOverseasPlayer = (player: any) => Boolean(player?.overseas ?? player?.isOverseas);
 
 const normalizeRoleKey = (role: string) => {
@@ -88,6 +100,7 @@ const Auction = () => {
   const [session, setSession] = useState<any>(null);
   const [teams, setTeams] = useState<TeamState[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [pendingRtm, setPendingRtm] = useState<PendingRtmState | null>(null);
   const [commentary, setCommentary] = useState<string[]>([]);
   const [banner, setBanner] = useState<{ kind: 'SOLD' | 'UNSOLD'; text: string } | null>(null);
   const [showHammer, setShowHammer] = useState(false);
@@ -135,6 +148,9 @@ const Auction = () => {
     return () => unsub();
   }, [gameCode]);
 
+  useEffect(() => {
+    setPendingRtm((session?.pendingRtm as PendingRtmState) || null);
+  }, [session?.pendingRtm]);
 
   useEffect(() => {
     const tick = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -339,17 +355,16 @@ const Auction = () => {
 
 
   useEffect(() => {
-    if (!isHost || !gameCode || !session?.pendingRtm?.expiresAt) return;
+    if (!isHost || !gameCode || !pendingRtm?.expiresAt?.toMillis) return;
 
-    const ms = Math.max(0, session.pendingRtm.expiresAt.toMillis() - Date.now());
+    const ms = Math.max(0, pendingRtm.expiresAt.toMillis() - Date.now());
     const timeout = window.setTimeout(() => {
       resolveRtmTimeout(gameCode).catch(() => undefined);
     }, ms + 100);
 
     return () => window.clearTimeout(timeout);
-  }, [isHost, gameCode, session?.pendingRtm?.status, session?.pendingRtm?.expiresAt]);
+  }, [isHost, gameCode, pendingRtm?.status, pendingRtm?.expiresAt]);
 
-  const pendingRtm = session?.pendingRtm;
   const rtmPlayer = masterPlayerList.find((p: any) => p.id === pendingRtm?.playerId) || null;
   const rtmOriginalTeam = teams.find((t) => t.id === pendingRtm?.originalTeamId);
   const rtmWinningTeam = teams.find((t) => t.id === pendingRtm?.winningTeamId);
