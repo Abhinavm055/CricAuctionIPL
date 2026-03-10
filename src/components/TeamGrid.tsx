@@ -11,19 +11,18 @@ interface TeamInfo {
 }
 
 interface TeamGridProps {
-  aiTeams: TeamInfo[];
-  userTeam: TeamInfo | null;
+  teams: TeamInfo[];
+  myTeamId?: string;
   currentBidderId?: string | null;
   onSelectTeam: (teamId: string) => void;
 }
 
-export const TeamGrid = ({ aiTeams, userTeam, currentBidderId, onSelectTeam }: TeamGridProps) => {
+export const TeamGrid = ({ teams, myTeamId, currentBidderId, onSelectTeam }: TeamGridProps) => {
   return (
-    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 grid grid-rows-[auto_1fr_auto] gap-3 overflow-hidden">
-      <p className="text-xs uppercase tracking-widest text-yellow-300">Teams</p>
-
+    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-y-auto">
+      <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Teams</p>
       <div className="grid grid-cols-3 gap-2 content-start">
-        {aiTeams.map((team) => (
+        {teams.map((team) => (
           <TeamCard
             key={team.id}
             id={team.id}
@@ -34,29 +33,12 @@ export const TeamGrid = ({ aiTeams, userTeam, currentBidderId, onSelectTeam }: T
             squadSize={team.squadSize}
             rtmCards={team.rtmCards}
             isCurrentBidder={team.id === currentBidderId}
+            isUserTeam={team.id === myTeamId}
+            logoSize={team.id === myTeamId ? 'large' : 'normal'}
             onClick={() => onSelectTeam(team.id)}
           />
         ))}
       </div>
-
-      {userTeam && (
-        <div>
-          <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">My Team</p>
-          <TeamCard
-            id={userTeam.id}
-            shortName={userTeam.shortName}
-            name={userTeam.name}
-            logo={userTeam.logo}
-            purseRemaining={userTeam.purseRemaining}
-            squadSize={userTeam.squadSize}
-            rtmCards={userTeam.rtmCards}
-            isCurrentBidder={userTeam.id === currentBidderId}
-            isUserTeam
-            logoSize="large"
-            onClick={() => onSelectTeam(userTeam.id)}
-          />
-        </div>
-      )}
     </div>
   );
 };

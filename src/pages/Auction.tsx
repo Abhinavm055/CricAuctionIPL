@@ -1,10 +1,9 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { PlayerCard } from "@/components/PlayerCard";
-import { BidTimer } from "@/components/BidTimer";
 import { Player } from "@/lib/samplePlayers";
 import { useGameData } from "@/contexts/GameDataContext";
-import { formatPrice, getNextBid, IPL_TEAMS, SQUAD_CONSTRAINTS } from "@/lib/constants";
+import { getNextBid, IPL_TEAMS, SQUAD_CONSTRAINTS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import {
   finalizePlayerSale,
@@ -159,7 +158,6 @@ const Auction = () => {
   const queueLength = (session?.auctionQueue || []).length;
   const myTeamId = Object.entries(session?.selectedTeams || {}).find(([_, uid]) => uid === userId)?.[0] as string | undefined;
   const userTeam = teams.find((team) => team.id === myTeamId);
-  const aiTeams = teams.filter((team) => team.id !== myTeamId).slice(0, 9);
 
   const currentAuction = session?.currentAuction;
 
@@ -467,7 +465,7 @@ const Auction = () => {
           <main className="flex-1 overflow-hidden p-4 md:p-5">
             <div className="grid h-full grid-cols-[3fr_5fr_2fr] gap-4">
               <TeamGrid
-                aiTeams={aiTeams.map((team) => ({
+                teams={teams.map((team) => ({
                   id: team.id,
                   shortName: team.shortName,
                   name: team.name,
@@ -476,31 +474,20 @@ const Auction = () => {
                   squadSize: Number(team.squadSize || 0),
                   rtmCards: Number(team.rtmCards || 0),
                 }))}
-                userTeam={userTeam ? {
-                  id: userTeam.id,
-                  shortName: userTeam.shortName,
-                  name: userTeam.name,
-                  logo: userTeam.logo,
-                  purseRemaining: Number(userTeam.purseRemaining || 0),
-                  squadSize: Number(userTeam.squadSize || 0),
-                  rtmCards: Number(userTeam.rtmCards || 0),
-                } : null}
+                myTeamId={myTeamId}
                 currentBidderId={currentAuction?.currentBidderId}
                 onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
               />
 
-              <div className="h-full grid grid-rows-[1fr_auto] gap-3 overflow-hidden">
-                <div className="min-h-0 rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
+              <div className="h-full overflow-hidden">
+                <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
                   {currentPlayer && currentAuction?.status === 'RUNNING' && (
-                    <div className="h-full grid grid-rows-[auto_1fr] gap-3">
-                      <BidTimer
-                        key={`${currentAuction.activePlayerId}-${currentAuction.timerEndsAt?.seconds || 'no-timer'}`}
-                        duration={Math.max(0, Math.floor(timerSeconds))}
-                        isActive={currentAuction?.status === 'RUNNING'}
-                        onTimeout={handleFinalize}
-                      />
-                      <PlayerCard player={currentPlayer as any} />
-                    </div>
+                    <PlayerCard
+                      player={currentPlayer as any}
+                      currentBid={Number(currentAuction.currentBid || 0)}
+                      currentBidderId={currentBidderTeam?.id || null}
+                      currentBidderName={currentBidderTeam?.shortName || 'BID'}
+                    />
                   )}
 
                   {currentAuction?.status === 'PAUSED' && <p className="text-lg font-semibold text-yellow-400 mt-6">Auction Paused by Host</p>}
@@ -510,16 +497,6 @@ const Auction = () => {
                       {isHost ? <Button onClick={() => startNextPlayer(gameCode!)}>Start Auction</Button> : <p className="text-muted-foreground">Waiting for host to start auction.</p>}
                     </div>
                   )}
-                </div>
-
-                <div className="rounded-xl border border-yellow-500/40 bg-[#071a3a] p-4">
-                  <p className="text-xs text-slate-300 tracking-wide">CURRENT BID</p>
-                  <div className="mt-2 flex items-center justify-between">
-                    <p className="text-[32px] font-bold text-yellow-300 drop-shadow-[0_0_12px_rgba(250,204,21,0.75)] animate-pulse">
-                      {formatPrice(Number(currentAuction?.currentBid || 0))}
-                    </p>
-                    <TeamLogo teamId={currentBidderTeam?.id || null} shortName={currentBidderTeam?.shortName || 'BID'} className="w-[50px] h-[50px] rounded-full" />
-                  </div>
                 </div>
               </div>
 

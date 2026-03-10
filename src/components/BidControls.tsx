@@ -1,5 +1,5 @@
 import { Button } from './ui/button';
-import { formatPrice } from '@/lib/constants';
+import { formatPrice, getNextBid } from '@/lib/constants';
 
 interface RecentPurchase {
   playerName: string;
@@ -30,12 +30,10 @@ export const BidControls = ({
   isPaused,
   recentPurchases = [],
 }: BidControlsProps) => {
-  const inc25L = currentBid + 2500000;
-  const inc50L = currentBid + 5000000;
-  const inc1Cr = currentBid + 10000000;
+  const nextBid = getNextBid(currentBid);
 
   return (
-    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 space-y-3">
+    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 space-y-3 relative z-20">
       <p className="text-xs uppercase tracking-widest text-yellow-300">Control Panel</p>
 
       <div className="space-y-1 text-sm text-slate-200">
@@ -43,13 +41,13 @@ export const BidControls = ({
         <p className="text-2xl font-bold text-yellow-300">{formatPrice(purseRemaining)}</p>
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        <Button variant="outline" className="border-yellow-500/60 text-yellow-200" onClick={() => onBid(inc25L)} disabled={!canBid}>+25L</Button>
-        <Button variant="outline" className="border-yellow-500/60 text-yellow-200" onClick={() => onBid(inc50L)} disabled={!canBid}>+50L</Button>
-        <Button variant="outline" className="border-yellow-500/60 text-yellow-200" onClick={() => onBid(inc1Cr)} disabled={!canBid}>+1Cr</Button>
-      </div>
-
-      <Button className="w-full bg-yellow-400 text-black hover:bg-yellow-300 font-bold" onClick={() => onBid(inc25L)} disabled={!canBid}>BID</Button>
+      <Button
+        className="w-full bg-yellow-400 text-black hover:bg-yellow-300 font-bold relative z-30"
+        onClick={() => onBid(nextBid)}
+        disabled={!canBid}
+      >
+        BID
+      </Button>
 
       <div className="grid grid-cols-2 gap-2">
         <Button variant="outline" onClick={onSkip} disabled={!isHost || !onSkip}>SKIP PLAYER</Button>
