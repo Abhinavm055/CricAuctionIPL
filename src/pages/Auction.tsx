@@ -159,6 +159,7 @@ const Auction = () => {
   const queueLength = (session?.auctionQueue || []).length;
   const myTeamId = Object.entries(session?.selectedTeams || {}).find(([_, uid]) => uid === userId)?.[0] as string | undefined;
   const userTeam = teams.find((team) => team.id === myTeamId);
+  const aiTeams = teams.filter((team) => team.id !== myTeamId).slice(0, 9);
 
   const currentAuction = session?.currentAuction;
 
@@ -386,7 +387,7 @@ const Auction = () => {
   if (!session || !userTeam) return <p className="p-6">Loading auction…</p>;
 
   return (
-    <div className="min-h-screen broadcast-container flex flex-col">
+    <div className="h-screen broadcast-container flex flex-col overflow-hidden">
       <AuctionHeader gameCode={gameCode!} currentPool={(currentPlayer as any)?.pool} playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)} totalPlayers={queueLength} />
 
       <HammerSoldEffect open={showHammer} text={banner?.kind === "SOLD" ? banner.text : ""} />
@@ -442,11 +443,12 @@ const Auction = () => {
         </div>
       )}
 
-      {!auctionEnded && <main className="flex-1 p-4 md:p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 max-w-7xl mx-auto">
-          <div className="lg:col-span-3 overflow-x-auto">
-            <div className="grid grid-flow-col lg:grid-flow-row auto-cols-[180px] lg:auto-cols-auto lg:grid-cols-2 gap-2">
-              {teams.map((team) => {
+      {!auctionEnded && <main className="flex-1 p-4 md:p-6 overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 max-w-[1500px] mx-auto h-full">
+          <div className="lg:col-span-3 h-full rounded-xl border bg-card/30 p-3 overflow-hidden">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">AI Teams</p>
+            <div className="grid grid-cols-3 gap-2 mb-3">
+              {aiTeams.map((team) => {
                 const resolved = teamPlayersResolved[team.id] || { retained: [], bought: [] };
                 const allPlayers = [...resolved.retained, ...resolved.bought];
                 return (
@@ -458,28 +460,40 @@ const Auction = () => {
                     rtmCards={team.rtmCards || 0}
                     isCurrentBidder={team.id === currentAuction?.currentBidderId}
                     isBidding={team.id === currentAuction?.currentBidderId}
-                    isUserTeam={team.id === myTeamId}
+                    isUserTeam={false}
                     onClick={() => setSelectedTeamId(team.id)}
                   />
                 );
               })}
             </div>
+
+            {userTeam && (() => {
+              const resolved = teamPlayersResolved[userTeam.id] || { retained: [], bought: [] };
+              const allPlayers = [...resolved.retained, ...resolved.bought];
+              return (
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Your Team</p>
+                  <TeamCard
+                    {...userTeam}
+                    playersCount={Number(userTeam.squadSize || allPlayers.length)}
+                    overseasCount={Number(userTeam.overseasCount || allPlayers.filter((p) => isOverseasPlayer(p)).length)}
+                    rtmCards={userTeam.rtmCards || 0}
+                    isCurrentBidder={userTeam.id === currentAuction?.currentBidderId}
+                    isBidding={userTeam.id === currentAuction?.currentBidderId}
+                    isUserTeam={true}
+                    onClick={() => setSelectedTeamId(userTeam.id)}
+                  />
+                </div>
+              );
+            })()}
           </div>
 
-          <div className="lg:col-span-6 flex flex-col items-center">
+          <div className="lg:col-span-6 h-full flex flex-col items-center justify-start overflow-hidden">
             {currentPlayer && currentAuction?.status === "RUNNING" && (
               <>
                 <BidTimer key={`${currentAuction.activePlayerId}-${currentAuction.timerEndsAt?.seconds || "no-timer"}`} duration={Math.max(0, Math.floor(timerSeconds))} isActive={currentAuction?.status === 'RUNNING'} onTimeout={handleFinalize} />
-                <PlayerCard player={currentPlayer as any} currentBid={currentAuction.currentBid} currentBidder={currentBidderTeam?.shortName || null} currentBidderId={currentBidderTeam?.id || null} teamColor={currentBidderTeam?.color} />
-                <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
-                  {Number((currentPlayer as any)?.rating || 0) >= 4 && (
-                    <span className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-300">
-                      {Array(Math.floor(Number((currentPlayer as any)?.rating || 0))).fill('⭐').join(' ')}
-                    </span>
-                  )}
-                  <span className={`px-2 py-1 rounded ${Boolean((currentPlayer as any)?.isCapped) ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-500/20 text-slate-300'}`}>
-                    {Boolean((currentPlayer as any)?.isCapped) ? 'CAPPED' : 'UNCAPPED'}
-                  </span>
+                <div className="w-full mt-2">
+                  <PlayerCard player={currentPlayer as any} currentBid={currentAuction.currentBid} currentBidder={currentBidderTeam?.shortName || null} currentBidderId={currentBidderTeam?.id || null} teamColor={currentBidderTeam?.color} />
                 </div>
               </>
             )}
@@ -493,26 +507,28 @@ const Auction = () => {
             )}
           </div>
 
-          <div className="lg:col-span-3 space-y-3">
-            <BidControls
-              currentBid={currentAuction?.currentBid || 0}
-              purseRemaining={userTeam.purseRemaining}
-              isYourTurn={true}
-              canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
-              onBid={handleBid}
-              onPass={() => {}}
-              isHost={isHost}
-              onSkip={() => skipCurrentPlayer(gameCode!)}
-              skipDisabled={skipDisabled}
-              onPauseToggle={() => togglePauseAuction(gameCode!)}
-              isPaused={currentAuction?.status === 'PAUSED'}
-              onStartAccelerated={() => startAcceleratedRound(gameCode!)}
-              showStartAccelerated={showAcceleratedButton}
-            />
+          <div className="lg:col-span-3 h-full space-y-3 sticky top-5 self-start">
+            <div className="rounded-xl border bg-card/40 p-3">
+              <BidControls
+                currentBid={currentAuction?.currentBid || 0}
+                purseRemaining={userTeam.purseRemaining}
+                isYourTurn={true}
+                canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
+                onBid={handleBid}
+                onPass={() => {}}
+                isHost={isHost}
+                onSkip={() => skipCurrentPlayer(gameCode!)}
+                skipDisabled={skipDisabled}
+                onPauseToggle={() => togglePauseAuction(gameCode!)}
+                isPaused={currentAuction?.status === 'PAUSED'}
+                onStartAccelerated={() => startAcceleratedRound(gameCode!)}
+                showStartAccelerated={showAcceleratedButton}
+              />
+            </div>
 
             <div className="p-3 border rounded-xl bg-card/40">
               <h3 className="font-semibold mb-2">Live Commentary</h3>
-              <div className="space-y-1 text-xs text-muted-foreground max-h-40 overflow-auto">
+              <div className="space-y-1 text-xs text-muted-foreground max-h-28 overflow-auto">
                 {commentary.length ? commentary.map((c, i) => <p key={`${c}-${i}`}>{c}</p>) : <p>Waiting for bidding action…</p>}
               </div>
             </div>
@@ -520,7 +536,7 @@ const Auction = () => {
             <div className="p-3 border rounded-xl bg-card/40">
               <h3 className="font-semibold mb-2">Auction Analytics</h3>
               <p className="text-xs font-medium mb-1">Recent Purchases</p>
-              <div className="text-xs space-y-1 mb-2">
+              <div className="text-xs space-y-1 mb-2 max-h-20 overflow-auto">
                 {recentPurchases.map((p) => {
                   const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
                   const team = teams.find((t) => t.id === p.teamId);
@@ -530,8 +546,6 @@ const Auction = () => {
               </div>
               <p className="text-xs font-medium mb-1">Purse Leaderboard</p>
               <div className="text-xs space-y-1 mb-2">{purseBoard.map((t) => <p key={t.id}>{t.shortName} – ₹{(Number(t.purseRemaining) / 10000000).toFixed(2)} Cr</p>)}</div>
-              <p className="text-xs font-medium mb-1">Players Bought</p>
-              <div className="text-xs space-y-1">{teams.map((t) => <p key={t.id}>{t.shortName}: {Number(t.squadSize || 0)}</p>)}</div>
             </div>
           </div>
         </div>

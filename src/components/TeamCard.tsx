@@ -28,7 +28,6 @@ export const TeamCard = ({
   overseasCount,
   rtmCards = 0,
   isCurrentBidder,
-  isBidding,
   isUserTeam,
   onClick,
 }: TeamCardProps) => {
@@ -36,44 +35,25 @@ export const TeamCard = ({
     <button
       onClick={onClick}
       className={cn(
-        "relative p-4 rounded-xl border-2 transition-all duration-300 w-full text-left",
-        "card-gradient",
-        isCurrentBidder && "glow-gold",
-        isBidding && "flag-raised",
-        !isBidding && isCurrentBidder && "flag-lowered",
-        isUserTeam && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+        'relative p-3 rounded-xl border transition-all duration-300 w-full text-left bg-card/60',
+        isCurrentBidder && 'ring-2 ring-yellow-400/70 border-yellow-400/60',
+        isUserTeam && 'ring-2 ring-primary border-primary/70',
       )}
-      style={{
-        borderColor: isCurrentBidder ? `hsl(var(--${color}))` : undefined,
-        boxShadow: isCurrentBidder ? `0 0 30px hsl(var(--${color}) / 0.5)` : undefined,
-      }}
+      style={{ boxShadow: isCurrentBidder ? `0 0 20px hsl(var(--${color}) / 0.35)` : undefined }}
     >
-      <div
-        className={cn(
-          "absolute -top-2 left-1/2 -translate-x-1/2 w-6 h-8 rounded-sm transition-all duration-300",
-          isBidding ? "opacity-100 -translate-y-2" : "opacity-0 translate-y-0"
-        )}
-        style={{ backgroundColor: `hsl(var(--${color}))` }}
-      />
+      <div className="flex items-center gap-2 mb-1.5">
+        <TeamLogo teamId={id} logo={logo} shortName={shortName} size="sm" className="rounded-full" />
+        <p className="font-display text-sm" style={{ color: `hsl(var(--${color}))` }}>{shortName}</p>
+      </div>
 
-      <TeamLogo teamId={id} logo={logo} shortName={shortName} size="lg" className="mx-auto mb-2 rounded-full" />
-
-      <h3 className="font-display text-base text-center mb-2" style={{ color: `hsl(var(--${color}))` }}>
-        {shortName}
-      </h3>
-
-      <p className="text-center text-sm font-semibold text-foreground mb-2">{formatPrice(purseRemaining)}</p>
-
-      <div className="grid grid-cols-2 gap-1 text-[11px] text-muted-foreground text-center">
-        <span>{playersCount}/{SQUAD_CONSTRAINTS.MAX_SQUAD}</span>
-        <span>{overseasCount}/{SQUAD_CONSTRAINTS.MAX_OVERSEAS} OS</span>
-        <span className="col-span-2">RTM: {rtmCards}</span>
+      <p className="text-xs font-semibold mb-1">{formatPrice(purseRemaining)}</p>
+      <div className="text-[10px] text-muted-foreground space-y-0.5">
+        <p>Squad {playersCount}/{SQUAD_CONSTRAINTS.MAX_SQUAD}</p>
+        <p>OS {overseasCount}/{SQUAD_CONSTRAINTS.MAX_OVERSEAS} • RTM {rtmCards}</p>
       </div>
 
       {isUserTeam && (
-        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-bold rounded-full">
-          YOU
-        </div>
+        <span className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground font-bold">YOU</span>
       )}
     </button>
   );
