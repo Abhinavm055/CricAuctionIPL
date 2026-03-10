@@ -17,13 +17,6 @@ interface AuctionEndInput {
   teamSquadSizes: number[];
 }
 
-interface RtmInput {
-  previousTeamId: string;
-  winningTeamId: string;
-  playerRating: number;
-  rtmCards: number;
-}
-
 export class AuctionEngine {
   validateBid(input: BidValidationInput) {
     const nextBid = getNextBid(Number(input.currentBid || 0));
@@ -36,13 +29,8 @@ export class AuctionEngine {
     }
   }
 
-  shouldTriggerRtm(input: RtmInput) {
-    return Boolean(
-      input.previousTeamId &&
-      input.previousTeamId !== input.winningTeamId &&
-      Number(input.playerRating || 0) >= 4 &&
-      Number(input.rtmCards || 0) > 0,
-    );
+  canResolveTimer(status: string) {
+    return status === "RUNNING";
   }
 
   shouldEndAuction(input: AuctionEndInput) {

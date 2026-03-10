@@ -50,7 +50,7 @@ interface PendingRtmState {
   winningTeamId?: string;
   originalTeamId?: string;
   finalBid?: number;
-  status?: string;
+  status?: "AWAIT_ORIGINAL" | "AWAIT_WINNER_COUNTER" | "AWAIT_ORIGINAL_MATCH";
   counterBid?: number;
   expiresAt?: { toMillis?: () => number };
 }
@@ -116,6 +116,7 @@ const Auction = () => {
   const autoAdvanceKeyRef = useRef<string | null>(null);
   const autoAdvanceTimerRef = useRef<number | null>(null);
   const autoAdvanceHostTimeoutRef = useRef<number | null>(null);
+  const rtmAiDecisionKeyRef = useRef<string | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
 
   const playTone = useCallback((freq: number, duration = 0.12, volume = 0.04) => {
@@ -355,7 +356,7 @@ const Auction = () => {
 
 
   useEffect(() => {
-    if (!isHost || !gameCode || !pendingRtm?.expiresAt?.toMillis) return;
+    if (!gameCode || !pendingRtm?.expiresAt?.toMillis) return;
 
     const ms = Math.max(0, pendingRtm.expiresAt.toMillis() - Date.now());
     const timeout = window.setTimeout(() => {
@@ -363,11 +364,48 @@ const Auction = () => {
     }, ms + 100);
 
     return () => window.clearTimeout(timeout);
-  }, [isHost, gameCode, pendingRtm?.status, pendingRtm?.expiresAt]);
+  }, [gameCode, pendingRtm?.status, pendingRtm?.expiresAt]);
 
   const rtmPlayer = masterPlayerList.find((p: any) => p.id === pendingRtm?.playerId) || null;
   const rtmOriginalTeam = teams.find((t) => t.id === pendingRtm?.originalTeamId);
   const rtmWinningTeam = teams.find((t) => t.id === pendingRtm?.winningTeamId);
+  const rtmControllerTeamId = pendingRtm?.status === "AWAIT_WINNER_COUNTER" ? pendingRtm?.winningTeamId : pendingRtm?.originalTeamId;
+  const rtmControllerTeam = teams.find((t) => t.id === rtmControllerTeamId);
+  const canUseRtm = pendingRtm?.originalTeamId === myTeamId;
+  const rtmNeedsMyDecision = Boolean(pendingRtm && rtmControllerTeamId === myTeamId && !rtmControllerTeam?.isAI);
+
+  useEffect(() => {
+    if (!gameCode || !pendingRtm || !rtmControllerTeam?.isAI || !rtmControllerTeamId) return;
+
+    const key = `${pendingRtm.playerId}-${pendingRtm.status}-${pendingRtm.finalBid}-${pendingRtm.counterBid}`;
+    if (rtmAiDecisionKeyRef.current === key) return;
+    rtmAiDecisionKeyRef.current = key;
+
+    const timer = window.setTimeout(() => {
+      if (pendingRtm.status === "AWAIT_ORIGINAL") {
+        const shouldUse = Math.random() > 0.35;
+        resolveRtmDecision(gameCode, { action: shouldUse ? "USE" : "DECLINE", actingTeamId: pendingRtm.originalTeamId! }).catch(() => undefined);
+        return;
+      }
+
+      if (pendingRtm.status === "AWAIT_WINNER_COUNTER") {
+        const shouldCounter = Math.random() > 0.45;
+        resolveRtmDecision(gameCode, {
+          action: shouldCounter ? "COUNTER" : "DECLINE",
+          actingTeamId: pendingRtm.winningTeamId!,
+          counterBid: Number(pendingRtm.counterBid || pendingRtm.finalBid || 0),
+        }).catch(() => undefined);
+        return;
+      }
+
+      if (pendingRtm.status === "AWAIT_ORIGINAL_MATCH") {
+        const shouldMatch = Math.random() > 0.5;
+        resolveRtmDecision(gameCode, { action: shouldMatch ? "MATCH" : "DECLINE", actingTeamId: pendingRtm.originalTeamId! }).catch(() => undefined);
+      }
+    }, 1200 + Math.floor(Math.random() * 1200));
+
+    return () => window.clearTimeout(timer);
+  }, [gameCode, pendingRtm, rtmControllerTeam?.isAI, rtmControllerTeamId]);
 
   const recentPurchases = useMemo(() => {
     const purchases = (session?.recentPurchases || []) as Array<{ playerId: string; price: number; teamId: string }>;
@@ -548,7 +586,7 @@ const Auction = () => {
         playerPrices={selectedTeamId ? teams.find((t) => t.id === selectedTeamId)?.playerPurchasePrices || {} : {}}
       />
 
-      {!!pendingRtm && isHost && (
+      {!!pendingRtm && rtmNeedsMyDecision && (canUseRtm || pendingRtm.status === "AWAIT_WINNER_COUNTER") && (
         <RTMModal
           open={true}
           stage={pendingRtm.status}
@@ -559,19 +597,28 @@ const Auction = () => {
           countdownSeconds={Math.max(0, Math.ceil(((pendingRtm?.expiresAt?.toMillis?.() || nowMs) - nowMs) / 1000))}
           onPrimary={() => {
             const actionByStage: Record<string, any> = {
-              AWAIT_ORIGINAL: "ORIGINAL_YES",
-              AWAIT_WINNER_COUNTER: "WINNER_COUNTER_YES",
-              AWAIT_ORIGINAL_MATCH: "ORIGINAL_MATCH_YES",
+              AWAIT_ORIGINAL: "USE",
+              AWAIT_WINNER_COUNTER: "COUNTER",
+              AWAIT_ORIGINAL_MATCH: "MATCH",
             };
-            resolveRtmDecision(gameCode!, actionByStage[pendingRtm.status]);
+            if (pendingRtm.status === "AWAIT_WINNER_COUNTER") {
+              const defaultValue = Number(pendingRtm.counterBid || 0);
+              const input = window.prompt("Enter counter bid", String(defaultValue));
+              if (!input) return;
+              const parsed = Number(input);
+              if (!Number.isFinite(parsed) || parsed < defaultValue) return;
+              resolveRtmDecision(gameCode!, { action: actionByStage[pendingRtm.status], actingTeamId: myTeamId!, counterBid: parsed });
+              return;
+            }
+            resolveRtmDecision(gameCode!, { action: actionByStage[pendingRtm.status], actingTeamId: myTeamId! });
           }}
           onSecondary={() => {
             const actionByStage: Record<string, any> = {
-              AWAIT_ORIGINAL: "ORIGINAL_NO",
-              AWAIT_WINNER_COUNTER: "WINNER_COUNTER_NO",
-              AWAIT_ORIGINAL_MATCH: "ORIGINAL_MATCH_NO",
+              AWAIT_ORIGINAL: "DECLINE",
+              AWAIT_WINNER_COUNTER: "DECLINE",
+              AWAIT_ORIGINAL_MATCH: "DECLINE",
             };
-            resolveRtmDecision(gameCode!, actionByStage[pendingRtm.status]);
+            resolveRtmDecision(gameCode!, { action: actionByStage[pendingRtm.status], actingTeamId: myTeamId! });
           }}
         />
       )}
