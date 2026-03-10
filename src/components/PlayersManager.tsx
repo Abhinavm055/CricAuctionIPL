@@ -1,5 +1,17 @@
 import { useMemo, useState } from 'react';
-import { addDoc, arrayRemove, arrayUnion, collection, deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
+import {
+  addDoc,
+  arrayRemove,
+  arrayUnion,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
+  writeBatch,
+} from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -11,13 +23,14 @@ import { useToast } from '@/hooks/use-toast';
 import { PLAYER_ROLES } from '@/lib/constants';
 import { EditablePlayer, PlayerForm } from './PlayerForm';
 import { PlayerTable } from './PlayerTable';
+import { ensureTeamDocument } from '@/lib/initializeTeams';
+import { CSVUpload } from './CSVUpload';
 
 interface TeamRecord {
   id: string;
   name: string;
   shortName: string;
   logo?: string;
-  players?: string[];
 }
 
 const emptyPlayer: EditablePlayer = {
@@ -28,7 +41,9 @@ const emptyPlayer: EditablePlayer = {
   overseas: false,
   pool: 'Batters',
   previousTeamId: '',
+  nationality: '',
   image: '',
+  isCapped: true,
 };
 
 interface PlayersManagerProps {
@@ -37,12 +52,7 @@ interface PlayersManagerProps {
   globalSearch?: string;
 }
 
-const teamShortNameById = (teams: TeamRecord[]) => teams.reduce<Record<string, string>>((acc, team) => {
-  acc[team.id] = team.shortName;
-  return acc;
-}, {});
-
-export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersManagerProps) => {
+export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersManagerProps) => {
   const { toast } = useToast();
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
@@ -52,22 +62,10 @@ export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersMan
   const [editing, setEditing] = useState<EditablePlayer | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
 
-  const shortNameById = useMemo(() => teamShortNameById(teams), [teams]);
-
   const teamNameById = useMemo(() => {
     const map: Record<string, string> = {};
     teams.forEach((team) => {
       map[team.id] = team.name;
-    });
-    return map;
-  }, [teams]);
-
-  const teamNameByPlayerId = useMemo(() => {
-    const map: Record<string, string> = {};
-    teams.forEach((team) => {
-      (team.players || []).forEach((playerId) => {
-        map[playerId] = team.name;
-      });
     });
     return map;
   }, [teams]);
@@ -82,60 +80,74 @@ export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersMan
         const globalMatch = !globalQ
           || player.name.toLowerCase().includes(globalQ)
           || player.role.toLowerCase().includes(globalQ)
-          || (teamNameById[player.previousTeamId] || '').toLowerCase().includes(globalQ);
+          || (teamNameById[player.previousTeamId] || '').toLowerCase().includes(globalQ)
+          || (player.nationality || '').toLowerCase().includes(globalQ);
         const roleMatch = roleFilter === 'all' ? true : player.role === roleFilter;
-        const playerTeam = player.previousTeamId || '';
-        const teamMatch = teamFilter === 'all' ? true : playerTeam === teamFilter;
+        const teamMatch = teamFilter === 'all' ? true : (player.previousTeamId || '') === teamFilter;
         const ratingMatch = Number(player.rating) >= ratingRange[0] && Number(player.rating) <= ratingRange[1];
-        const overseasMatch =
-          overseasFilter === 'all'
-            ? true
-            : overseasFilter === 'overseas'
-              ? !!player.overseas
-              : !player.overseas;
+        const overseasMatch = overseasFilter === 'all'
+          ? true
+          : overseasFilter === 'overseas'
+            ? !!player.overseas
+            : !player.overseas;
 
         return globalMatch && nameMatch && roleMatch && teamMatch && ratingMatch && overseasMatch;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [players, ratingRange, roleFilter, search, teamFilter, overseasFilter, globalSearch, teamNameById]);
+  }, [players, search, globalSearch, roleFilter, teamFilter, ratingRange, overseasFilter, teamNameById]);
 
   const syncTeamMembership = async (playerId: string, newTeamId: string, previousTeamId: string) => {
     if (previousTeamId && previousTeamId !== newTeamId) {
-      await updateDoc(doc(db, 'teams', previousTeamId), { players: arrayRemove(playerId) });
+      await ensureTeamDocument(previousTeamId);
+      await setDoc(doc(db, 'teams', previousTeamId), { players: arrayRemove(playerId) }, { merge: true });
     }
 
     if (newTeamId) {
-      await updateDoc(doc(db, 'teams', newTeamId), { players: arrayUnion(playerId) });
+      await ensureTeamDocument(newTeamId);
+      await setDoc(doc(db, 'teams', newTeamId), { players: arrayUnion(playerId) }, { merge: true });
     }
   };
 
   const savePlayer = async (player: EditablePlayer) => {
+    const normalizedName = player.name.trim();
+    if (!normalizedName) return;
+
+    const duplicate = players.some((p) => p.name.trim().toLowerCase() === normalizedName.toLowerCase() && p.id !== player.id);
+    if (duplicate) {
+      toast({ title: 'Duplicate player', description: `${normalizedName} already exists.`, variant: 'destructive' });
+      return;
+    }
+
     const payload = {
-      id: player.id,
-      name: player.name,
+      name: normalizedName,
       role: player.role,
       rating: Number(player.rating),
-      starRating: Number(player.rating),
       basePrice: Number(player.basePrice),
-      overseas: !!player.overseas,
-      isOverseas: !!player.overseas,
       pool: player.pool,
-      previousTeamId: player.previousTeamId,
-      previousTeam: shortNameById[player.previousTeamId] || '',
-      image: player.image,
+      previousTeamId: player.previousTeamId || null,
+      overseas: Boolean(player.overseas),
+      nationality: player.nationality?.trim() || '',
+      image: player.image?.trim() || '',
+      isCapped: Boolean(player.isCapped),
     };
 
     if (player.id) {
       const existing = players.find((p) => p.id === player.id);
-      await setDoc(doc(db, 'players', player.id), payload, { merge: true });
-      await syncTeamMembership(player.id, player.previousTeamId, existing?.previousTeamId || '');
+      await updateDoc(doc(db, 'players', player.id), payload);
+      await syncTeamMembership(player.id, player.previousTeamId || '', existing?.previousTeamId || '');
       toast({ title: 'Player updated', description: `${player.name} saved.` });
     } else {
-      const created = await addDoc(collection(db, 'players'), payload);
+      const created = await addDoc(collection(db, 'players'), {
+        ...payload,
+        createdAt: serverTimestamp(),
+      });
+
       if (player.previousTeamId) {
-        await updateDoc(doc(db, 'teams', player.previousTeamId), { players: arrayUnion(created.id) });
+        await ensureTeamDocument(player.previousTeamId);
+        await setDoc(doc(db, 'teams', player.previousTeamId), { players: arrayUnion(created.id) }, { merge: true });
       }
-      toast({ title: 'Player created', description: `${player.name} added to players collection.` });
+
+      toast({ title: 'Player created', description: `${player.name} added to Firestore.` });
       setCreateOpen(false);
     }
 
@@ -146,33 +158,47 @@ export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersMan
     const player = players.find((p) => p.id === playerId);
     await deleteDoc(doc(db, 'players', playerId));
     if (player?.previousTeamId) {
-      await updateDoc(doc(db, 'teams', player.previousTeamId), { players: arrayRemove(playerId) });
+      await ensureTeamDocument(player.previousTeamId);
+      await setDoc(doc(db, 'teams', player.previousTeamId), { players: arrayRemove(playerId) }, { merge: true });
     }
     toast({ title: 'Player deleted' });
   };
 
+  const handleDeleteAllPlayers = async () => {
+    const snapshot = await getDocs(collection(db, 'players'));
+    const batch = writeBatch(db);
+    snapshot.docs.forEach((playerDoc) => batch.delete(playerDoc.ref));
+    await batch.commit();
+    toast({ title: 'All players deleted', description: `Removed ${snapshot.size} players.` });
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center gap-2 flex-wrap">
         <h2 className="text-xl font-semibold">Players (Firestore)</h2>
 
-        <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-          <DialogTrigger asChild>
-            <Button>Add Player</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl">
-            <DialogHeader>
-              <DialogTitle>Create New Player</DialogTitle>
-            </DialogHeader>
-            <PlayerForm
-              initial={emptyPlayer}
-              teams={teams.map((team) => ({ id: team.id, name: team.name }))}
-              onSave={savePlayer}
-              onCancel={() => setCreateOpen(false)}
-              submitLabel="Create Player"
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex gap-2 flex-wrap">
+          <CSVUpload />
+          <Button variant="destructive" onClick={handleDeleteAllPlayers}>Delete All Players</Button>
+
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button>Add Player</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-3xl">
+              <DialogHeader>
+                <DialogTitle>Create New Player</DialogTitle>
+              </DialogHeader>
+              <PlayerForm
+                initial={emptyPlayer}
+                teams={teams.map((team) => ({ id: team.id, name: team.name }))}
+                onSave={savePlayer}
+                onCancel={() => setCreateOpen(false)}
+                submitLabel="Create Player"
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-3 border rounded-lg p-3">
@@ -238,9 +264,8 @@ export const PlayersManager = ({ players, teams, globalSearch = "" }: PlayersMan
       <div className="border rounded-lg p-2">
         <PlayerTable
           players={filteredPlayers}
-          teamNameByPlayerId={Object.fromEntries(
-            players.map((player) => [player.id || '', teamNameByPlayerId[player.id || ''] || teamNameById[player.previousTeamId] || 'Unassigned']),
-          )}
+          teamNameByPlayerId={Object.fromEntries(players.map((player) => [player.id || '', teamNameById[player.previousTeamId] || 'Unassigned']))}
+          teamIdByPlayerId={Object.fromEntries(players.map((player) => [player.id || '', player.previousTeamId || '']))}
           onEdit={setEditing}
           onDelete={handleDeletePlayer}
         />

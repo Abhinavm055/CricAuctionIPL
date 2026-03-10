@@ -4,76 +4,67 @@ import { TeamLogo } from './TeamLogo';
 
 interface TeamCardProps {
   id: string;
-  name: string;
   shortName: string;
-  color: string;
+  name: string;
   logo?: string;
   purseRemaining: number;
-  playersCount: number;
-  overseasCount: number;
-  rtmCards?: number;
+  squadSize: number;
+  rtmCards: number;
   isCurrentBidder: boolean;
-  isBidding: boolean;
-  isUserTeam: boolean;
+  isUserTeam?: boolean;
+  logoSize?: 'normal' | 'large';
   onClick?: () => void;
 }
 
 export const TeamCard = ({
+  id,
   shortName,
-  color,
+  name,
   logo,
   purseRemaining,
-  playersCount,
-  overseasCount,
-  rtmCards = 0,
+  squadSize,
+  rtmCards,
   isCurrentBidder,
-  isBidding,
-  isUserTeam,
+  isUserTeam = false,
+  logoSize = 'normal',
   onClick,
 }: TeamCardProps) => {
+  const slots = Math.max(0, SQUAD_CONSTRAINTS.MAX_SQUAD - Number(squadSize || 0));
+
   return (
     <button
       onClick={onClick}
       className={cn(
-        "relative p-4 rounded-xl border-2 transition-all duration-300 w-full text-left",
-        "card-gradient",
-        isCurrentBidder && "glow-gold",
-        isBidding && "flag-raised",
-        !isBidding && isCurrentBidder && "flag-lowered",
-        isUserTeam && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+        'relative w-full rounded-xl border p-2.5 text-left transition-all',
+        'bg-[#0B1C3D] border-yellow-500/60',
+        isCurrentBidder && 'shadow-[0_0_24px_rgba(234,179,8,0.65)] animate-pulse',
+        isUserTeam && 'bg-[#10254f] border-yellow-400 shadow-[0_0_16px_rgba(234,179,8,0.45)]',
       )}
-      style={{
-        borderColor: isCurrentBidder ? `hsl(var(--${color}))` : undefined,
-        boxShadow: isCurrentBidder ? `0 0 30px hsl(var(--${color}) / 0.5)` : undefined,
-      }}
     >
-      <div
-        className={cn(
-          "absolute -top-2 left-1/2 -translate-x-1/2 w-6 h-8 rounded-sm transition-all duration-300",
-          isBidding ? "opacity-100 -translate-y-2" : "opacity-0 translate-y-0"
-        )}
-        style={{ backgroundColor: `hsl(var(--${color}))` }}
-      />
+      {isCurrentBidder && <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-sm">🔨</div>}
 
-      <TeamLogo logo={logo} shortName={shortName} size="lg" className="mx-auto mb-2 rounded-full" />
-
-      <h3 className="font-display text-base text-center mb-2" style={{ color: `hsl(var(--${color}))` }}>
-        {shortName}
-      </h3>
-
-      <p className="text-center text-sm font-semibold text-foreground mb-2">{formatPrice(purseRemaining)}</p>
-
-      <div className="grid grid-cols-2 gap-1 text-[11px] text-muted-foreground text-center">
-        <span>{playersCount}/{SQUAD_CONSTRAINTS.MAX_SQUAD}</span>
-        <span>{overseasCount}/{SQUAD_CONSTRAINTS.MAX_OVERSEAS} OS</span>
-        <span className="col-span-2">RTM: {rtmCards}</span>
+      <div className="flex items-center gap-2 mb-2">
+        <TeamLogo
+          teamId={id}
+          logo={logo}
+          shortName={shortName}
+          className={cn(
+            'rounded-full border border-yellow-500/60 bg-[#06122b] shrink-0',
+            logoSize === 'large' ? 'w-[85px] h-[85px]' : 'w-[60px] h-[60px]',
+          )}
+        />
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold text-yellow-100 truncate">{name}</p>
+          <p className="text-[10px] font-bold tracking-wide text-yellow-300">{shortName}</p>
+        </div>
       </div>
 
-      {isUserTeam && (
-        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 px-2 py-0.5 bg-primary text-primary-foreground text-xs font-bold rounded-full">
-          YOU
-        </div>
-      )}
+      <div className="text-[10px] leading-4 text-slate-200 space-y-0.5">
+        <p>Purse: {formatPrice(Number(purseRemaining || 0))}</p>
+        <p>Slots: {slots}</p>
+        <p>RTM: {Number(rtmCards || 0)}</p>
+        <p>Squad: {Number(squadSize || 0)}/{SQUAD_CONSTRAINTS.MAX_SQUAD}</p>
+      </div>
     </button>
   );
 };

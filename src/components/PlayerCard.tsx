@@ -1,107 +1,84 @@
 import { Player } from '@/lib/samplePlayers';
-import { StarRating } from './StarRating';
 import { formatPrice } from '@/lib/constants';
-import { User, Globe, MapPin } from 'lucide-react';
+import { User } from 'lucide-react';
+import { TeamLogo } from './TeamLogo';
 
 interface PlayerCardProps {
   player: Player;
   currentBid: number;
-  currentBidder: string | null;
-  teamColor?: string;
+  currentBidderId?: string | null;
+  currentBidderName?: string | null;
 }
 
-export const PlayerCard = ({ player, currentBid, currentBidder, teamColor }: PlayerCardProps) => {
-  const roleColors: Record<string, string> = {
-    'Batsman': 'from-blue-500 to-blue-600',
-    'Bowler': 'from-green-500 to-green-600',
-    'All-Rounder': 'from-purple-500 to-purple-600',
-    'Wicket-Keeper': 'from-amber-500 to-amber-600',
-  };
+const normalizeRoleLabel = (role: string) => {
+  const normalized = String(role || '').toLowerCase();
+  if (normalized.includes('wicket')) return 'WICKETKEEPER';
+  if (normalized.includes('all')) return 'ALLROUNDER';
+  if (normalized.includes('bowl')) return 'BOWLER';
+  return 'BATTER';
+};
+
+const renderStars = (rating: number) => {
+  const filled = Math.max(0, Math.min(5, Math.round(rating)));
+  return Array.from({ length: 5 }).map((_, idx) => (
+    <span key={idx} className={idx < filled ? 'text-yellow-400' : 'text-gray-500'}>★</span>
+  ));
+};
+
+export const PlayerCard = ({ player, currentBid, currentBidderId, currentBidderName }: PlayerCardProps) => {
+  const playerImage = (player as any).image || player.imageUrl;
+  const playerRating = Number((player as any).rating ?? player.starRating ?? 0);
+  const isOverseas = Boolean((player as any).overseas ?? player.isOverseas);
+  const previousTeamId = String((player as any).previousTeamId || '').toLowerCase() || null;
+  const nationality = String((player as any).nationality || player.nationality || 'Unknown');
 
   return (
-    <div className="relative card-gradient rounded-2xl border border-border/50 overflow-hidden scale-in">
-      {/* Broadcast overlay effect */}
-      <div className="absolute inset-0 broadcast-overlay pointer-events-none opacity-30" />
-      
-      {/* Pool badge */}
-      <div className="absolute top-4 left-4 z-10">
-        <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-primary/20 text-primary rounded-full border border-primary/30">
-          {player.pool}
-        </span>
-      </div>
-
-      {/* Overseas indicator */}
-      {player.isOverseas && (
-        <div className="absolute top-4 right-4 z-10">
-          <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-secondary text-muted-foreground rounded-full flex items-center gap-1">
-            <Globe className="w-3 h-3" />
-            Overseas
+    <div className="w-full h-full rounded-2xl border border-yellow-500/40 bg-[#071a3a] text-white shadow-[0_0_28px_rgba(234,179,8,0.2)] overflow-hidden">
+      <div className="h-full grid grid-rows-[auto_1fr_auto]">
+        <div className="flex items-center justify-between border-b border-yellow-500/30 px-5 py-3">
+          <span className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold text-black">
+            {normalizeRoleLabel(player.role)}
           </span>
+          <div className="flex items-center gap-2">
+            {isOverseas && <span className="text-yellow-400">✈</span>}
+            <TeamLogo teamId={previousTeamId} shortName={(player as any).previousTeam || 'PREV'} className="w-12 h-12 rounded-full" />
+          </div>
         </div>
-      )}
 
-      <div className="p-8 flex flex-col items-center">
-        {/* Player image */}
-        <div className="relative mb-6">
-          <div className="w-48 h-48 rounded-xl bg-gradient-to-br from-secondary to-accent flex items-center justify-center border-4 border-primary/30 shadow-lg overflow-hidden">
-            {(player as any).image || player.imageUrl ? (
-              <img src={((player as any).image || player.imageUrl)} alt={player.name} className="w-full h-full object-cover" />
+        <div className="grid grid-cols-[190px_1fr] gap-5 p-5 items-start min-h-0">
+          <div className="w-[180px] h-[220px] rounded-xl overflow-hidden border border-yellow-500/30 bg-slate-900 flex items-center justify-center">
+            {playerImage ? (
+              <img
+                src={playerImage}
+                alt={player.name}
+                className="w-[180px] h-[220px] object-cover"
+                onError={(event) => {
+                  event.currentTarget.src = 'https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=256';
+                }}
+              />
             ) : (
-              <User className="w-16 h-16 text-muted-foreground" />
+              <User className="w-14 h-14 text-slate-400" />
             )}
           </div>
-          {/* Role badge */}
-          <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full bg-gradient-to-r ${roleColors[player.role]} text-white text-xs font-bold shadow-lg`}>
-            {player.role}
+
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-3xl font-display uppercase tracking-wide">{player.name}</h2>
+              <TeamLogo teamId={currentBidderId || null} shortName={currentBidderName || 'BID'} className="w-16 h-16 rounded-full border-2 border-yellow-400/70" />
+            </div>
+            <p className="text-xl leading-none">{renderStars(playerRating)}</p>
+            <p className="text-sm text-slate-200">{nationality}</p>
+            <p className="text-base font-semibold text-yellow-200">BASE PRICE: {formatPrice(player.basePrice)}</p>
           </div>
         </div>
 
-        {/* Player name */}
-        <h2 className="font-display text-4xl text-foreground mb-2 text-center tracking-wide">
-          {player.name}
-        </h2>
-
-        {/* Star rating */}
-        <div className="mb-4">
-          <StarRating rating={player.starRating} size="lg" />
-        </div>
-
-        {/* Player info */}
-        <div className="flex items-center gap-4 text-muted-foreground text-sm mb-6">
-          <span className="flex items-center gap-1">
-            <MapPin className="w-4 h-4" />
-            {player.nationality}
-          </span>
-          {player.previousTeam && (
-            <span className="px-2 py-0.5 bg-secondary rounded text-xs">
-              Ex-{player.previousTeam}
-            </span>
-          )}
-        </div>
-
-        {/* Base price */}
-        <div className="text-center mb-6">
-          <p className="text-sm text-muted-foreground uppercase tracking-wider mb-1">Base Price</p>
-          <p className="text-2xl font-bold text-foreground">{formatPrice(player.basePrice)}</p>
-        </div>
-
-        {/* Current bid section */}
-        <div className="w-full p-4 rounded-xl bg-secondary/50 border border-border">
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground uppercase tracking-wider mb-2">Current Bid</p>
-            <p className="font-display text-5xl text-primary text-shadow-glow mb-2">
+        <div className="border-t border-yellow-500/30 px-5 py-4">
+          <p className="text-xs text-slate-300 tracking-wide">CURRENT BID</p>
+          <div className="mt-2 flex items-center justify-between">
+            <p className="text-[32px] font-bold text-yellow-300 drop-shadow-[0_0_12px_rgba(250,204,21,0.75)] animate-pulse">
               {formatPrice(currentBid)}
             </p>
-            {currentBidder && (
-              <div 
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full pulse-bid"
-                style={{ backgroundColor: teamColor ? `hsl(var(--${teamColor}))` : 'hsl(var(--secondary))' }}
-              >
-                <span className="text-sm font-bold text-white drop-shadow-md">
-                  {currentBidder}
-                </span>
-              </div>
-            )}
+            <TeamLogo teamId={currentBidderId || null} shortName={currentBidderName || 'BID'} className="w-[50px] h-[50px] rounded-full" />
           </div>
         </div>
       </div>
