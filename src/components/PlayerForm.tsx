@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { AUCTION_POOLS, PLAYER_ROLES } from '@/lib/constants';
+import { AUCTION_POOLS, PLAYER_IMAGE_PLACEHOLDER, PLAYER_ROLES } from '@/lib/constants';
 
 export interface EditablePlayer {
   id?: string;
@@ -17,6 +17,7 @@ export interface EditablePlayer {
   previousTeamId: string;
   nationality: string;
   image: string;
+  isCapped: boolean;
 }
 
 interface TeamOption {
@@ -44,6 +45,7 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
     previousTeamId: initial.previousTeamId || '',
     nationality: initial.nationality || '',
     image: initial.image || '',
+    isCapped: Boolean(initial.isCapped),
   });
   const [saving, setSaving] = useState(false);
 
@@ -153,13 +155,24 @@ export const PlayerForm = ({ initial, teams, onSave, onCancel, submitLabel = 'Sa
       {imagePreview && (
         <div className="space-y-2">
           <Label>Image Preview</Label>
-          <img src={imagePreview} alt={`${form.name || 'player'} preview`} className="w-20 h-20 object-cover rounded" onError={(event) => { event.currentTarget.src = "https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=128"; }} />
+          <img
+            src={imagePreview}
+            alt={`${form.name || 'player'} preview`}
+            className="w-20 h-20 object-cover rounded"
+            onError={(event) => { event.currentTarget.src = PLAYER_IMAGE_PLACEHOLDER; }}
+          />
         </div>
       )}
 
-      <div className="flex items-center gap-3">
-        <Switch checked={!!form.overseas} onCheckedChange={(value) => update('overseas', value)} id="overseas-switch" />
-        <Label htmlFor="overseas-switch">Overseas Player</Label>
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="flex items-center gap-3">
+          <Switch checked={!!form.overseas} onCheckedChange={(value) => update('overseas', value)} id="overseas-switch" />
+          <Label htmlFor="overseas-switch">Overseas Player</Label>
+        </div>
+        <div className="flex items-center gap-3">
+          <Switch checked={!!form.isCapped} onCheckedChange={(value) => update('isCapped', value)} id="capped-switch" />
+          <Label htmlFor="capped-switch">Capped Player</Label>
+        </div>
       </div>
 
       <div className="flex gap-2">

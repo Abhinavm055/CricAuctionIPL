@@ -55,6 +55,8 @@ const AdminPage = () => {
           image: String(raw.image || raw.imageUrl || ''),
           pool: String(raw.pool || 'Batters'),
           previousTeamId: teamId,
+          nationality: String(raw.nationality || ''),
+          isCapped: Boolean(raw.isCapped ?? false),
         } as EditablePlayer;
       }).filter((player) => player.name);
 

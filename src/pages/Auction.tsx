@@ -471,6 +471,16 @@ const Auction = () => {
               <>
                 <BidTimer key={`${currentAuction.activePlayerId}-${currentAuction.timerEndsAt?.seconds || "no-timer"}`} duration={Math.max(0, Math.floor(timerSeconds))} isActive={currentAuction?.status === 'RUNNING'} onTimeout={handleFinalize} />
                 <PlayerCard player={currentPlayer as any} currentBid={currentAuction.currentBid} currentBidder={currentBidderTeam?.shortName || null} currentBidderId={currentBidderTeam?.id || null} teamColor={currentBidderTeam?.color} />
+                <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs">
+                  {Number((currentPlayer as any)?.rating || 0) >= 4 && (
+                    <span className="px-2 py-1 rounded bg-yellow-500/20 text-yellow-300">
+                      {Array(Math.floor(Number((currentPlayer as any)?.rating || 0))).fill('⭐').join(' ')}
+                    </span>
+                  )}
+                  <span className={`px-2 py-1 rounded ${Boolean((currentPlayer as any)?.isCapped) ? 'bg-emerald-500/20 text-emerald-300' : 'bg-slate-500/20 text-slate-300'}`}>
+                    {Boolean((currentPlayer as any)?.isCapped) ? 'CAPPED' : 'UNCAPPED'}
+                  </span>
+                </div>
               </>
             )}
 

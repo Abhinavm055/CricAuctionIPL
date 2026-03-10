@@ -1,3 +1,5 @@
+import { CSV_PLAYER_HEADERS } from './constants';
+
 export interface CsvPlayerRow {
   name: string;
   role: string;
@@ -8,9 +10,12 @@ export interface CsvPlayerRow {
   overseas: boolean;
   nationality: string;
   image: string;
+  isCapped: boolean;
 }
 
-const toBool = (value: string) => String(value || '').trim().toLowerCase() === 'true';
+const toBool = (value: string | boolean | undefined) => String(value ?? '').trim().toLowerCase() === 'true';
+
+const normalize = (value: string | undefined) => String(value ?? '').trim();
 
 export const parsePlayersCsv = (csvText: string): CsvPlayerRow[] => {
   const lines = csvText
@@ -23,34 +28,32 @@ export const parsePlayersCsv = (csvText: string): CsvPlayerRow[] => {
   const [headerLine, ...rows] = lines;
   const headers = headerLine.split(',').map((h) => h.trim());
 
-  const idx = (name: string) => headers.findIndex((h) => h.toLowerCase() === name.toLowerCase());
-
-  const nameI = idx('name');
-  const roleI = idx('role');
-  const ratingI = idx('rating');
-  const basePriceI = idx('basePrice');
-  const poolI = idx('pool');
-  const previousTeamIdI = idx('previousTeamId');
-  const overseasI = idx('overseas');
-  const nationalityI = idx('nationality');
-  const imageI = idx('image');
-
-  if ([nameI, roleI, ratingI, basePriceI, poolI, previousTeamIdI, overseasI, nationalityI, imageI].some((i) => i < 0)) {
-    throw new Error('Invalid CSV headers. Expected: name,role,rating,basePrice,pool,previousTeamId,overseas,nationality,image');
+  const orderValid = CSV_PLAYER_HEADERS.every((key, index) => headers[index] === key);
+  if (!orderValid) {
+    console.error('CSV column order invalid');
+    throw new Error(`Invalid CSV headers. Expected order: ${CSV_PLAYER_HEADERS.join(',')}`);
   }
 
   return rows
     .map((line) => line.split(',').map((cell) => cell.trim()))
     .map((cells) => ({
-      name: String(cells[nameI] || ''),
-      role: String(cells[roleI] || ''),
-      rating: Number(cells[ratingI] || 0),
-      basePrice: Number(cells[basePriceI] || 0),
-      pool: String(cells[poolI] || ''),
-      previousTeamId: cells[previousTeamIdI] ? String(cells[previousTeamIdI]) : null,
-      overseas: toBool(String(cells[overseasI] || 'false')),
-      nationality: String(cells[nationalityI] || ''),
-      image: String(cells[imageI] || ''),
+      name: normalize(cells[0]),
+      role: normalize(cells[1]),
+      rating: Number(cells[2] || 0),
+      basePrice: Number(cells[3] || 0),
+      pool: normalize(cells[4]),
+      previousTeamId: normalize(cells[5]) || null,
+      overseas: toBool(cells[6]),
+      nationality: normalize(cells[7]),
+      image: normalize(cells[8]),
+      isCapped: toBool(cells[9]),
     }))
-    .filter((row) => row.name && row.role && Number.isFinite(row.rating) && Number.isFinite(row.basePrice));
+    .filter(
+      (row) =>
+        row.name &&
+        row.role &&
+        row.pool &&
+        Number.isFinite(row.rating) &&
+        Number.isFinite(row.basePrice),
+    );
 };

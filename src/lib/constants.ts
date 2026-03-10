@@ -11,6 +11,21 @@ export const TEAM_LOGOS = {
   srh: 'https://documents.iplt20.com/ipl/franchises/1764225435_1731685022_1702466366_SRHroundbig.png',
 } as const;
 
+export const PLAYER_IMAGE_PLACEHOLDER = 'https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=256';
+
+export const CSV_PLAYER_HEADERS = [
+  'name',
+  'role',
+  'rating',
+  'basePrice',
+  'pool',
+  'previousTeamId',
+  'overseas',
+  'nationality',
+  'image',
+  'isCapped',
+] as const;
+
 export const IPL_TEAMS = [
   { id: 'csk', name: 'Chennai Super Kings', shortName: 'CSK', color: 'team-csk', purse: 1200000000, logo: TEAM_LOGOS.csk },
   { id: 'mi', name: 'Mumbai Indians', shortName: 'MI', color: 'team-mi', purse: 1200000000, logo: TEAM_LOGOS.mi },

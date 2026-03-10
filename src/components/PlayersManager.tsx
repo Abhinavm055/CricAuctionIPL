@@ -1,4 +1,4 @@
-import { ChangeEvent, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   addDoc,
   arrayRemove,
@@ -7,11 +7,9 @@ import {
   deleteDoc,
   doc,
   getDocs,
-  query,
   serverTimestamp,
   setDoc,
   updateDoc,
-  where,
   writeBatch,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -25,15 +23,14 @@ import { useToast } from '@/hooks/use-toast';
 import { PLAYER_ROLES } from '@/lib/constants';
 import { EditablePlayer, PlayerForm } from './PlayerForm';
 import { PlayerTable } from './PlayerTable';
-import { parsePlayersCsv } from '@/lib/csvImportPlayers';
 import { ensureTeamDocument } from '@/lib/initializeTeams';
+import { CSVUpload } from './CSVUpload';
 
 interface TeamRecord {
   id: string;
   name: string;
   shortName: string;
   logo?: string;
-  players?: string[];
 }
 
 const emptyPlayer: EditablePlayer = {
@@ -46,6 +43,7 @@ const emptyPlayer: EditablePlayer = {
   previousTeamId: '',
   nationality: '',
   image: '',
+  isCapped: true,
 };
 
 interface PlayersManagerProps {
@@ -54,15 +52,8 @@ interface PlayersManagerProps {
   globalSearch?: string;
 }
 
-const teamShortNameById = (teams: TeamRecord[]) => teams.reduce<Record<string, string>>((acc, team) => {
-  acc[team.id] = team.shortName;
-  return acc;
-}, {});
-
 export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersManagerProps) => {
   const { toast } = useToast();
-  const csvInputRef = useRef<HTMLInputElement | null>(null);
-
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [teamFilter, setTeamFilter] = useState('all');
@@ -70,9 +61,6 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
   const [ratingRange, setRatingRange] = useState<number[]>([1, 5]);
   const [editing, setEditing] = useState<EditablePlayer | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [importing, setImporting] = useState(false);
-
-  const shortNameById = useMemo(() => teamShortNameById(teams), [teams]);
 
   const teamNameById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -95,20 +83,18 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
           || (teamNameById[player.previousTeamId] || '').toLowerCase().includes(globalQ)
           || (player.nationality || '').toLowerCase().includes(globalQ);
         const roleMatch = roleFilter === 'all' ? true : player.role === roleFilter;
-        const playerTeam = player.previousTeamId || '';
-        const teamMatch = teamFilter === 'all' ? true : playerTeam === teamFilter;
+        const teamMatch = teamFilter === 'all' ? true : (player.previousTeamId || '') === teamFilter;
         const ratingMatch = Number(player.rating) >= ratingRange[0] && Number(player.rating) <= ratingRange[1];
-        const overseasMatch =
-          overseasFilter === 'all'
-            ? true
-            : overseasFilter === 'overseas'
-              ? !!player.overseas
-              : !player.overseas;
+        const overseasMatch = overseasFilter === 'all'
+          ? true
+          : overseasFilter === 'overseas'
+            ? !!player.overseas
+            : !player.overseas;
 
         return globalMatch && nameMatch && roleMatch && teamMatch && ratingMatch && overseasMatch;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [players, ratingRange, roleFilter, search, teamFilter, overseasFilter, globalSearch, teamNameById]);
+  }, [players, search, globalSearch, roleFilter, teamFilter, ratingRange, overseasFilter, teamNameById]);
 
   const syncTeamMembership = async (playerId: string, newTeamId: string, previousTeamId: string) => {
     if (previousTeamId && previousTeamId !== newTeamId) {
@@ -126,9 +112,7 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
     const normalizedName = player.name.trim();
     if (!normalizedName) return;
 
-    const duplicate = players.some(
-      (p) => p.name.trim().toLowerCase() === normalizedName.toLowerCase() && p.id !== player.id,
-    );
+    const duplicate = players.some((p) => p.name.trim().toLowerCase() === normalizedName.toLowerCase() && p.id !== player.id);
     if (duplicate) {
       toast({ title: 'Duplicate player', description: `${normalizedName} already exists.`, variant: 'destructive' });
       return;
@@ -141,9 +125,10 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
       basePrice: Number(player.basePrice),
       pool: player.pool,
       previousTeamId: player.previousTeamId || null,
-      overseas: !!player.overseas,
+      overseas: Boolean(player.overseas),
       nationality: player.nationality?.trim() || '',
       image: player.image?.trim() || '',
+      isCapped: Boolean(player.isCapped),
     };
 
     if (player.id) {
@@ -156,10 +141,12 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
         ...payload,
         createdAt: serverTimestamp(),
       });
+
       if (player.previousTeamId) {
         await ensureTeamDocument(player.previousTeamId);
         await setDoc(doc(db, 'teams', player.previousTeamId), { players: arrayUnion(created.id) }, { merge: true });
       }
+
       toast({ title: 'Player created', description: `${player.name} added to Firestore.` });
       setCreateOpen(false);
     }
@@ -185,66 +172,13 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
     toast({ title: 'All players deleted', description: `Removed ${snapshot.size} players.` });
   };
 
-  const handleCsvUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setImporting(true);
-    try {
-      const text = await file.text();
-      const rows = parsePlayersCsv(text);
-      if (!rows.length) {
-        toast({ title: 'CSV is empty', variant: 'destructive' });
-        return;
-      }
-
-      let createdCount = 0;
-      let skippedCount = 0;
-
-      for (const row of rows) {
-        const normalizedName = row.name.trim();
-        const duplicateQuery = query(collection(db, 'players'), where('name', '==', normalizedName));
-        const duplicateSnap = await getDocs(duplicateQuery);
-
-        if (!duplicateSnap.empty) {
-          skippedCount += 1;
-          continue;
-        }
-
-        await addDoc(collection(db, 'players'), {
-          name: normalizedName,
-          role: row.role,
-          rating: Number(row.rating),
-          basePrice: Number(row.basePrice),
-          pool: row.pool,
-          previousTeamId: row.previousTeamId || null,
-          overseas: !!row.overseas,
-          nationality: row.nationality || '',
-          image: row.image || '',
-          createdAt: serverTimestamp(),
-        });
-        createdCount += 1;
-      }
-
-      toast({ title: 'CSV import complete', description: `Added ${createdCount}, skipped ${skippedCount} duplicates.` });
-    } catch (error) {
-      toast({ title: 'CSV import failed', description: 'Please check CSV format.', variant: 'destructive' });
-    } finally {
-      setImporting(false);
-      if (csvInputRef.current) csvInputRef.current.value = '';
-    }
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center gap-2 flex-wrap">
         <h2 className="text-xl font-semibold">Players (Firestore)</h2>
 
         <div className="flex gap-2 flex-wrap">
-          <input ref={csvInputRef} type="file" accept=".csv" className="hidden" onChange={handleCsvUpload} />
-          <Button variant="outline" disabled={importing} onClick={() => csvInputRef.current?.click()}>
-            {importing ? 'Importing CSV…' : 'Bulk Upload CSV'}
-          </Button>
+          <CSVUpload />
           <Button variant="destructive" onClick={handleDeleteAllPlayers}>Delete All Players</Button>
 
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -330,12 +264,8 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
       <div className="border rounded-lg p-2">
         <PlayerTable
           players={filteredPlayers}
-          teamNameByPlayerId={Object.fromEntries(
-            players.map((player) => [player.id || '', teamNameById[player.previousTeamId] || 'Unassigned']),
-          )}
-          teamIdByPlayerId={Object.fromEntries(
-            players.map((player) => [player.id || '', player.previousTeamId || '']),
-          )}
+          teamNameByPlayerId={Object.fromEntries(players.map((player) => [player.id || '', teamNameById[player.previousTeamId] || 'Unassigned']))}
+          teamIdByPlayerId={Object.fromEntries(players.map((player) => [player.id || '', player.previousTeamId || '']))}
           onEdit={setEditing}
           onDelete={handleDeletePlayer}
         />

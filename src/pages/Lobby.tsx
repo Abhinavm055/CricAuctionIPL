@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { IPL_TEAMS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
@@ -10,8 +10,6 @@ import { TeamLogo } from '@/components/TeamLogo';
 
 const Lobby = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
-  const [searchParams] = useSearchParams();
-  const isHost = searchParams.get('host') === 'true';
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -21,11 +19,12 @@ const Lobby = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const userId = useMemo(() => {
-    const existing = localStorage.getItem('uid');
-    if (existing) return existing;
-    const id = `user-${Math.random().toString(36).slice(2, 9)}`;
-    localStorage.setItem('uid', id);
-    return id;
+    let uid = localStorage.getItem('uid');
+    if (!uid) {
+      uid = `user-${Math.random().toString(36).slice(2, 9)}`;
+      localStorage.setItem('uid', uid);
+    }
+    return uid;
   }, []);
 
   useEffect(() => {
@@ -38,6 +37,14 @@ const Lobby = () => {
     if (session?.phase === 'AUCTION') navigate(`/auction/${gameCode}`);
     if (session?.phase === 'RETENTION') navigate(`/retention/${gameCode}`);
   }, [session?.phase, gameCode, navigate]);
+
+  const isHost = session?.hostId === userId;
+
+  useEffect(() => {
+    if (!session?.hostId) return;
+    console.log('hostId:', session.hostId);
+    console.log('userId:', userId);
+  }, [session?.hostId, userId]);
 
   useEffect(() => {
     if (!isHost || !session || !gameCode) return;
@@ -174,11 +181,11 @@ const Lobby = () => {
 
           {isHost && (
             <Button variant="gold" size="xl" disabled={!canStartRetention} onClick={() => startRetention(gameCode!)}>
-              Proceed to Retention
+              Start Retention
             </Button>
           )}
 
-          {!isHost && myConfirmedTeam && <p className="text-muted-foreground animate-pulse">Host is preparing the auction...</p>}
+          {!isHost && <p className="text-muted-foreground animate-pulse">Host is preparing the auction...</p>}
         </div>
       </div>
     </div>

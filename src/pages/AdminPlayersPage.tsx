@@ -33,6 +33,7 @@ const AdminPlayersPage = () => {
           overseas: Boolean(raw.overseas ?? false),
           nationality: String(raw.nationality || ''),
           image: String(raw.image || ''),
+          isCapped: Boolean(raw.isCapped ?? false),
         } as EditablePlayer;
       });
 
