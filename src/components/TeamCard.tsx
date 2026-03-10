@@ -1,60 +1,47 @@
-import { formatPrice, SQUAD_CONSTRAINTS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { TeamLogo } from './TeamLogo';
 
 interface TeamCardProps {
   id: string;
-  name: string;
   shortName: string;
-  color: string;
   logo?: string;
-  purseRemaining: number;
-  playersCount: number;
-  overseasCount: number;
-  rtmCards?: number;
   isCurrentBidder: boolean;
-  isBidding: boolean;
-  isUserTeam: boolean;
+  isUserTeam?: boolean;
+  logoSize?: 'normal' | 'large';
   onClick?: () => void;
 }
 
 export const TeamCard = ({
   id,
   shortName,
-  color,
   logo,
-  purseRemaining,
-  playersCount,
-  overseasCount,
-  rtmCards = 0,
   isCurrentBidder,
-  isUserTeam,
+  isUserTeam = false,
+  logoSize = 'normal',
   onClick,
 }: TeamCardProps) => {
   return (
     <button
       onClick={onClick}
       className={cn(
-        'relative p-3 rounded-xl border transition-all duration-300 w-full text-left bg-card/60',
-        isCurrentBidder && 'ring-2 ring-yellow-400/70 border-yellow-400/60',
-        isUserTeam && 'ring-2 ring-primary border-primary/70',
+        'relative w-full rounded-xl border p-3 text-center transition-all',
+        'bg-[#0B1C3D] border-yellow-500/60',
+        isCurrentBidder && 'shadow-[0_0_24px_rgba(234,179,8,0.65)] animate-pulse',
+        isUserTeam && 'bg-[#10254f] border-yellow-400 shadow-[0_0_16px_rgba(234,179,8,0.45)]',
       )}
-      style={{ boxShadow: isCurrentBidder ? `0 0 20px hsl(var(--${color}) / 0.35)` : undefined }}
     >
-      <div className="flex items-center gap-2 mb-1.5">
-        <TeamLogo teamId={id} logo={logo} shortName={shortName} size="sm" className="rounded-full" />
-        <p className="font-display text-sm" style={{ color: `hsl(var(--${color}))` }}>{shortName}</p>
-      </div>
+      {isCurrentBidder && <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-sm">🔨</div>}
 
-      <p className="text-xs font-semibold mb-1">{formatPrice(purseRemaining)}</p>
-      <div className="text-[10px] text-muted-foreground space-y-0.5">
-        <p>Squad {playersCount}/{SQUAD_CONSTRAINTS.MAX_SQUAD}</p>
-        <p>OS {overseasCount}/{SQUAD_CONSTRAINTS.MAX_OVERSEAS} • RTM {rtmCards}</p>
-      </div>
-
-      {isUserTeam && (
-        <span className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 rounded bg-primary text-primary-foreground font-bold">YOU</span>
-      )}
+      <TeamLogo
+        teamId={id}
+        logo={logo}
+        shortName={shortName}
+        className={cn(
+          'mx-auto rounded-full border border-yellow-500/60 bg-[#06122b]',
+          logoSize === 'large' ? 'w-[85px] h-[85px]' : 'w-[60px] h-[60px]',
+        )}
+      />
+      <p className="mt-2 text-xs font-bold tracking-wide text-yellow-200">{shortName}</p>
     </button>
   );
 };

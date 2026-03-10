@@ -1,10 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { AuctionHeader } from "@/components/AuctionHeader";
 import { PlayerCard } from "@/components/PlayerCard";
-import { TeamCard } from "@/components/TeamCard";
 import { BidTimer } from "@/components/BidTimer";
-import { BidControls } from "@/components/BidControls";
 import { Player } from "@/lib/samplePlayers";
 import { useGameData } from "@/contexts/GameDataContext";
 import { getNextBid, IPL_TEAMS, SQUAD_CONSTRAINTS } from "@/lib/constants";
@@ -27,6 +24,10 @@ import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
 import { RTMModal } from "@/components/RTMModal";
 import { HammerSoldEffect } from "@/components/HammerSoldEffect";
 import { TeamLogo } from "@/components/TeamLogo";
+import { Header } from "@/components/Header";
+import { TeamGrid } from "@/components/TeamGrid";
+import { BidPanel } from "@/components/BidPanel";
+import { CommentaryPanel } from "@/components/CommentaryPanel";
 
 export interface TeamState {
   id: string;
@@ -388,7 +389,13 @@ const Auction = () => {
 
   return (
     <div className="h-screen broadcast-container flex flex-col overflow-hidden">
-      <AuctionHeader gameCode={gameCode!} currentPool={(currentPlayer as any)?.pool} playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)} totalPlayers={queueLength} />
+      <Header
+        gameCode={gameCode!}
+        timerSeconds={Math.max(0, Math.floor(timerSeconds))}
+        currentPool={(currentPlayer as any)?.pool}
+        playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)}
+        totalPlayers={queueLength}
+      />
 
       <HammerSoldEffect open={showHammer} text={banner?.kind === "SOLD" ? banner.text : ""} />
 
@@ -443,113 +450,94 @@ const Auction = () => {
         </div>
       )}
 
-      {!auctionEnded && <main className="flex-1 p-4 md:p-6 overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 max-w-[1500px] mx-auto h-full">
-          <div className="lg:col-span-3 h-full rounded-xl border bg-card/30 p-3 overflow-hidden">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">AI Teams</p>
-            <div className="grid grid-cols-3 gap-2 mb-3">
-              {aiTeams.map((team) => {
-                const resolved = teamPlayersResolved[team.id] || { retained: [], bought: [] };
-                const allPlayers = [...resolved.retained, ...resolved.bought];
-                return (
-                  <TeamCard
-                    key={team.id}
-                    {...team}
-                    playersCount={Number(team.squadSize || allPlayers.length)}
-                    overseasCount={Number(team.overseasCount || allPlayers.filter((p) => isOverseasPlayer(p)).length)}
-                    rtmCards={team.rtmCards || 0}
-                    isCurrentBidder={team.id === currentAuction?.currentBidderId}
-                    isBidding={team.id === currentAuction?.currentBidderId}
-                    isUserTeam={false}
-                    onClick={() => setSelectedTeamId(team.id)}
-                  />
-                );
-              })}
-            </div>
+      {!auctionEnded && (
+        <>
+          <main className="flex-1 overflow-hidden p-4 md:p-5">
+            <div className="grid h-full grid-cols-[3fr_5fr_2fr] gap-4">
+              <TeamGrid
+                aiTeams={aiTeams}
+                userTeam={userTeam || null}
+                currentBidderId={currentAuction?.currentBidderId}
+                onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
+              />
 
-            {userTeam && (() => {
-              const resolved = teamPlayersResolved[userTeam.id] || { retained: [], bought: [] };
-              const allPlayers = [...resolved.retained, ...resolved.bought];
-              return (
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">Your Team</p>
-                  <TeamCard
-                    {...userTeam}
-                    playersCount={Number(userTeam.squadSize || allPlayers.length)}
-                    overseasCount={Number(userTeam.overseasCount || allPlayers.filter((p) => isOverseasPlayer(p)).length)}
-                    rtmCards={userTeam.rtmCards || 0}
-                    isCurrentBidder={userTeam.id === currentAuction?.currentBidderId}
-                    isBidding={userTeam.id === currentAuction?.currentBidderId}
-                    isUserTeam={true}
-                    onClick={() => setSelectedTeamId(userTeam.id)}
-                  />
-                </div>
-              );
-            })()}
-          </div>
+              <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
+                {currentPlayer && currentAuction?.status === 'RUNNING' && (
+                  <div className="h-full grid grid-rows-[auto_1fr] gap-3">
+                    <BidTimer
+                      key={`${currentAuction.activePlayerId}-${currentAuction.timerEndsAt?.seconds || 'no-timer'}`}
+                      duration={Math.max(0, Math.floor(timerSeconds))}
+                      isActive={currentAuction?.status === 'RUNNING'}
+                      onTimeout={handleFinalize}
+                    />
+                    <PlayerCard
+                      player={currentPlayer as any}
+                      currentBid={currentAuction.currentBid}
+                      currentBidder={currentBidderTeam?.shortName || null}
+                      currentBidderId={currentBidderTeam?.id || null}
+                    />
+                  </div>
+                )}
 
-          <div className="lg:col-span-6 h-full flex flex-col items-center justify-start overflow-hidden">
-            {currentPlayer && currentAuction?.status === "RUNNING" && (
-              <>
-                <BidTimer key={`${currentAuction.activePlayerId}-${currentAuction.timerEndsAt?.seconds || "no-timer"}`} duration={Math.max(0, Math.floor(timerSeconds))} isActive={currentAuction?.status === 'RUNNING'} onTimeout={handleFinalize} />
-                <div className="w-full mt-2">
-                  <PlayerCard player={currentPlayer as any} currentBid={currentAuction.currentBid} currentBidder={currentBidderTeam?.shortName || null} currentBidderId={currentBidderTeam?.id || null} teamColor={currentBidderTeam?.color} />
-                </div>
-              </>
-            )}
+                {currentAuction?.status === 'PAUSED' && <p className="text-lg font-semibold text-yellow-400 mt-6">Auction Paused by Host</p>}
 
-            {currentAuction?.status === 'PAUSED' && <p className="text-lg font-semibold text-yellow-400 mt-6">Auction Paused by Host</p>}
-
-            {(!currentPlayer || !["RUNNING", "PAUSED"].includes(currentAuction?.status)) && !['SOLD', 'UNSOLD'].includes(currentAuction?.status || '') && (
-              <div className="mt-8">
-                {isHost ? <Button onClick={() => startNextPlayer(gameCode!)}>Start Auction</Button> : <p className="text-muted-foreground">Waiting for host to start auction.</p>}
+                {(!currentPlayer || !['RUNNING', 'PAUSED'].includes(currentAuction?.status)) && !['SOLD', 'UNSOLD'].includes(currentAuction?.status || '') && (
+                  <div className="mt-8 text-center">
+                    {isHost ? <Button onClick={() => startNextPlayer(gameCode!)}>Start Auction</Button> : <p className="text-muted-foreground">Waiting for host to start auction.</p>}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
 
-          <div className="lg:col-span-3 h-full space-y-3 sticky top-5 self-start">
-            <div className="rounded-xl border bg-card/40 p-3">
-              <BidControls
+              <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 sticky top-5 self-start">
+                <p className="text-xs uppercase tracking-widest text-yellow-300 mb-3">Control Panel</p>
+                <div className="space-y-2 text-sm text-slate-200">
+                  <p>YOUR PURSE</p>
+                  <p className="text-2xl font-bold text-yellow-300">₹{(Number(userTeam.purseRemaining || 0) / 10000000).toFixed(2)} Cr</p>
+                  <p>Players bought: {Number(userTeam.squadSize || 0)} / 25</p>
+                  <p>Overseas: {Number(userTeam.overseasCount || 0)} / 8</p>
+                </div>
+                <div className="mt-4">
+                  <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Recent Purchase</p>
+                  <div className="space-y-1 text-xs text-slate-200 max-h-32 overflow-auto">
+                    {recentPurchases.map((p) => {
+                      const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
+                      const team = teams.find((t) => t.id === p.teamId);
+                      return <p key={`${p.playerId}-${p.teamId}`}>{pl?.name || p.playerId} → {team?.shortName || p.teamId} → ₹{(p.price / 10000000).toFixed(2)}Cr</p>;
+                    })}
+                    {!recentPurchases.length && <p className="text-muted-foreground">No purchases yet.</p>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </main>
+
+          <section className="border-t border-yellow-500/40 bg-[#061734] px-4 py-3">
+            <div className="grid grid-cols-[3fr_2fr_3fr] gap-4">
+              <CommentaryPanel commentary={commentary} />
+
+              <BidPanel
                 currentBid={currentAuction?.currentBid || 0}
-                purseRemaining={userTeam.purseRemaining}
-                isYourTurn={true}
+                nextBid={nextBid}
                 canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
                 onBid={handleBid}
                 onPass={() => {}}
-                isHost={isHost}
                 onSkip={() => skipCurrentPlayer(gameCode!)}
-                skipDisabled={skipDisabled}
                 onPauseToggle={() => togglePauseAuction(gameCode!)}
+                isHost={isHost}
                 isPaused={currentAuction?.status === 'PAUSED'}
-                onStartAccelerated={() => startAcceleratedRound(gameCode!)}
-                showStartAccelerated={showAcceleratedButton}
               />
-            </div>
 
-            <div className="p-3 border rounded-xl bg-card/40">
-              <h3 className="font-semibold mb-2">Live Commentary</h3>
-              <div className="space-y-1 text-xs text-muted-foreground max-h-28 overflow-auto">
-                {commentary.length ? commentary.map((c, i) => <p key={`${c}-${i}`}>{c}</p>) : <p>Waiting for bidding action…</p>}
+              <div className="rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3">
+                <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Purse Panel</p>
+                <p className="text-sm text-slate-200">YOUR PURSE</p>
+                <p className="text-2xl font-bold text-yellow-300 mb-2">₹{(Number(userTeam.purseRemaining || 0) / 10000000).toFixed(2)} Cr</p>
+                <p className="text-sm text-slate-200">Players bought {Number(userTeam.squadSize || 0)} / 25</p>
+                <p className="text-sm text-slate-200">Overseas {Number(userTeam.overseasCount || 0)} / 8</p>
               </div>
             </div>
-
-            <div className="p-3 border rounded-xl bg-card/40">
-              <h3 className="font-semibold mb-2">Auction Analytics</h3>
-              <p className="text-xs font-medium mb-1">Recent Purchases</p>
-              <div className="text-xs space-y-1 mb-2 max-h-20 overflow-auto">
-                {recentPurchases.map((p) => {
-                  const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
-                  const team = teams.find((t) => t.id === p.teamId);
-                  return <p key={`${p.playerId}-${p.teamId}`}>{pl?.name || p.playerId} – ₹{(p.price / 10000000).toFixed(2)} Cr – {team?.shortName || p.teamId}</p>;
-                })}
-                {!recentPurchases.length && <p className="text-muted-foreground">No purchases yet.</p>}
-              </div>
-              <p className="text-xs font-medium mb-1">Purse Leaderboard</p>
-              <div className="text-xs space-y-1 mb-2">{purseBoard.map((t) => <p key={t.id}>{t.shortName} – ₹{(Number(t.purseRemaining) / 10000000).toFixed(2)} Cr</p>)}</div>
-            </div>
-          </div>
-        </div>
-      </main>}
+          </section>
+        </>
+      )}
 
       <TeamDetailsPanel
         open={!!selectedTeamId}
