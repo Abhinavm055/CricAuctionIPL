@@ -18,7 +18,7 @@ import {
   startAcceleratedRound,
   skipAcceleratedRound,
 } from "@/lib/sessionService";
-import { getAIBid } from "@/lib/aiEngine";
+import { AIEngine } from "@/engine/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
 import { RTMModal } from "@/components/RTMModal";
 import { HammerSoldEffect } from "@/components/HammerSoldEffect";
@@ -161,21 +161,10 @@ const Auction = () => {
 
   const currentAuction = session?.currentAuction;
 
+  const aiEngine = useMemo(() => new AIEngine(), []);
+
   const playerById = useMemo(() => new Map(masterPlayerList.map((p: any) => [p.id, p])), [masterPlayerList]);
 
-  const remainingRoleCounts = useMemo(() => {
-    const queue = (session?.auctionQueue || []) as string[];
-    const queueIndex = Number(session?.queueIndex ?? -1);
-    const remainingIds = queue.slice(Math.max(queueIndex + 1, 0));
-    return remainingIds.reduce<Record<string, number>>((acc, playerId) => {
-      const role = String((playerById.get(playerId) as any)?.role || '').toLowerCase();
-      if (role.includes('wicket')) acc.wicketkeeper += 1;
-      else if (role.includes('all')) acc.allRounder += 1;
-      else if (role.includes('bowl')) acc.bowler += 1;
-      else acc.batter += 1;
-      return acc;
-    }, { batter: 0, bowler: 0, allRounder: 0, wicketkeeper: 0 });
-  }, [session?.auctionQueue, session?.queueIndex, playerById]);
   const currentPlayer = useMemo(() => masterPlayerList.find((p: any) => p.id === currentAuction?.activePlayerId) || null, [masterPlayerList, currentAuction?.activePlayerId]);
   const currentBidderTeam = teams.find((team) => team.id === currentAuction?.currentBidderId);
 
@@ -224,30 +213,29 @@ const Auction = () => {
     if (!isHost || !gameCode || !currentPlayer) return;
     if (currentAuction?.status !== "RUNNING") return;
 
-    const aiDecision = getAIBid(
+    const aiDecision = aiEngine.decideForAuction(
       teams.map((t) => ({
-        ...t,
-        players: [...(t.players || []), ...(t.retainedPlayers || [])],
-        overseasCount: t.overseasCount,
-        isAI: !!t.isAI,
+        id: t.id,
+        isAI: Boolean(t.isAI),
+        squadSize: Number(t.squadSize || 0),
+        purseRemaining: Number(t.purseRemaining || 0),
+        overseasCount: Number(t.overseasCount || 0),
+        roleNeeds: (t as any).teamNeeds || {},
       })),
-      currentPlayer,
-      currentAuction.currentBid,
-      currentAuction.currentBidderId,
       {
-        remainingPlayersInAuction: Math.max(queueLength - (Number(session?.queueIndex ?? -1) + 1), 0),
-        remainingRoleCounts,
-        teamPlayersByTeamId: teams.reduce<Record<string, Player[]>>((acc, team) => {
-          acc[team.id] = [...(teamPlayersResolved[team.id]?.retained || []), ...(teamPlayersResolved[team.id]?.bought || [])];
-          return acc;
-        }, {}),
-      }
+        id: (currentPlayer as any).id,
+        role: (currentPlayer as any).role,
+        rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 0),
+        overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
+      },
+      Number(currentAuction.currentBid || 0),
+      currentAuction.currentBidderId,
     );
 
     if (!aiDecision) return;
     const timer = setTimeout(() => placeBid(gameCode, aiDecision.teamId, aiDecision.bid).catch(() => undefined), aiDecision.delayMs);
     return () => clearTimeout(timer);
-  }, [isHost, gameCode, teams, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId, queueLength, session?.queueIndex, remainingRoleCounts, teamPlayersResolved]);
+  }, [isHost, gameCode, teams, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId, aiEngine]);
 
   useEffect(() => {
     return () => {

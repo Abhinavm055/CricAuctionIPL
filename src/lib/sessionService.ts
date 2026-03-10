@@ -24,7 +24,8 @@ import {
   AI_STRATEGIES,
   TEAM_NEEDS_TEMPLATE,
 } from "@/lib/constants";
-import { runAIRetentionEngine } from "@/lib/aiRetentionEngine";
+import { RetentionEngine } from "@/engine/retentionEngine";
+import { AuctionEngine } from "@/engine/auctionEngine";
 
 const OFFICIAL_POOL_ORDER = [
   "marquee",
@@ -70,6 +71,9 @@ const getPlayerRating = (playerData: any) => Number(playerData?.rating ?? player
 const buildRecentPurchases = (existing: Array<{ playerId: string; price: number; teamId: string }>, purchase: { playerId: string; price: number; teamId: string }) => {
   return [purchase, ...(existing || [])].slice(0, 5);
 };
+
+const retentionEngine = new RetentionEngine();
+const auctionEngine = new AuctionEngine();
 
 export const generateGameCode = () => `CAIPL${Math.floor(1000 + Math.random() * 9000)}`;
 
@@ -214,7 +218,7 @@ export const startRetention = async (gameCode: string) => {
       return;
     }
 
-    const aiResult = runAIRetentionEngine(team.id, team.shortName, players);
+    const aiResult = retentionEngine.decideRetentions(team.id, players as any[]);
     retentions[team.id] = {
       players: aiResult.retainedIds,
       capped: aiResult.cappedCount,
@@ -357,19 +361,10 @@ export const startNextPlayer = async (gameCode: string) => {
     const auctionQueue = (sessionData.auctionQueue || []) as string[];
 
     const teamSnaps = await Promise.all(IPL_TEAMS.map((t) => tx.get(doc(db, "sessions", gameCode, "teams", t.id))));
-    const allTeamsFull = teamSnaps.every((snap) => Number(snap.data()?.squadSize || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD);
-    if (allTeamsFull) {
-      tx.update(sessionRef, {
-        phase: "AUCTION_COMPLETE",
-        queueIndex: auctionQueue.length,
-        currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE" },
-      });
-      return;
-    }
-
+    const teamSquadSizes = teamSnaps.map((snap) => Number(snap.data()?.squadSize || 0));
     const nextIndex = Number(sessionData.queueIndex ?? -1) + 1;
 
-    if (!auctionQueue[nextIndex]) {
+    if (auctionEngine.shouldEndAuction({ queueIndex: nextIndex, queueLength: auctionQueue.length, teamSquadSizes })) {
       tx.update(sessionRef, {
         phase: "AUCTION_COMPLETE",
         queueIndex: auctionQueue.length,
@@ -402,10 +397,6 @@ export const placeBid = async (gameCode: string, teamId: string, amount: number)
     const currentAuction = sessionSnap.data().currentAuction;
     if (!currentAuction || currentAuction.status !== "RUNNING") throw new Error("No active auction");
 
-    const expectedNext = getNextBid(Number(currentAuction.currentBid || 0));
-    if (amount !== expectedNext) throw new Error("Bid must match next increment");
-    if (currentAuction.currentBidderId === teamId) throw new Error("Consecutive bids not allowed");
-
     const [teamSnap, playerSnap] = await Promise.all([
       tx.get(doc(db, "sessions", gameCode, "teams", teamId)),
       tx.get(doc(db, "players", currentAuction.activePlayerId)),
@@ -419,9 +410,16 @@ export const placeBid = async (gameCode: string, teamId: string, amount: number)
     const overseasCount = Number(team.overseasCount || 0);
     const isOverseas = getPlayerOverseasFlag(playerSnap.data());
 
-    if (Number(team.purseRemaining || 0) < amount) throw new Error("Insufficient purse");
-    if (squadSize >= SQUAD_CONSTRAINTS.MAX_SQUAD) throw new Error("Squad full");
-    if (isOverseas && overseasCount >= SQUAD_CONSTRAINTS.MAX_OVERSEAS) throw new Error("Overseas limit reached");
+    auctionEngine.validateBid({
+      amount,
+      currentBid: Number(currentAuction.currentBid || 0),
+      currentBidderId: currentAuction.currentBidderId || null,
+      teamId,
+      purseRemaining: Number(team.purseRemaining || 0),
+      squadSize,
+      overseasCount,
+      isPlayerOverseas: isOverseas,
+    });
 
     tx.update(sessionRef, {
       "currentAuction.currentBid": amount,
@@ -488,9 +486,10 @@ export const finalizePlayerSale = async (gameCode: string) => {
 
     const previousTeamId = getPlayerPreviousTeamId(playerSnap.data());
     const playerRating = getPlayerRating(playerSnap.data());
-    if (previousTeamId && previousTeamId !== winningTeamId && playerRating >= 4) {
+    if (previousTeamId && winningTeamId) {
       const prevTeamSnap = await tx.get(doc(db, "sessions", gameCode, "teams", previousTeamId));
-      if (prevTeamSnap.exists() && Number(prevTeamSnap.data().rtmCards || 0) > 0) {
+      const rtmCards = Number(prevTeamSnap.data()?.rtmCards || 0);
+      if (prevTeamSnap.exists() && auctionEngine.shouldTriggerRtm({ previousTeamId, winningTeamId, playerRating, rtmCards })) {
         tx.update(sessionRef, {
           pendingRtm: {
             playerId,
