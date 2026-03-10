@@ -352,7 +352,7 @@ export const startAuction = async (gameCode: string) => {
   });
 };
 
-export const startNextPlayer = async (gameCode: string) => {
+export const loadNextPlayer = async (gameCode: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
   await runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef);
@@ -387,6 +387,8 @@ export const startNextPlayer = async (gameCode: string) => {
     });
   });
 };
+
+export const startNextPlayer = loadNextPlayer;
 
 export const placeBid = async (gameCode: string, teamId: string, amount: number) => {
   const sessionRef = doc(db, "sessions", gameCode);
@@ -457,7 +459,7 @@ const applySaleToTeam = (
   });
 };
 
-export const finalizePlayerSale = async (gameCode: string) => {
+export const resolveAuction = async (gameCode: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
   await runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef);
@@ -515,6 +517,8 @@ export const finalizePlayerSale = async (gameCode: string) => {
     });
   });
 };
+
+export const finalizePlayerSale = resolveAuction;
 
 export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES" | "ORIGINAL_NO" | "WINNER_COUNTER_YES" | "WINNER_COUNTER_NO" | "ORIGINAL_MATCH_YES" | "ORIGINAL_MATCH_NO") => {
   const sessionRef = doc(db, "sessions", gameCode);

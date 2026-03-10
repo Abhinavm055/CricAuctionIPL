@@ -62,7 +62,10 @@ export const PlayerCard = ({ player, currentBid, currentBidderId, currentBidderN
           </div>
 
           <div className="space-y-3">
-            <h2 className="text-3xl font-display uppercase tracking-wide">{player.name}</h2>
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-3xl font-display uppercase tracking-wide">{player.name}</h2>
+              <TeamLogo teamId={currentBidderId || null} shortName={currentBidderName || 'BID'} className="w-16 h-16 rounded-full border-2 border-yellow-400/70" />
+            </div>
             <p className="text-xl leading-none">{renderStars(playerRating)}</p>
             <p className="text-sm text-slate-200">{nationality}</p>
             <p className="text-base font-semibold text-yellow-200">BASE PRICE: {formatPrice(player.basePrice)}</p>

@@ -6,13 +6,13 @@ import { useGameData } from "@/contexts/GameDataContext";
 import { getNextBid, IPL_TEAMS, SQUAD_CONSTRAINTS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import {
-  finalizePlayerSale,
+  resolveAuction,
   listenSession,
   listenTeams,
   placeBid,
   resolveRtmDecision,
   resolveRtmTimeout,
-  startNextPlayer,
+  loadNextPlayer,
   skipCurrentPlayer,
   togglePauseAuction,
   startAcceleratedRound,
@@ -206,7 +206,7 @@ const Auction = () => {
   const handleFinalize = useCallback(async () => {
     if (!gameCode || !isHost) return;
     playTone(220, 0.2, 0.08); // hammer
-    await finalizePlayerSale(gameCode);
+    await resolveAuction(gameCode);
   }, [gameCode, isHost, playTone]);
 
   useEffect(() => {
@@ -280,7 +280,7 @@ const Auction = () => {
 
   useEffect(() => {
     if (!currentAuction) return;
-    if (!['SOLD', 'UNSOLD'].includes(currentAuction.status || '')) {
+    if (!['SOLD', 'UNSOLD'].includes(currentAuction.status || '') || pendingRtm) {
       setAutoNextCountdown(null);
       return;
     }
@@ -308,26 +308,34 @@ const Auction = () => {
 
       setAutoNextCountdown(counter);
     }, 1000);
-  }, [currentAuction]);
+  }, [currentAuction, pendingRtm]);
 
   useEffect(() => {
     if (!isHost || !gameCode || !currentAuction) return;
-    if (!['SOLD', 'UNSOLD'].includes(currentAuction.status || '')) return;
+    if (!['SOLD', 'UNSOLD'].includes(currentAuction.status || '') || pendingRtm) return;
 
     const key = `${currentAuction.activePlayerId}-${currentAuction.status}`;
     if (autoAdvanceHostTimeoutRef.current) window.clearTimeout(autoAdvanceHostTimeoutRef.current);
 
     autoAdvanceHostTimeoutRef.current = window.setTimeout(() => {
       if (autoAdvanceKeyRef.current !== key) return;
-      startNextPlayer(gameCode).catch(() => undefined);
+      loadNextPlayer(gameCode).catch(() => undefined);
     }, 3000);
-  }, [isHost, gameCode, currentAuction]);
+  }, [isHost, gameCode, currentAuction, pendingRtm]);
 
   useEffect(() => {
     if (timerSeconds === 5) playTone(500, 0.05, 0.03);
     if (timerSeconds === 3) playTone(900, 0.08, 0.05);
     if (timerSeconds === 0 && currentAuction?.status === "RUNNING") playTone(220, 0.2, 0.08);
   }, [timerSeconds, currentAuction?.status, playTone]);
+
+  useEffect(() => {
+    if (!isHost || !gameCode) return;
+    if (timerSeconds !== 0) return;
+    if (currentAuction?.status !== 'RUNNING') return;
+
+    resolveAuction(gameCode).catch(() => undefined);
+  }, [isHost, gameCode, timerSeconds, currentAuction?.status]);
 
 
   useEffect(() => {
@@ -482,7 +490,7 @@ const Auction = () => {
 
                   {(!currentPlayer || !['RUNNING', 'PAUSED'].includes(currentAuction?.status)) && !['SOLD', 'UNSOLD'].includes(currentAuction?.status || '') && (
                     <div className="mt-8 text-center">
-                      {isHost ? <Button onClick={() => startNextPlayer(gameCode!)}>Start Auction</Button> : <p className="text-muted-foreground">Waiting for host to start auction.</p>}
+                      {isHost ? <Button onClick={() => loadNextPlayer(gameCode!)}>Start Auction</Button> : <p className="text-muted-foreground">Waiting for host to start auction.</p>}
                     </div>
                   )}
                 </div>
