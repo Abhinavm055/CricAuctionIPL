@@ -36,6 +36,7 @@ const Lobby = () => {
   useEffect(() => {
     if (session?.phase === 'AUCTION') navigate(`/auction/${gameCode}`);
     if (session?.phase === 'RETENTION') navigate(`/retention/${gameCode}`);
+    if (session?.phase === 'ENDED') navigate(`/auction/${gameCode}`);
   }, [session?.phase, gameCode, navigate]);
 
   const isHost = session?.hostId === userId;

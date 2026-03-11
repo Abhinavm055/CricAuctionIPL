@@ -17,6 +17,8 @@ import {
   togglePauseAuction,
   startAcceleratedRound,
   skipAcceleratedRound,
+  leaveGame,
+  rejoinGame,
 } from "@/lib/sessionService";
 import { AIEngine } from "@/engine/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
@@ -156,11 +158,6 @@ const Auction = () => {
   }, [session?.pendingRtm]);
 
   useEffect(() => {
-    const tick = window.setInterval(() => setNowMs(Date.now()), 1000);
-    return () => window.clearInterval(tick);
-  }, []);
-
-  useEffect(() => {
     if (!gameCode) return;
     const unsub = listenTeams(gameCode, (teamDocs) => {
       const enriched = (teamDocs as any[]).map((team) => ({ ...IPL_TEAMS.find((t) => t.id === team.id), ...team }));
@@ -170,13 +167,18 @@ const Auction = () => {
   }, [gameCode]);
 
   useEffect(() => {
-    if (session && !["AUCTION", "AUCTION_COMPLETE"].includes(session.phase)) navigate(`/lobby/${gameCode}`);
+    if (session && !["AUCTION", "AUCTION_COMPLETE", "ENDED"].includes(session.phase)) navigate(`/lobby/${gameCode}`);
   }, [session, gameCode, navigate]);
 
   const isHost = session?.hostId === userId;
   const queueLength = (session?.auctionQueue || []).length;
   const myTeamId = Object.entries(session?.selectedTeams || {}).find(([_, uid]) => uid === userId)?.[0] as string | undefined;
   const userTeam = teams.find((team) => team.id === myTeamId);
+
+  useEffect(() => {
+    if (!gameCode || !session?.disconnectedPlayers?.[userId]) return;
+    rejoinGame(gameCode, userId).catch(() => undefined);
+  }, [gameCode, userId, session?.disconnectedPlayers]);
 
   const currentAuction = session?.currentAuction;
 
@@ -202,7 +204,8 @@ const Auction = () => {
   const currentBidderTeam = teams.find((team) => team.id === displayedCurrentBidderId);
 
   const nextBid = getNextBid(displayedCurrentBid || 0);
-  const timerSeconds = Math.max(0, Math.floor(((currentAuction?.timerEndsAt?.toMillis?.() || nowMs) - nowMs) / 1000));
+  const timerEndsAtMs = currentAuction?.timerEndsAt?.toMillis?.() || 0;
+  const timerSeconds = Math.max(0, Math.floor((timerEndsAtMs - nowMs) / 1000));
 
   const teamPlayersResolved = useMemo(() => {
     const lookup = new Map(masterPlayerList.map((p: any) => [p.id, p]));
@@ -461,7 +464,7 @@ const Auction = () => {
     return endedQueue && Number((session?.unsoldPlayers || []).length) > 0 && !session?.isAcceleratedRound && !session?.acceleratedRoundSkipped;
   }, [queueLength, session?.queueIndex, session?.unsoldPlayers, session?.isAcceleratedRound, session?.acceleratedRoundSkipped]);
 
-  const auctionEnded = (session?.phase === "AUCTION_COMPLETE") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
+  const auctionEnded = (session?.phase === "AUCTION_COMPLETE" || session?.phase === "ENDED") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
 
   if (!session || !userTeam) return <p className="p-6">Loading auction…</p>;
 
@@ -473,6 +476,11 @@ const Auction = () => {
         currentPool={(currentPlayer as any)?.pool}
         playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)}
         totalPlayers={queueLength}
+        onLeaveGame={async () => {
+          if (!gameCode) return;
+          await leaveGame(gameCode, userId);
+          navigate(`/`);
+        }}
       />
 
       <HammerSoldEffect open={showHammer} text={banner?.kind === "SOLD" ? banner.text : ""} />
@@ -619,7 +627,7 @@ const Auction = () => {
           originalTeamName={rtmOriginalTeam?.name}
           winningTeamName={rtmWinningTeam?.name}
           finalBid={Number(pendingRtm.finalBid || 0)}
-          countdownSeconds={Math.max(0, Math.ceil(((pendingRtm?.expiresAt?.toMillis?.() || nowMs) - nowMs) / 1000))}
+          countdownSeconds={Math.max(0, Math.ceil(((pendingRtm?.expiresAt?.toMillis?.() || 0) - nowMs) / 1000))}
           onPrimary={() => {
             const actionByStage: Record<string, any> = {
               AWAIT_ORIGINAL: "USE",

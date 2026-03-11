@@ -4,13 +4,14 @@ interface HeaderProps {
   currentPool?: string;
   playersRemaining: number;
   totalPlayers: number;
+  onLeaveGame?: () => void;
 }
 
-export const Header = ({ gameCode, timerSeconds, currentPool, playersRemaining, totalPlayers }: HeaderProps) => {
+export const Header = ({ gameCode, timerSeconds, currentPool, playersRemaining, totalPlayers, onLeaveGame }: HeaderProps) => {
   return (
     <header className="border-b border-yellow-500/40 bg-[#061734] px-5 py-3 text-yellow-100">
       <div className="flex items-center justify-between gap-4 text-sm font-semibold">
-        <p className="font-display text-xl tracking-wider text-yellow-300">CRICAUCTION</p>
+        <p className="font-display text-xl tracking-wider"><span className="text-yellow-300">CricAuction</span><span className="text-white">IPL</span></p>
 
         <div className="flex items-center gap-3">
           <span>{gameCode}</span>
@@ -27,6 +28,17 @@ export const Header = ({ gameCode, timerSeconds, currentPool, playersRemaining, 
           <span>{playersRemaining}/{totalPlayers}</span>
           <span className="flex items-center gap-1 text-red-400"><span className="text-base">●</span> LIVE</span>
         </div>
+      </div>
+
+      <div className="mt-2 flex justify-end">
+        {onLeaveGame && (
+          <button
+            onClick={onLeaveGame}
+            className="rounded-md border border-red-400/60 px-3 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/10"
+          >
+            Leave Game
+          </button>
+        )}
       </div>
     </header>
   );
