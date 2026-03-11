@@ -35,13 +35,13 @@ export const TeamCard = ({
     <button
       onClick={onClick}
       className={cn(
-        'relative w-full rounded-xl border p-2.5 text-left transition-all',
+        'relative w-full rounded-xl border p-2.5 text-left transition-all duration-200 hover:scale-[1.02] hover:-translate-y-0.5',
         'bg-[#0B1C3D] border-yellow-500/60',
-        isCurrentBidder && 'shadow-[0_0_24px_rgba(234,179,8,0.65)] animate-pulse',
+        isCurrentBidder && 'shadow-[0_0_24px_rgba(234,179,8,0.65)] animate-pulse ring-2 ring-yellow-300/60',
         isUserTeam && 'bg-[#10254f] border-yellow-400 shadow-[0_0_16px_rgba(234,179,8,0.45)]',
       )}
     >
-      {isCurrentBidder && <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-sm">🔨</div>}
+      {isCurrentBidder && <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-sm animate-bounce">🔨</div>}
 
       <div className="flex items-center gap-2 mb-2">
         <TeamLogo

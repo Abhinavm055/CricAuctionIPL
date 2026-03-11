@@ -58,6 +58,8 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
   const [roleFilter, setRoleFilter] = useState('all');
   const [teamFilter, setTeamFilter] = useState('all');
   const [overseasFilter, setOverseasFilter] = useState('all');
+  const [poolFilter, setPoolFilter] = useState('all');
+  const [nationalityFilter, setNationalityFilter] = useState('all');
   const [ratingRange, setRatingRange] = useState<number[]>([1, 5]);
   const [editing, setEditing] = useState<EditablePlayer | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -69,6 +71,14 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
     });
     return map;
   }, [teams]);
+
+  const nationalityOptions = useMemo(() => {
+    return Array.from(new Set(players.map((p) => String(p.nationality || '').trim()).filter(Boolean))).sort();
+  }, [players]);
+
+  const poolOptions = useMemo(() => {
+    return Array.from(new Set(players.map((p) => String(p.pool || '').trim()).filter(Boolean))).sort();
+  }, [players]);
 
   const filteredPlayers = useMemo(() => {
     const q = search.toLowerCase().trim();
@@ -90,11 +100,15 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
           : overseasFilter === 'overseas'
             ? !!player.overseas
             : !player.overseas;
+        const poolMatch = poolFilter === 'all' ? true : String(player.pool || '') === poolFilter;
+        const nationalityMatch = nationalityFilter === 'all'
+          ? true
+          : String(player.nationality || '').toLowerCase() === nationalityFilter.toLowerCase();
 
-        return globalMatch && nameMatch && roleMatch && teamMatch && ratingMatch && overseasMatch;
+        return globalMatch && nameMatch && roleMatch && teamMatch && ratingMatch && overseasMatch && poolMatch && nationalityMatch;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [players, search, globalSearch, roleFilter, teamFilter, ratingRange, overseasFilter, teamNameById]);
+  }, [players, search, globalSearch, roleFilter, teamFilter, ratingRange, overseasFilter, poolFilter, nationalityFilter, teamNameById]);
 
   const syncTeamMembership = async (playerId: string, newTeamId: string, previousTeamId: string) => {
     if (previousTeamId && previousTeamId !== newTeamId) {
@@ -241,6 +255,32 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
               <SelectItem value="all">All</SelectItem>
               <SelectItem value="overseas">Overseas</SelectItem>
               <SelectItem value="local">Local</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Pool</Label>
+          <Select value={poolFilter} onValueChange={setPoolFilter}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Pools</SelectItem>
+              {poolOptions.map((pool) => (
+                <SelectItem key={pool} value={pool}>{pool}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Nationality</Label>
+          <Select value={nationalityFilter} onValueChange={setNationalityFilter}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Nationalities</SelectItem>
+              {nationalityOptions.map((nationality) => (
+                <SelectItem key={nationality} value={nationality}>{nationality}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

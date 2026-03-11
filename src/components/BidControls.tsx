@@ -42,7 +42,7 @@ export const BidControls = ({
       </div>
 
       <Button
-        className="w-full bg-yellow-400 text-black hover:bg-yellow-300 font-bold relative z-30"
+        className="w-full bg-yellow-400 text-black hover:bg-yellow-300 hover:scale-[1.02] transition-transform duration-200 font-bold relative z-30"
         onClick={() => onBid(nextBid)}
         disabled={!canBid}
       >
