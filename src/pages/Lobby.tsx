@@ -5,7 +5,7 @@ import { IPL_TEAMS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { Check, Copy, Users, ArrowLeft, ShieldCheck } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { selectTeam, listenSession, fillAITeams, startRetention } from '@/lib/sessionService';
+import { selectTeam, listenSession, startRetention } from '@/lib/sessionService';
 import { TeamLogo } from '@/components/TeamLogo';
 
 const Lobby = () => {
@@ -46,26 +46,6 @@ const Lobby = () => {
     console.log('userId:', userId);
   }, [session?.hostId, userId]);
 
-  useEffect(() => {
-    if (!isHost || !session || !gameCode) return;
-    if (session.isAIFilled) return;
-
-    const selectedTeams = session.selectedTeams || {};
-    const humanSelected = Object.values(selectedTeams).some((uid: string) => !uid.startsWith('AI-'));
-    if (!humanSelected) return;
-
-    const fillRemainingTeams = async () => {
-      const takenTeamIds = Object.keys(selectedTeams);
-      const remainingTeams = IPL_TEAMS.filter((team) => !takenTeamIds.includes(team.id));
-
-      for (const team of remainingTeams) {
-        await selectTeam(gameCode, team.id, `AI-${team.id}`);
-      }
-      await fillAITeams(gameCode);
-    };
-
-    fillRemainingTeams().catch((error) => console.error('AI Fill failed:', error));
-  }, [isHost, session, gameCode]);
 
   if (!session) {
     return (
@@ -78,7 +58,7 @@ const Lobby = () => {
   const selectedTeams = session.selectedTeams || {};
   const myConfirmedTeam = Object.entries(selectedTeams).find(([_, uid]) => uid === userId)?.[0];
   const confirmedTeamsCount = Object.keys(selectedTeams).length;
-  const canStartRetention = confirmedTeamsCount >= 10;
+  const canStartRetention = confirmedTeamsCount >= 1;
 
   const handleConfirmTeam = async () => {
     if (!draftTeam || !gameCode) return;
@@ -129,7 +109,7 @@ const Lobby = () => {
           <p className="text-muted-foreground">
             {session.mode === 'VS_AI'
               ? 'Pick one team. Remaining 9 teams will be controlled by AI.'
-              : 'Human players can lock teams. Unlocked teams auto-fill as AI.'}
+              : 'Human players can lock teams. Unlocked teams stay empty until host starts retention.'}
           </p>
         </div>
 
@@ -139,7 +119,6 @@ const Lobby = () => {
             const isTaken = !!takenBy;
             const isMine = myConfirmedTeam === team.id;
             const isDraft = draftTeam === team.id;
-            const isAI = String(takenBy || '').startsWith('AI-');
 
             return (
               <button
@@ -165,8 +144,7 @@ const Lobby = () => {
                     <ShieldCheck className="w-3 h-3" /> SECURED
                   </div>
                 )}
-                {isAI && <div className="text-[10px] font-bold text-muted-foreground italic">AI BOT</div>}
-                {isTaken && !isMine && !isAI && <div className="text-[10px] font-bold text-red-500">OCCUPIED</div>}
+                {isTaken && !isMine && <div className="text-[10px] font-bold text-red-500">OCCUPIED</div>}
               </button>
             );
           })}

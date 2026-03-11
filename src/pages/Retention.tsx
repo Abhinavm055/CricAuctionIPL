@@ -14,7 +14,7 @@ const Retention = () => {
   const [session, setSession] = useState<any>(null);
   const [teams, setTeams] = useState<any[]>([]);
   const [selected, setSelected] = useState<string[]>([]);
-  const [timeLeft, setTimeLeft] = useState(30);
+  const [nowMs, setNowMs] = useState(Date.now());
   const { masterPlayerList } = useGameData();
   const userId = localStorage.getItem("uid");
 
@@ -84,19 +84,17 @@ const Retention = () => {
   }, [gameCode, myTeam, selected, cappedCount, uncappedCount, navigate]);
 
   useEffect(() => {
-    if (!session?.retentionStartedAt) return;
-    const start = session.retentionStartedAt.toDate().getTime();
-    const interval = setInterval(() => {
-      const remaining = 30 - Math.floor((Date.now() - start) / 1000);
-      setTimeLeft(Math.max(0, remaining));
-      if (remaining <= 0) clearInterval(interval);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [session?.retentionStartedAt]);
+    const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const timerEndsAtMs = session?.currentAuction?.timerEndsAt?.toMillis?.() || 0;
+  const timeLeft = Math.max(0, Math.floor((timerEndsAtMs - nowMs) / 1000));
 
   useEffect(() => {
+    if (session?.currentAuction?.timerMode !== "RETENTION") return;
     if (timeLeft === 0) handleLock();
-  }, [timeLeft, handleLock]);
+  }, [timeLeft, handleLock, session?.currentAuction?.timerMode]);
 
   const handleToggle = (playerId: string) => {
     if (selected.includes(playerId)) return setSelected((prev) => prev.filter((id) => id !== playerId));
