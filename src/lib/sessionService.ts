@@ -182,19 +182,7 @@ export const joinSession = async (gameCode: string, userId: string) => {
 
 export const selectTeam = async (gameCode: string, teamId: string, userId: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
-  const snap = await getDoc(sessionRef);
-  if (!snap.exists()) return;
-
-  const selectedTeams = { ...(snap.data().selectedTeams || {}), [teamId]: userId };
-  const allTeams = IPL_TEAMS.map((team) => ({
-    id: team.id,
-    name: team.name,
-    isAI: String(selectedTeams[team.id] || '').startsWith('AI-'),
-  }));
-
-  await updateDoc(sessionRef, { [`selectedTeams.${teamId}`]: userId, allTeams });
-  const isAI = userId.startsWith("AI-");
-  await updateDoc(doc(db, "sessions", gameCode, "teams", teamId), { isAI, ownerId: isAI ? null : userId });
+  await updateDoc(sessionRef, { [`selectedTeams.${teamId}`]: userId });
 };
 
 export const startRetention = async (gameCode: string) => {
