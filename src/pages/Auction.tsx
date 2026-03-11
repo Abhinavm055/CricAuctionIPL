@@ -110,6 +110,8 @@ const Auction = () => {
   const [optimisticBid, setOptimisticBid] = useState<number | null>(null);
   const [optimisticBidderId, setOptimisticBidderId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(Date.now());
+  const [glowingTeamId, setGlowingTeamId] = useState<string | null>(null);
+  const [aiThinkingTeamId, setAiThinkingTeamId] = useState<string | null>(null);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -278,8 +280,20 @@ const Auction = () => {
     );
 
     if (!aiDecision) return;
-    const timer = setTimeout(() => placeBid(gameCode, aiDecision.teamId, aiDecision.bid).catch(() => undefined), aiDecision.delayMs);
-    return () => clearTimeout(timer);
+
+    setAiThinkingTeamId(aiDecision.teamId);
+    const thinkingDelay = Math.max(1000, Math.min(2000, Number(aiDecision.delayMs || 1200)));
+
+    const timer = setTimeout(() => {
+      placeBid(gameCode, aiDecision.teamId, aiDecision.bid)
+        .catch(() => undefined)
+        .finally(() => setAiThinkingTeamId(null));
+    }, thinkingDelay);
+
+    return () => {
+      clearTimeout(timer);
+      setAiThinkingTeamId(null);
+    };
   }, [isHost, gameCode, teams, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId, aiEngine]);
 
   useEffect(() => {
@@ -288,6 +302,15 @@ const Auction = () => {
       if (autoAdvanceHostTimeoutRef.current) window.clearTimeout(autoAdvanceHostTimeoutRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!currentAuction?.currentBidderId) return;
+    if (Number(currentAuction.currentBid || 0) === prevBidRef.current) return;
+
+    setGlowingTeamId(currentAuction.currentBidderId);
+    const timeout = window.setTimeout(() => setGlowingTeamId(null), 900);
+    return () => window.clearTimeout(timeout);
+  }, [currentAuction?.currentBid, currentAuction?.currentBidderId]);
 
   useEffect(() => {
     if (!currentAuction) return;
@@ -487,8 +510,8 @@ const Auction = () => {
 
       {banner && (
         <div className={`fixed inset-0 z-50 flex items-center justify-center pointer-events-none ${banner.kind === 'SOLD' ? 'bg-yellow-500/20' : 'bg-red-500/20'} animate-pulse`}>
-          <div className={`px-8 py-6 rounded-2xl text-3xl font-display shadow-2xl ${banner.kind === 'SOLD' ? 'bg-yellow-500 text-black' : 'bg-red-600 text-white'} `}>
-            {banner.kind}: {banner.text}
+          <div className={`px-6 md:px-8 py-5 md:py-6 rounded-2xl text-xl md:text-3xl font-display shadow-2xl ${banner.kind === 'SOLD' ? 'bg-yellow-500 text-black animate-[soldPop_0.45s_ease-out]' : 'bg-red-600 text-white'} `}>
+            {banner.kind === 'SOLD' ? '🔨 ' : ''}{banner.text}
           </div>
         </div>
       )}
@@ -544,8 +567,8 @@ const Auction = () => {
             </div>
           </div>
 
-          <main className="flex-1 overflow-hidden p-4 md:p-5">
-            <div className="grid h-full grid-cols-[3fr_5fr_2fr] gap-4">
+          <main className="flex-1 overflow-y-auto p-3 md:p-5">
+            <div className="grid h-full grid-cols-1 lg:grid-cols-[3fr_5fr_2fr] gap-4">
               <TeamGrid
                 teams={teams.map((team) => ({
                   id: team.id,
@@ -558,10 +581,11 @@ const Auction = () => {
                 }))}
                 myTeamId={myTeamId}
                 currentBidderId={currentAuction?.currentBidderId}
+                glowingTeamId={glowingTeamId}
                 onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
               />
 
-              <div className="h-full overflow-hidden">
+              <div className="h-full overflow-hidden order-1 lg:order-none">
                 <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
                   {currentPlayer && currentAuction?.status === 'RUNNING' && (
                     <PlayerCard
@@ -582,7 +606,7 @@ const Auction = () => {
                 </div>
               </div>
 
-              <div className="h-full">
+              <div className="h-full [&_button]:transition [&_button]:duration-200 [&_button:hover]:scale-[1.03]">
                 <BidControls
                   currentBid={displayedCurrentBid}
                   purseRemaining={Number(userTeam.purseRemaining || 0)}
@@ -606,7 +630,20 @@ const Auction = () => {
             </div>
           </main>
 
-          <style>{`@keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }`}</style>
+          {aiThinkingTeamId && (
+            <div className="fixed bottom-24 right-4 z-40 rounded-lg border border-yellow-400/40 bg-[#071a3a]/95 px-4 py-2 text-sm text-yellow-200 shadow-lg">
+              {(teams.find((t) => t.id === aiThinkingTeamId)?.shortName || 'AI')} thinking...
+            </div>
+          )}
+
+          <style>{`
+            @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+            @keyframes teamBidGlow { 0% { box-shadow: 0 0 0 rgba(250,204,21,0); } 35% { box-shadow: 0 0 28px rgba(250,204,21,0.8); } 100% { box-shadow: 0 0 0 rgba(250,204,21,0); } }
+            @keyframes bidPop { 0% { transform: scale(0.75); opacity: .6; } 100% { transform: scale(1); opacity: 1; } }
+            @keyframes starGlow { 0%,100% { box-shadow: 0 0 10px rgba(250,204,21,0.2);} 50% { box-shadow: 0 0 20px rgba(250,204,21,0.6);} }
+            @keyframes timerShake { 0%,100% { transform: translateX(0);} 50% { transform: translateX(-1px);} }
+            @keyframes soldPop { 0% { transform: scale(0.75);} 100% { transform: scale(1);} }
+          `}</style>
         </>
       )}
 

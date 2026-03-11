@@ -58,6 +58,9 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
   const [roleFilter, setRoleFilter] = useState('all');
   const [teamFilter, setTeamFilter] = useState('all');
   const [overseasFilter, setOverseasFilter] = useState('all');
+  const [poolFilter, setPoolFilter] = useState('all');
+  const [ratingFilter, setRatingFilter] = useState('all');
+  const [nationalityFilter, setNationalityFilter] = useState('all');
   const [ratingRange, setRatingRange] = useState<number[]>([1, 5]);
   const [editing, setEditing] = useState<EditablePlayer | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -70,31 +73,42 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
     return map;
   }, [teams]);
 
+  const pools = useMemo(() => Array.from(new Set(players.map((p) => p.pool).filter(Boolean))).sort(), [players]);
+  const nationalities = useMemo(() => Array.from(new Set(players.map((p) => (p.nationality || '').trim()).filter(Boolean))).sort(), [players]);
+
   const filteredPlayers = useMemo(() => {
     const q = search.toLowerCase().trim();
     const globalQ = globalSearch.toLowerCase().trim();
 
     return [...players]
       .filter((player) => {
-        const nameMatch = player.name.toLowerCase().includes(q);
+        const nameMatch = !q || player.name.toLowerCase().includes(q);
         const globalMatch = !globalQ
           || player.name.toLowerCase().includes(globalQ)
           || player.role.toLowerCase().includes(globalQ)
           || (teamNameById[player.previousTeamId] || '').toLowerCase().includes(globalQ)
-          || (player.nationality || '').toLowerCase().includes(globalQ);
+          || (player.nationality || '').toLowerCase().includes(globalQ)
+          || (player.pool || '').toLowerCase().includes(globalQ);
         const roleMatch = roleFilter === 'all' ? true : player.role === roleFilter;
         const teamMatch = teamFilter === 'all' ? true : (player.previousTeamId || '') === teamFilter;
-        const ratingMatch = Number(player.rating) >= ratingRange[0] && Number(player.rating) <= ratingRange[1];
         const overseasMatch = overseasFilter === 'all'
           ? true
           : overseasFilter === 'overseas'
             ? !!player.overseas
             : !player.overseas;
+        const poolMatch = poolFilter === 'all' ? true : String(player.pool || '') === poolFilter;
+        const nationalityMatch = nationalityFilter === 'all' ? true : String(player.nationality || '') === nationalityFilter;
+        const ratingBandMatch = ratingFilter === 'all'
+          ? true
+          : ratingFilter === '4plus'
+            ? Number(player.rating) >= 4
+            : Number(player.rating) >= 5;
+        const ratingRangeMatch = Number(player.rating) >= ratingRange[0] && Number(player.rating) <= ratingRange[1];
 
-        return globalMatch && nameMatch && roleMatch && teamMatch && ratingMatch && overseasMatch;
+        return globalMatch && nameMatch && roleMatch && teamMatch && overseasMatch && poolMatch && nationalityMatch && ratingBandMatch && ratingRangeMatch;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [players, search, globalSearch, roleFilter, teamFilter, ratingRange, overseasFilter, teamNameById]);
+  }, [players, search, globalSearch, roleFilter, teamFilter, ratingRange, overseasFilter, teamNameById, poolFilter, nationalityFilter, ratingFilter]);
 
   const syncTeamMembership = async (playerId: string, newTeamId: string, previousTeamId: string) => {
     if (previousTeamId && previousTeamId !== newTeamId) {
@@ -201,7 +215,7 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-3 border rounded-lg p-3">
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3 border rounded-lg p-3">
         <div className="space-y-2">
           <Label>Search</Label>
           <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Player name" />
@@ -234,6 +248,31 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
         </div>
 
         <div className="space-y-2">
+          <Label>Rating</Label>
+          <Select value={ratingFilter} onValueChange={setRatingFilter}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Ratings</SelectItem>
+              <SelectItem value="4plus">4★ and above</SelectItem>
+              <SelectItem value="5">5★ only</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Nationality</Label>
+          <Select value={nationalityFilter} onValueChange={setNationalityFilter}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Nationalities</SelectItem>
+              {nationalities.map((nationality) => (
+                <SelectItem key={nationality} value={nationality}>{nationality}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
           <Label>Overseas</Label>
           <Select value={overseasFilter} onValueChange={setOverseasFilter}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -241,6 +280,19 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
               <SelectItem value="all">All</SelectItem>
               <SelectItem value="overseas">Overseas</SelectItem>
               <SelectItem value="local">Local</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Pool</Label>
+          <Select value={poolFilter} onValueChange={setPoolFilter}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Pools</SelectItem>
+              {pools.map((pool) => (
+                <SelectItem key={pool} value={pool}>{pool}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

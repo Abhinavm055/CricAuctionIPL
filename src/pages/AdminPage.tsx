@@ -95,7 +95,7 @@ const AdminPage = () => {
   }, []);
 
   return (
-    <div className="min-h-screen p-6 bg-background">
+    <div className="min-h-screen p-4 md:p-6 bg-background">
       <h1 className="text-3xl font-display mb-6">Super Admin Panel</h1>
 
       <div className="mb-4 max-w-xl">
@@ -106,8 +106,8 @@ const AdminPage = () => {
         />
       </div>
 
-      <div className="grid md:grid-cols-[220px_1fr] gap-6">
-        <aside className="border rounded-xl p-3 h-fit bg-card">
+      <div className="grid md:grid-cols-[220px_1fr] gap-4 md:gap-6">
+        <aside className="border rounded-xl p-3 h-fit bg-card md:sticky md:top-4">
           <p className="text-xs text-muted-foreground px-2 pb-2">Navigation</p>
           <Button
             variant={tab === 'teams' ? 'default' : 'ghost'}
