@@ -75,6 +75,22 @@ const buildRecentPurchases = (existing: Array<{ playerId: string; price: number;
   return [purchase, ...(existing || [])].slice(0, 5);
 };
 
+const DEFAULT_AUCTION_STATE = {
+  activePlayerId: null,
+  currentBid: 0,
+  currentBidderId: null,
+  timerEndsAt: null,
+  status: "IDLE",
+  timerMode: "NONE",
+  rtmStage: "NONE",
+  rtmTeamId: null,
+  rtmWinningTeamId: null,
+  rtmPlayerId: null,
+  rtmFinalBid: 0,
+  rtmCounterBid: 0,
+  rtmExpiresAt: null,
+};
+
 const retentionEngine = new RetentionEngine();
 const auctionEngine = new AuctionEngine();
 const rtmEngine = new RtmEngine();
@@ -142,21 +158,7 @@ export const createSession = async (gameCode: string, hostId: string, mode: "MUL
     isAcceleratedRound: false,
     acceleratedRoundSkipped: false,
     pendingRtm: null,
-    currentAuction: {
-      activePlayerId: null,
-      currentBid: 0,
-      currentBidderId: null,
-      timerEndsAt: null,
-      status: "IDLE",
-      timerMode: "NONE",
-      rtmStage: "NONE",
-      rtmTeamId: null,
-      rtmWinningTeamId: null,
-      rtmPlayerId: null,
-      rtmFinalBid: 0,
-      rtmCounterBid: 0,
-      rtmExpiresAt: null,
-    },
+    currentAuction: DEFAULT_AUCTION_STATE,
   });
 
   IPL_TEAMS.forEach((team, index) => {
@@ -200,21 +202,7 @@ export const leaveGame = async (gameCode: string, userId: string) => {
         phase: "ENDED",
         [`disconnectedPlayers.${userId}`]: true,
         playersJoined: arrayRemove(userId),
-        currentAuction: {
-          activePlayerId: null,
-          currentBid: 0,
-          currentBidderId: null,
-          timerEndsAt: null,
-          status: "IDLE",
-          timerMode: "NONE",
-          rtmStage: "NONE",
-          rtmTeamId: null,
-          rtmWinningTeamId: null,
-          rtmPlayerId: null,
-          rtmFinalBid: 0,
-          rtmCounterBid: 0,
-          rtmExpiresAt: null,
-        },
+        currentAuction: DEFAULT_AUCTION_STATE,
       });
       return;
     }
@@ -439,21 +427,7 @@ export const startAuction = async (gameCode: string) => {
     isAcceleratedRound: false,
     acceleratedRoundSkipped: false,
     pendingRtm: null,
-    currentAuction: {
-      activePlayerId: null,
-      currentBid: 0,
-      currentBidderId: null,
-      timerEndsAt: null,
-      status: "IDLE",
-      timerMode: "AUCTION",
-      rtmStage: "NONE",
-      rtmTeamId: null,
-      rtmWinningTeamId: null,
-      rtmPlayerId: null,
-      rtmFinalBid: 0,
-      rtmCounterBid: 0,
-      rtmExpiresAt: null,
-    },
+    currentAuction: { ...DEFAULT_AUCTION_STATE, timerMode: "AUCTION" },
   });
 };
 
@@ -473,7 +447,7 @@ export const loadNextPlayer = async (gameCode: string) => {
       tx.update(sessionRef, {
         phase: "AUCTION_COMPLETE",
         queueIndex: auctionQueue.length,
-        currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE", timerMode: "NONE", rtmStage: "NONE", rtmTeamId: null, rtmWinningTeamId: null, rtmPlayerId: null, rtmFinalBid: 0, rtmCounterBid: 0, rtmExpiresAt: null },
+        currentAuction: DEFAULT_AUCTION_STATE,
       });
       return;
     }
@@ -827,7 +801,7 @@ export const startAcceleratedRound = async (gameCode: string) => {
       unsoldPlayers: [],
       isAcceleratedRound: true,
       acceleratedRoundSkipped: false,
-      currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE", timerMode: "NONE", rtmStage: "NONE", rtmTeamId: null, rtmWinningTeamId: null, rtmPlayerId: null, rtmFinalBid: 0, rtmCounterBid: 0, rtmExpiresAt: null },
+      currentAuction: DEFAULT_AUCTION_STATE,
     });
   });
 };
@@ -838,7 +812,7 @@ export const skipAcceleratedRound = async (gameCode: string) => {
   await updateDoc(sessionRef, {
     phase: "AUCTION_COMPLETE",
     acceleratedRoundSkipped: true,
-    currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE", timerMode: "NONE", rtmStage: "NONE", rtmTeamId: null, rtmWinningTeamId: null, rtmPlayerId: null, rtmFinalBid: 0, rtmCounterBid: 0, rtmExpiresAt: null },
+    currentAuction: DEFAULT_AUCTION_STATE,
   });
 };
 
