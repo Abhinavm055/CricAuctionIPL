@@ -220,7 +220,7 @@ export const leaveGame = async (gameCode: string, userId: string) => {
     }
 
     tx.update(sessionRef, {
-      ["disconnectedPlayers." + userId]: true,
+      [`disconnectedPlayers.${userId}`]: true,
       playersJoined: arrayRemove(userId),
     });
 
@@ -258,7 +258,7 @@ export const rejoinGame = async (gameCode: string, userId: string) => {
     if (!disconnected || !teamId) return;
 
     tx.update(sessionRef, {
-      ["disconnectedPlayers." + userId]: deleteField(),
+      [`disconnectedPlayers.${userId}`]: deleteField(),
       playersJoined: arrayUnion(userId),
     });
 
@@ -445,7 +445,7 @@ export const startAuction = async (gameCode: string) => {
       currentBidderId: null,
       timerEndsAt: null,
       status: "IDLE",
-      timerMode: "NONE",
+      timerMode: "AUCTION",
       rtmStage: "NONE",
       rtmTeamId: null,
       rtmWinningTeamId: null,
@@ -631,7 +631,7 @@ export const resolveAuction = async (gameCode: string) => {
         "currentAuction.status": "RTM",
         "currentAuction.timerMode": "RTM",
         "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
-        "currentAuction.rtmStage": rtmState.rtmStage,
+        "currentAuction.rtmStage": "PROMPT",
         "currentAuction.rtmTeamId": rtmState.rtmTeamId,
         "currentAuction.rtmWinningTeamId": rtmState.rtmWinningTeamId,
         "currentAuction.rtmPlayerId": rtmState.rtmPlayerId,
@@ -711,7 +711,7 @@ export const resolveRtmDecision = async (
       "currentAuction.status": "RTM",
       "currentAuction.timerMode": "RTM",
       "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
-      "currentAuction.rtmStage": next.nextStage,
+      "currentAuction.rtmStage": next.nextStage === "COUNTER_BID" ? "COUNTER" : "PROMPT",
       "currentAuction.rtmFinalBid": Number(next.finalBid),
       "currentAuction.rtmCounterBid": Number(next.counterBid),
       "currentAuction.rtmExpiresAt": Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
@@ -797,7 +797,7 @@ export const togglePauseAuction = async (gameCode: string) => {
         "currentAuction.status": "PAUSED",
         "currentAuction.pausedRemainingSec": remaining,
         "currentAuction.timerEndsAt": null,
-        "currentAuction.timerMode": "PAUSED",
+        "currentAuction.timerMode": "NONE",
       });
     } else if (auction.status === "PAUSED") {
       const remaining = Number(auction.pausedRemainingSec || AUCTION_TIMER);
