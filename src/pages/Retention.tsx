@@ -33,6 +33,7 @@ const Retention = () => {
   useEffect(() => {
     if (!session?.retentions || !session?.allTeams) return;
     const allLocked = session.allTeams.map((t: any) => t.id).every((id: string) => session.retentions[id]?.locked === true);
+    if (session?.phase === "ENDED") { navigate(`/auction/${gameCode}`); return; }
     if (allLocked) navigate(`/retention-review/${gameCode}`);
   }, [session, gameCode, navigate]);
 

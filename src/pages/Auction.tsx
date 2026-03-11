@@ -17,6 +17,8 @@ import {
   togglePauseAuction,
   startAcceleratedRound,
   skipAcceleratedRound,
+  leaveGame,
+  rejoinGame,
 } from "@/lib/sessionService";
 import { AIEngine } from "@/engine/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
@@ -165,13 +167,18 @@ const Auction = () => {
   }, [gameCode]);
 
   useEffect(() => {
-    if (session && !["AUCTION", "AUCTION_COMPLETE"].includes(session.phase)) navigate(`/lobby/${gameCode}`);
+    if (session && !["AUCTION", "AUCTION_COMPLETE", "ENDED"].includes(session.phase)) navigate(`/lobby/${gameCode}`);
   }, [session, gameCode, navigate]);
 
   const isHost = session?.hostId === userId;
   const queueLength = (session?.auctionQueue || []).length;
   const myTeamId = Object.entries(session?.selectedTeams || {}).find(([_, uid]) => uid === userId)?.[0] as string | undefined;
   const userTeam = teams.find((team) => team.id === myTeamId);
+
+  useEffect(() => {
+    if (!gameCode || !session?.disconnectedPlayers?.[userId]) return;
+    rejoinGame(gameCode, userId).catch(() => undefined);
+  }, [gameCode, userId, session?.disconnectedPlayers]);
 
   const currentAuction = session?.currentAuction;
 
@@ -457,7 +464,7 @@ const Auction = () => {
     return endedQueue && Number((session?.unsoldPlayers || []).length) > 0 && !session?.isAcceleratedRound && !session?.acceleratedRoundSkipped;
   }, [queueLength, session?.queueIndex, session?.unsoldPlayers, session?.isAcceleratedRound, session?.acceleratedRoundSkipped]);
 
-  const auctionEnded = (session?.phase === "AUCTION_COMPLETE") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
+  const auctionEnded = (session?.phase === "AUCTION_COMPLETE" || session?.phase === "ENDED") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
 
   if (!session || !userTeam) return <p className="p-6">Loading auction…</p>;
 
@@ -469,6 +476,11 @@ const Auction = () => {
         currentPool={(currentPlayer as any)?.pool}
         playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)}
         totalPlayers={queueLength}
+        onLeaveGame={async () => {
+          if (!gameCode) return;
+          await leaveGame(gameCode, userId);
+          navigate(`/`);
+        }}
       />
 
       <HammerSoldEffect open={showHammer} text={banner?.kind === "SOLD" ? banner.text : ""} />

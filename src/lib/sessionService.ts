@@ -7,6 +7,8 @@ import {
   serverTimestamp,
   writeBatch,
   arrayUnion,
+  arrayRemove,
+  deleteField,
   query,
   runTransaction,
   Timestamp,
@@ -130,6 +132,7 @@ export const createSession = async (gameCode: string, hostId: string, mode: "MUL
     selectedTeams: {},
     retentions: {},
     playersJoined: [hostId],
+    disconnectedPlayers: {},
     mode,
     allTeams: IPL_TEAMS.map((t) => ({ id: t.id, name: t.name, isAI: true })),
     auctionQueue: [],
@@ -179,6 +182,91 @@ export const createSession = async (gameCode: string, hostId: string, mode: "MUL
 
 export const joinSession = async (gameCode: string, userId: string) => {
   await updateDoc(doc(db, "sessions", gameCode), { playersJoined: arrayUnion(userId) });
+};
+
+
+export const leaveGame = async (gameCode: string, userId: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) throw new Error("Session not found");
+    const session = sessionSnap.data() as any;
+
+    const selectedTeams = (session.selectedTeams || {}) as Record<string, string>;
+    const teamId = Object.entries(selectedTeams).find(([_, uid]) => uid === userId)?.[0] || null;
+
+    if (session.hostId === userId) {
+      tx.update(sessionRef, {
+        phase: "ENDED",
+        [`disconnectedPlayers.${userId}`]: true,
+        playersJoined: arrayRemove(userId),
+        currentAuction: {
+          activePlayerId: null,
+          currentBid: 0,
+          currentBidderId: null,
+          timerEndsAt: null,
+          status: "IDLE",
+          timerMode: "NONE",
+          rtmStage: "NONE",
+          rtmTeamId: null,
+          rtmWinningTeamId: null,
+          rtmPlayerId: null,
+          rtmFinalBid: 0,
+          rtmCounterBid: 0,
+          rtmExpiresAt: null,
+        },
+      });
+      return;
+    }
+
+    tx.update(sessionRef, {
+      ["disconnectedPlayers." + userId]: true,
+      playersJoined: arrayRemove(userId),
+    });
+
+    if (!teamId) return;
+
+    tx.update(doc(db, "sessions", gameCode, "teams", teamId), {
+      isAI: true,
+      ownerId: null,
+    });
+
+    if (session.currentAuction?.status === "RUNNING" && session.currentAuction?.currentBidderId === teamId && session.currentAuction?.activePlayerId) {
+      const playerSnap = await tx.get(doc(db, "players", session.currentAuction.activePlayerId));
+      const basePrice = Number(playerSnap.data()?.basePrice || 0);
+      tx.update(sessionRef, {
+        "currentAuction.currentBid": basePrice,
+        "currentAuction.currentBidderId": null,
+        "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + AUCTION_TIMER * 1000),
+        "currentAuction.timerMode": "AUCTION",
+      });
+    }
+  });
+};
+
+export const rejoinGame = async (gameCode: string, userId: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) return;
+
+    const session = sessionSnap.data() as any;
+    const disconnected = Boolean(session?.disconnectedPlayers?.[userId]);
+    const selectedTeams = (session.selectedTeams || {}) as Record<string, string>;
+    const teamId = Object.entries(selectedTeams).find(([_, uid]) => uid === userId)?.[0] || null;
+
+    if (!disconnected || !teamId) return;
+
+    tx.update(sessionRef, {
+      ["disconnectedPlayers." + userId]: deleteField(),
+      playersJoined: arrayUnion(userId),
+    });
+
+    tx.update(doc(db, "sessions", gameCode, "teams", teamId), {
+      isAI: false,
+      ownerId: userId,
+    });
+  });
 };
 
 export const selectTeam = async (gameCode: string, teamId: string, userId: string) => {
