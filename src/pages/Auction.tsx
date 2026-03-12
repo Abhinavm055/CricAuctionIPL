@@ -547,7 +547,7 @@ const Auction = () => {
         }}
       />
 
-      <HammerSoldEffect open={showHammer} text={banner?.kind === "SOLD" ? banner.text : ""} />
+      <HammerSoldEffect open={showHammer} text={banner?.kind === "SOLD" ? `SOLD TO ${banner.team || "TEAM"}` : ""} />
 
       {banner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
@@ -616,9 +616,9 @@ const Auction = () => {
             </div>
           </div>
 
-          <main className="flex-1 overflow-y-auto p-3 md:p-5">
+          <main className="flex-1 overflow-hidden p-3 md:p-5">
             <div className="grid h-full grid-cols-1 lg:grid-cols-[3fr_5fr_2fr] gap-4">
-              <div className="order-3 lg:order-none"><TeamGrid
+              <div className="order-3 lg:order-none h-full overflow-y-auto"><TeamGrid
                 teams={teams.map((team) => ({
                   id: team.id,
                   shortName: team.shortName,

@@ -96,7 +96,8 @@ const AdminPage = () => {
 
   return (
     <div className="min-h-screen p-4 md:p-6 bg-background">
-      <h1 className="text-3xl font-display mb-6">Super Admin Panel</h1>
+      <h1 className="text-3xl font-display mb-2">Super Admin Panel</h1>
+      <p className="text-sm text-muted-foreground mb-4">Welcome, <span className="font-semibold text-primary">Abhinav</span>.</p>
 
       <div className="mb-4 max-w-xl">
         <Input
@@ -125,7 +126,7 @@ const AdminPage = () => {
           </Button>
         </aside>
 
-        <section className="border rounded-xl p-4 bg-card">
+        <section className="border rounded-xl p-4 bg-card overflow-hidden">
           {tab === 'players' && <PlayersManager players={players} teams={teams} globalSearch={globalSearch} />}
           {tab === 'teams' && <AdminTeamsPage players={players} teams={teams} />}
         </section>
