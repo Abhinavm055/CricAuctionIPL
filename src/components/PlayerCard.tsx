@@ -30,6 +30,8 @@ export const PlayerCard = ({ player, currentBid, currentBidderId, currentBidderN
   const playerImage = (player as any).image || player.imageUrl;
   const playerRating = Number((player as any).rating ?? player.starRating ?? 0);
   const isOverseas = Boolean((player as any).overseas ?? player.isOverseas);
+  const previousTeamId = String((player as any).previousTeamId || '').toLowerCase() || null;
+  const previousTeamName = String((player as any).previousTeam || 'PREV');
   const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
@@ -42,7 +44,10 @@ export const PlayerCard = ({ player, currentBid, currentBidderId, currentBidderN
         <span className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold text-black">
           {normalizeRoleLabel(player.role)}
         </span>
-        {isOverseas && <span className="text-yellow-400 text-xl leading-none">✈</span>}
+        <div className="flex items-center gap-2">
+          {isOverseas && <span className="text-yellow-400 text-xl leading-none">✈</span>}
+          <TeamLogo teamId={previousTeamId} shortName={previousTeamName} className="w-9 h-9 md:w-10 md:h-10 rounded-full border border-yellow-400/40" />
+        </div>
       </div>
 
       <div className="p-4 md:p-5 h-[calc(100%-52px)]">
