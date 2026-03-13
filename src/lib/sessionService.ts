@@ -257,9 +257,12 @@ export const rejoinGame = async (gameCode: string, userId: string) => {
   });
 };
 
-export const selectTeam = async (gameCode: string, teamId: string, userId: string) => {
+export const selectTeam = async (gameCode: string, teamId: string, userId: string, managerName?: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
-  await updateDoc(sessionRef, { [`selectedTeams.${teamId}`]: userId });
+  await updateDoc(sessionRef, {
+    [`selectedTeams.${teamId}`]: userId,
+    ...(managerName ? { [`managerNames.${teamId}`]: managerName } : {}),
+  });
 };
 
 export const startRetention = async (gameCode: string) => {
