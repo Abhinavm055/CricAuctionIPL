@@ -3,10 +3,23 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { IPL_TEAMS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
-import { Check, Copy, Users, ArrowLeft, ShieldCheck } from 'lucide-react';
+import { Users, ArrowLeft } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { selectTeam, listenSession, startRetention } from '@/lib/sessionService';
 import { TeamLogo } from '@/components/TeamLogo';
+
+const TEAM_INSIGHTS: Record<string, { titles: number; home: string; captain: string }> = {
+  csk: { titles: 5, home: 'Chepauk', captain: 'MS Dhoni' },
+  mi: { titles: 5, home: 'Wankhede', captain: 'Hardik Pandya' },
+  rcb: { titles: 0, home: 'Chinnaswamy', captain: 'Rajat Patidar' },
+  kkr: { titles: 3, home: 'Eden Gardens', captain: 'Ajinkya Rahane' },
+  dc: { titles: 0, home: 'Arun Jaitley Stadium', captain: 'Axar Patel' },
+  pbks: { titles: 0, home: 'Mullanpur', captain: 'Shreyas Iyer' },
+  rr: { titles: 1, home: 'Sawai Mansingh', captain: 'Sanju Samson' },
+  srh: { titles: 1, home: 'Rajiv Gandhi Intl Stadium', captain: 'Pat Cummins' },
+  gt: { titles: 1, home: 'Narendra Modi Stadium', captain: 'Shubman Gill' },
+  lsg: { titles: 0, home: 'Ekana Cricket Stadium', captain: 'Rishabh Pant' },
+};
 
 const Lobby = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
@@ -14,7 +27,6 @@ const Lobby = () => {
   const { toast } = useToast();
 
   const [session, setSession] = useState<any>(null);
-  const [copied, setCopied] = useState(false);
   const [draftTeam, setDraftTeam] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -40,13 +52,6 @@ const Lobby = () => {
   }, [session?.phase, gameCode, navigate]);
 
   const isHost = session?.hostId === userId;
-
-  useEffect(() => {
-    if (!session?.hostId) return;
-    console.log('hostId:', session.hostId);
-    console.log('userId:', userId);
-  }, [session?.hostId, userId]);
-
 
   if (!session) {
     return (
@@ -74,52 +79,57 @@ const Lobby = () => {
     }
   };
 
-  const copyCode = () => {
-    navigator.clipboard.writeText(gameCode || '');
-    setCopied(true);
-    toast({ title: 'Code Copied' });
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const isVsAI = session.mode === 'VS_AI';
 
   return (
-    <div className="min-h-screen broadcast-container p-6">
+    <div className="min-h-screen p-6 relative overflow-hidden" style={{ background: 'radial-gradient(circle at center, #0b1f4d, #020617)' }}>
+      <div className="absolute inset-0 bg-[#020617]/50 backdrop-blur-[2px]" />
       <div className="relative z-10 max-w-6xl mx-auto">
         <header className="flex items-center justify-between mb-10">
           <Button variant="ghost" onClick={() => navigate('/')} className="text-muted-foreground">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back
           </Button>
 
-          <h1 className="font-display text-3xl tracking-tighter text-primary">
-            {session.mode === 'VS_AI' ? 'VS AI LOBBY' : 'CRICAUCTION'}
-          </h1>
+          <h1 className="font-display text-3xl tracking-tighter text-primary">{isVsAI ? 'SELECT YOUR FRANCHISE' : 'CRICAUCTION'}</h1>
 
-          <div className="flex flex-col items-end">
-            <span className="text-[10px] uppercase tracking-widest text-muted-foreground mb-1">Room Code</span>
-            <button onClick={copyCode} className="flex items-center gap-3 px-4 py-2 bg-secondary/50 hover:bg-secondary border border-white/10 rounded-lg transition-colors">
-              <code className="font-mono text-xl font-bold">{gameCode}</code>
-              {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4 text-primary" />}
-            </button>
-          </div>
+          {!isVsAI && <div className="w-24" />}
         </header>
 
         <div className="mb-8">
-          <h2 className="font-display text-2xl mb-2 flex items-center gap-2">
-            <Users className="w-6 h-6 text-primary" />
-            {myConfirmedTeam ? 'Lobby Ready' : 'Select Your Franchise'}
-          </h2>
-          <p className="text-muted-foreground">
-            {session.mode === 'VS_AI'
-              ? 'Pick one team. Remaining 9 teams will be controlled by AI.'
-              : 'Human players can lock teams. Unlocked teams stay empty until host starts retention.'}
-          </p>
+          {isVsAI ? (
+            <div className="text-center mb-10">
+              <p className="text-gray-400 mt-2">
+                Pick your IPL team and lead them as the franchise manager.
+                <br />
+                The remaining teams will be controlled by AI.
+              </p>
+            </div>
+          ) : (
+            <>
+              <h2 className="font-display text-2xl mb-2 flex items-center gap-2">
+                <Users className="w-6 h-6 text-primary" />
+                {myConfirmedTeam ? 'Lobby Ready' : 'Select Your Franchise'}
+              </h2>
+              <p className="text-muted-foreground">
+                Human players can lock teams. Unlocked teams stay empty until host starts retention.
+              </p>
+            </>
+          )}
         </div>
 
+        {isVsAI && (
+          <div className="text-center text-gray-400 mb-6">🤖 AI Mode: Competitive Auction Strategy</div>
+        )}
+
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-          {IPL_TEAMS.map((team) => {
+          {IPL_TEAMS.map((team, index) => {
             const takenBy = selectedTeams[team.id];
             const isTaken = !!takenBy;
             const isMine = myConfirmedTeam === team.id;
             const isDraft = draftTeam === team.id;
+            const isSelected = isMine || (!!isDraft && !myConfirmedTeam);
+            const managerLabel = isSelected ? 'YOU' : isTaken ? 'Reserved' : 'AI Manager';
+            const insight = TEAM_INSIGHTS[team.id] || { titles: 0, home: 'Home Ground', captain: 'Captain TBA' };
 
             return (
               <button
@@ -127,25 +137,31 @@ const Lobby = () => {
                 disabled={!!myConfirmedTeam || (isTaken && !isMine)}
                 onClick={() => setDraftTeam(team.id)}
                 className={cn(
-                  'relative p-4 rounded-xl border-2 transition-all duration-300 text-left h-32 flex flex-col justify-between overflow-hidden',
-                  'bg-card/40 backdrop-blur-sm border-white/5',
-                  isDraft && !myConfirmedTeam && 'border-yellow-500 bg-yellow-500/10',
-                  isMine && 'border-primary bg-primary/10',
+                  'group relative p-4 rounded-xl border-2 transition-all duration-300 text-left h-40 flex flex-col justify-between overflow-visible slide-up',
+                  'bg-card/60 backdrop-blur-sm border-white/10 hover:scale-105 hover:shadow-[0_0_25px_rgba(251,191,36,0.5)] hover:border-yellow-400/70',
+                  isSelected && 'border-yellow-400 shadow-[0_0_25px_rgba(251,191,36,0.6)] bg-yellow-500/10',
                   isTaken && !isMine && 'opacity-50 cursor-not-allowed grayscale',
                 )}
+                style={{ animationDelay: `${0.08 * index}s` }}
               >
                 <div>
                   <TeamLogo teamId={team.id} logo={(team as any).logo} shortName={team.shortName} size="md" className="mb-2" />
                   <div className="font-display text-xl leading-none mb-1">{team.shortName}</div>
-                  <div className="text-[10px] uppercase text-muted-foreground font-medium truncate">{team.name}</div>
+                  <div className="text-xs uppercase text-muted-foreground font-medium truncate">{team.name}</div>
+                  <p className="text-yellow-400 text-xs mt-1">Manager: {managerLabel}</p>
                 </div>
 
-                {isMine && (
-                  <div className="flex items-center gap-1 text-primary text-[10px] font-bold">
-                    <ShieldCheck className="w-3 h-3" /> SECURED
+                {isSelected && (
+                  <div className="absolute top-2 right-2 px-2 py-0.5 text-[10px] font-bold rounded-full bg-yellow-400 text-black">
+                    YOU
                   </div>
                 )}
-                {isTaken && !isMine && <div className="text-[10px] font-bold text-red-500">OCCUPIED</div>}
+
+                <div className="pointer-events-none absolute left-1/2 -translate-x-1/2 -bottom-28 w-44 rounded-lg bg-[#0f172a] border border-yellow-400/40 p-3 text-xs shadow-xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-20">
+                  <p>🏆 Titles: {insight.titles}</p>
+                  <p>🏟 Home: {insight.home}</p>
+                  <p>👑 Captain: {insight.captain}</p>
+                </div>
               </button>
             );
           })}
@@ -159,8 +175,14 @@ const Lobby = () => {
           )}
 
           {isHost && (
-            <Button variant="gold" size="xl" disabled={!canStartRetention} onClick={() => startRetention(gameCode!)}>
-              Start Retention
+            <Button
+              variant="gold"
+              size="xl"
+              disabled={!canStartRetention}
+              onClick={() => startRetention(gameCode!)}
+              className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-semibold hover:scale-105 hover:shadow-[0_0_20px_rgba(251,191,36,0.8)] transition-all"
+            >
+              ⚡ START RETENTION ROUND
             </Button>
           )}
 
