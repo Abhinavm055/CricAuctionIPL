@@ -99,8 +99,14 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
+    background:
+      radial-gradient(circle at center, #0b1f4d, #020617),
+      url('/stadium.jpg');
+    background-size: cover;
+    background-position: center;
+    background-blend-mode: overlay;
   }
 
   h1, h2, h3, .display-text {
@@ -114,7 +120,7 @@
     background: var(--gradient-broadcast);
   }
 
-  .stadium-bg {
+  .landing-page {
     background:
       radial-gradient(circle at center, #0b1f4d, #020617),
       url('/stadium.jpg');
