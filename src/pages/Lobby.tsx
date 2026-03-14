@@ -9,7 +9,7 @@ import { selectTeam, listenSession, startRetention } from '@/lib/sessionService'
 import { TeamLogo } from '@/components/TeamLogo';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const TEAM_INSIGHTS: Record<string, { titles: number; home: string; captain: string }> = {
   csk: { titles: 5, home: 'Chepauk', captain: 'MS Dhoni' },
@@ -22,6 +22,21 @@ const TEAM_INSIGHTS: Record<string, { titles: number; home: string; captain: str
   srh: { titles: 1, home: 'Rajiv Gandhi Intl Stadium', captain: 'Pat Cummins' },
   gt: { titles: 1, home: 'Narendra Modi Stadium', captain: 'Shubman Gill' },
   lsg: { titles: 0, home: 'Ekana Cricket Stadium', captain: 'Rishabh Pant' },
+};
+
+const AI_MANAGERS = [
+  'Rahul Sharma',
+  'Vikram Patel',
+  'Amit Desai',
+  'Karan Mehta',
+  'Siddharth Nair',
+  'Neeraj Gupta',
+  'Arjun Kapoor',
+];
+
+const getAiManagerName = (teamId: string) => {
+  const hash = teamId.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+  return AI_MANAGERS[hash % AI_MANAGERS.length];
 };
 
 const Lobby = () => {
@@ -46,20 +61,17 @@ const Lobby = () => {
   }, []);
 
   useEffect(() => {
-    const cached = localStorage.getItem('managerName') || '';
-    setManagerName(cached);
-  }, []);
-
-  useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUid(user?.uid || null);
-      if (!user) return;
+      if (!user) {
+        setManagerName('');
+        localStorage.removeItem('managerName');
+        return;
+      }
       const snap = await getDoc(doc(db, 'users', user.uid));
       const saved = String(snap.data()?.managerName || '').trim();
-      if (saved) {
-        setManagerName(saved);
-        localStorage.setItem('managerName', saved);
-      }
+      setManagerName(saved || '');
+      if (saved) localStorage.setItem('managerName', saved);
     });
     return () => unsub();
   }, []);
@@ -107,6 +119,22 @@ const Lobby = () => {
       const finalManagerName = managerName.trim();
       await selectTeam(gameCode, draftTeam, userId, finalManagerName);
       await persistManagerPreference(finalManagerName);
+
+      if (authUid) {
+        await addDoc(collection(db, 'sessions'), {
+          ownerUid: authUid,
+          managerName: finalManagerName,
+          team: draftTeam,
+          purse: 120,
+          retainedPlayers: [],
+          boughtPlayers: [],
+          auctionStage: 'retention',
+          gameCode,
+          active: true,
+          createdAt: serverTimestamp(),
+        });
+      }
+
       localStorage.setItem('myTeamId', draftTeam);
       toast({ title: 'Team Locked!', description: 'Waiting for host...' });
     } catch (error: any) {
@@ -164,7 +192,9 @@ const Lobby = () => {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2 text-sm">
               {IPL_TEAMS.map((team) => {
                 const uid = selectedTeams[team.id];
-                const manager = uid ? managerNames[team.id] || String(uid).slice(0, 6) : 'Available';
+                const manager = uid
+                  ? (String(uid).startsWith('AI-') ? getAiManagerName(team.id) : managerNames[team.id] || String(uid).slice(0, 6))
+                  : 'Available';
                 return <div key={team.id} className="px-1 py-1"><span className="text-yellow-400 font-semibold">{team.shortName}</span> — <span className="text-muted-foreground">{manager}</span></div>;
               })}
             </div>
@@ -179,7 +209,11 @@ const Lobby = () => {
             const isDraft = draftTeam === team.id;
             const isSelected = isMine || (!!isDraft && !myConfirmedTeam);
             const insight = TEAM_INSIGHTS[team.id] || { titles: 0, home: 'Home Ground', captain: 'Captain TBA' };
-            const managerLabel = isSelected ? (managerName || 'YOU') : isTaken ? (managerNames[team.id] || 'Reserved') : (isVsAI ? 'AI Manager' : 'Available');
+            const managerLabel = isSelected
+              ? (managerName || 'YOU')
+              : isTaken
+                ? (String(takenBy).startsWith('AI-') ? getAiManagerName(team.id) : managerNames[team.id] || 'Reserved')
+                : (isVsAI ? getAiManagerName(team.id) : 'Available');
 
             return (
               <button

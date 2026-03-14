@@ -14,7 +14,7 @@ import {
   signOut,
   type User,
 } from 'firebase/auth';
-import { doc, getDoc, serverTimestamp, setDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 
 const getUserId = () => {
   const existing = localStorage.getItem('uid');
@@ -39,6 +39,7 @@ const Landing = () => {
   const [password, setPassword] = useState('');
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [resumeSession, setResumeSession] = useState<{ gameCode: string; auctionStage: string } | null>(null);
 
   const stats = useMemo(() => ({ liveAuctions: 12, playersOnline: 68 }), []);
 
@@ -63,10 +64,27 @@ const Landing = () => {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (currentUser) upsertUserDoc(currentUser);
+      if (currentUser) {
+        upsertUserDoc(currentUser);
+      } else {
+        setResumeSession(null);
+      }
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const loadResume = async () => {
+      const q = query(collection(db, 'sessions'), where('ownerUid', '==', user.uid), where('active', '==', true), limit(1));
+      const snap = await getDocs(q);
+      const record = snap.docs[0]?.data();
+      if (!record?.gameCode) return;
+      setResumeSession({ gameCode: String(record.gameCode), auctionStage: String(record.auctionStage || 'retention') });
+    };
+
+    loadResume();
+  }, [user]);
 
   useEffect(() => {
     const audio = new Audio('/crowd.mp3');
@@ -196,6 +214,7 @@ const Landing = () => {
                   <button
                     onClick={async () => {
                       await signOut(auth);
+                      localStorage.removeItem('managerName');
                       setShowProfileMenu(false);
                     }}
                     className="block w-full text-left px-4 py-2 hover:bg-gray-700/60 text-red-300"
@@ -212,6 +231,18 @@ const Landing = () => {
       </header>
 
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-10 w-full max-w-6xl mx-auto">
+        {resumeSession && (
+          <div className="mb-5 rounded-lg border border-yellow-400/40 bg-[#0f172a]/90 px-4 py-3 text-sm">
+            Resume Auction?
+            <button
+              onClick={() => navigate(`/lobby/${resumeSession.gameCode}`)}
+              className="ml-3 text-yellow-400 hover:text-yellow-300"
+            >
+              Continue {resumeSession.gameCode}
+            </button>
+          </div>
+        )}
+
         <section className="text-center mb-12 slide-up">
           <h2 className="font-display text-6xl md:text-8xl text-foreground mb-4 tracking-wide">
             IPL AUCTION

@@ -52,8 +52,8 @@ const RetentionReview = () => {
 
             return (
               <div key={team.id} className="group relative rounded-xl border border-white/10 bg-[#0f172a] p-4 min-h-[250px] transition-all duration-200 hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] hover:border-yellow-400/70">
-                <div className="absolute inset-4 z-0 grid grid-cols-2 gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
-                  {retainedPlayers.slice(0, 4).map((p) => (
+                <div className="absolute left-0 right-0 bottom-full mb-3 z-30 grid grid-cols-2 gap-2 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 pointer-events-none">
+                  {retainedPlayers.map((p) => (
                     <div key={p.id} className="rounded-lg border border-white/10 bg-[#111c34] p-2">
                       <div className="w-full h-20 rounded-md bg-muted flex items-center justify-center overflow-hidden mb-2">
                         {(p.image || p.imageUrl) ? <img src={p.image || p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <User className="w-4 h-4" />}
