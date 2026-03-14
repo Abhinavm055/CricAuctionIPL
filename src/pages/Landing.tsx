@@ -53,6 +53,7 @@ const Landing = () => {
         email: authUser.email || '',
         auctionsPlayed: snap.exists() ? snap.data().auctionsPlayed || 0 : 0,
         auctionsWon: snap.exists() ? snap.data().auctionsWon || 0 : 0,
+        managerName: snap.exists() ? snap.data().managerName || localStorage.getItem('managerName') || '' : localStorage.getItem('managerName') || '',
         createdAt: snap.exists() ? snap.data().createdAt || serverTimestamp() : serverTimestamp(),
       },
       { merge: true },
@@ -190,8 +191,8 @@ const Landing = () => {
 
               {showProfileMenu && (
                 <div className="absolute right-0 mt-2 w-44 bg-[#0f172a] rounded-lg shadow-lg border border-white/10 overflow-hidden">
-                  <button className="block w-full text-left px-4 py-2 hover:bg-gray-700/60">Profile</button>
-                  <button onClick={() => navigate('/leaderboard')} className="block w-full text-left px-4 py-2 hover:bg-gray-700/60">Statistics</button>
+                  <button onClick={() => navigate('/profile')} className="block w-full text-left px-4 py-2 hover:bg-gray-700/60">Profile</button>
+                  <button onClick={() => navigate('/profile')} className="block w-full text-left px-4 py-2 hover:bg-gray-700/60">Statistics</button>
                   <button
                     onClick={async () => {
                       await signOut(auth);

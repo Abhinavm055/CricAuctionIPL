@@ -17,7 +17,7 @@ const Leaderboard = () => {
 
   useEffect(() => {
     const load = async () => {
-      const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('auctionsWon', 'desc')));
+      const snap = await getDocs(query(collection(db, 'users'), orderBy('auctionsWon', 'desc')));
       const parsed = snap.docs.map((doc) => ({
         id: doc.id,
         name: String(doc.data().name || 'Manager'),

@@ -15,6 +15,7 @@ import RetentionReview from "./pages/RetentionReview";
 import AdminPage from "./pages/AdminPage";
 import Leaderboard from "./pages/Leaderboard";
 import Feedback from "./pages/Feedback";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +36,7 @@ const App = () => (
               <Route path="/auction/:gameCode" element={<Auction />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/feedback" element={<Feedback />} />
+              <Route path="/profile" element={<Profile />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

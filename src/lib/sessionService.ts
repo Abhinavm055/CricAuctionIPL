@@ -828,6 +828,7 @@ export const updateAuctionStats = async (
   managerNames: Record<string, string> = {}
 ) => {
   const updates = Object.entries(selectedTeams).filter(([, uid]) => !String(uid).startsWith('AI-'));
+  const winnerName = managerNames[winnerTeamId] || winnerTeamId.toUpperCase();
 
   await Promise.all(
     updates.map(async ([teamId, uid]) => {
@@ -835,14 +836,24 @@ export const updateAuctionStats = async (
       const managerName = managerNames[teamId] || String(uid).slice(0, 8);
       const userRef = doc(db, 'users', uid);
       const leaderboardRef = doc(db, 'leaderboard', uid);
+      const historyRecord = {
+        code: gameCode,
+        winner: winnerName,
+        teamId,
+        managerName,
+        result: isWinner ? 'WON' : 'PARTICIPATED',
+        createdAt: Timestamp.fromMillis(Date.now()),
+      };
 
       await setDoc(
         userRef,
         {
           uid,
           name: managerName,
+          managerName,
           auctionsPlayed: increment(1),
           auctionsWon: increment(isWinner ? 1 : 0),
+          auctionHistory: arrayUnion(historyRecord),
           updatedAt: serverTimestamp(),
         },
         { merge: true },
