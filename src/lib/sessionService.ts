@@ -13,6 +13,8 @@ import {
   runTransaction,
   Timestamp,
   getDocs,
+  setDoc,
+  increment,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -818,6 +820,49 @@ export const skipAcceleratedRound = async (gameCode: string) => {
     currentAuction: DEFAULT_AUCTION_STATE,
   });
 };
+
+export const updateAuctionStats = async (
+  gameCode: string,
+  winnerTeamId: string,
+  selectedTeams: Record<string, string>,
+  managerNames: Record<string, string> = {}
+) => {
+  const updates = Object.entries(selectedTeams).filter(([, uid]) => !String(uid).startsWith('AI-'));
+
+  await Promise.all(
+    updates.map(async ([teamId, uid]) => {
+      const isWinner = teamId === winnerTeamId;
+      const managerName = managerNames[teamId] || String(uid).slice(0, 8);
+      const userRef = doc(db, 'users', uid);
+      const leaderboardRef = doc(db, 'leaderboard', uid);
+
+      await setDoc(
+        userRef,
+        {
+          uid,
+          name: managerName,
+          auctionsPlayed: increment(1),
+          auctionsWon: increment(isWinner ? 1 : 0),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      await setDoc(
+        leaderboardRef,
+        {
+          uid,
+          name: managerName,
+          auctionsPlayed: increment(1),
+          auctionsWon: increment(isWinner ? 1 : 0),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }),
+  );
+};
+
 
 export const getPlayerMetaForAI = {
   getPlayerRating,

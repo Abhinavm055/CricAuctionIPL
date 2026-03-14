@@ -19,6 +19,7 @@ import {
   skipAcceleratedRound,
   leaveGame,
   rejoinGame,
+  updateAuctionStats,
 } from "@/lib/sessionService";
 import { AIEngine } from "@/engine/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
@@ -127,6 +128,8 @@ const Auction = () => {
   const spokenMarksRef = useRef<{ three: string | null; one: string | null }>({ three: null, one: null });
   const prevTimerEndsAtRef = useRef<number>(0);
   const prevPendingRtmStatusRef = useRef<string | null>(null);
+
+  const hasSyncedStatsRef = useRef(false);
 
   const playTone = useCallback((freq: number, duration = 0.12, volume = 0.04) => {
     try {
@@ -565,6 +568,18 @@ const Auction = () => {
   }, [queueLength, session?.queueIndex, session?.unsoldPlayers, session?.isAcceleratedRound, session?.acceleratedRoundSkipped]);
 
   const auctionEnded = (session?.phase === "AUCTION_COMPLETE" || session?.phase === "ENDED") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
+  useEffect(() => {
+    if (!auctionEnded || !isHost || !session || !leaderboard.length || hasSyncedStatsRef.current) return;
+    const winnerTeamId = leaderboard[0]?.id;
+    if (!winnerTeamId) return;
+
+    updateAuctionStats(gameCode!, winnerTeamId, session.selectedTeams || {}, session.managerNames || {})
+      .then(() => {
+        hasSyncedStatsRef.current = true;
+      })
+      .catch(() => undefined);
+  }, [auctionEnded, isHost, session, leaderboard, gameCode]);
+
 
   if (!session || !userTeam) return <p className="p-6">Loading auction…</p>;
 

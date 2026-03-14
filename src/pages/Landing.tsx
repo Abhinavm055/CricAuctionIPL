@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { generateGameCode } from '@/lib/constants';
-import { Bot, Shield, Users, Volume2, VolumeX } from 'lucide-react';
+import { Bot, Users, Volume2, VolumeX } from 'lucide-react';
 import { createSession } from '@/lib/sessionService';
 import { auth, db } from '@/lib/firebase';
 import {
@@ -318,13 +318,6 @@ const Landing = () => {
         {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
       </button>
 
-      <Link
-        to="/admin"
-        className="fixed bottom-5 right-5 z-50 w-10 h-10 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center"
-        aria-label="Open admin panel"
-      >
-        <Shield className="w-5 h-5" />
-      </Link>
     </div>
   );
 };
