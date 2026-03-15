@@ -13,6 +13,8 @@ import {
   runTransaction,
   Timestamp,
   getDocs,
+  setDoc,
+  increment,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -257,9 +259,12 @@ export const rejoinGame = async (gameCode: string, userId: string) => {
   });
 };
 
-export const selectTeam = async (gameCode: string, teamId: string, userId: string) => {
+export const selectTeam = async (gameCode: string, teamId: string, userId: string, managerName?: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
-  await updateDoc(sessionRef, { [`selectedTeams.${teamId}`]: userId });
+  await updateDoc(sessionRef, {
+    [`selectedTeams.${teamId}`]: userId,
+    ...(managerName ? { [`managerNames.${teamId}`]: managerName } : {}),
+  });
 };
 
 export const startRetention = async (gameCode: string) => {
@@ -815,6 +820,60 @@ export const skipAcceleratedRound = async (gameCode: string) => {
     currentAuction: DEFAULT_AUCTION_STATE,
   });
 };
+
+export const updateAuctionStats = async (
+  gameCode: string,
+  winnerTeamId: string,
+  selectedTeams: Record<string, string>,
+  managerNames: Record<string, string> = {}
+) => {
+  const updates = Object.entries(selectedTeams).filter(([, uid]) => !String(uid).startsWith('AI-'));
+  const winnerName = managerNames[winnerTeamId] || winnerTeamId.toUpperCase();
+
+  await Promise.all(
+    updates.map(async ([teamId, uid]) => {
+      const isWinner = teamId === winnerTeamId;
+      const managerName = managerNames[teamId] || String(uid).slice(0, 8);
+      const userRef = doc(db, 'users', uid);
+      const leaderboardRef = doc(db, 'leaderboard', uid);
+      const historyRecord = {
+        code: gameCode,
+        winner: winnerName,
+        teamId,
+        managerName,
+        result: isWinner ? 'WON' : 'PARTICIPATED',
+        createdAt: Timestamp.fromMillis(Date.now()),
+      };
+
+      await setDoc(
+        userRef,
+        {
+          uid,
+          name: managerName,
+          managerName,
+          auctionsPlayed: increment(1),
+          auctionsWon: increment(isWinner ? 1 : 0),
+          auctionHistory: arrayUnion(historyRecord),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+
+      await setDoc(
+        leaderboardRef,
+        {
+          uid,
+          name: managerName,
+          auctionsPlayed: increment(1),
+          auctionsWon: increment(isWinner ? 1 : 0),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }),
+  );
+};
+
 
 export const getPlayerMetaForAI = {
   getPlayerRating,
