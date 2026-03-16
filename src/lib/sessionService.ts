@@ -74,7 +74,22 @@ const getPlayerPreviousTeamId = (playerData: any) => String(playerData?.previous
 const getPlayerRating = (playerData: any) => Number(playerData?.rating ?? playerData?.starRating ?? 0);
 
 const buildRecentPurchases = (existing: Array<{ playerId: string; price: number; teamId: string }>, purchase: { playerId: string; price: number; teamId: string }) => {
-  return [purchase, ...(existing || [])].slice(0, 5);
+  return [purchase, ...(existing || [])];
+};
+
+const normalizeRoleKey = (role: string | undefined) => {
+  const key = String(role || '').toLowerCase();
+  if (key.includes('wicket')) return 'wicketkeeper';
+  if (key.includes('all')) return 'allRounder';
+  if (key.includes('bowl')) return 'bowler';
+  return 'batter';
+};
+
+const deriveTeamNeeds = (currentNeeds: Record<string, number> | undefined, playerRole: string | undefined) => {
+  const roleKey = normalizeRoleKey(playerRole);
+  const nextNeeds = { ...TEAM_NEEDS_TEMPLATE, ...(currentNeeds || {}) } as Record<string, number>;
+  nextNeeds[roleKey] = Math.max(0, Number(nextNeeds[roleKey] || 0) - 1);
+  return nextNeeds;
 };
 
 const DEFAULT_AUCTION_STATE = {
@@ -531,7 +546,8 @@ const applySaleToTeam = (
   playerId: string,
   price: number,
   isOverseas: boolean,
-  decrementRtm: boolean
+  decrementRtm: boolean,
+  playerRole?: string
 ) => {
   const teamRef = doc(db, "sessions", gameCode, "teams", teamId);
   return tx.get(teamRef).then((teamSnap: any) => {
@@ -546,6 +562,7 @@ const applySaleToTeam = (
       purseRemaining: Number(teamData.purseRemaining || 0) - price,
       squadSize: squadSize + 1,
       overseasCount: overseasCount + (isOverseas ? 1 : 0),
+      teamNeeds: deriveTeamNeeds(teamData.teamNeeds, playerRole),
       [`playerPurchasePrices.${playerId}`]: price,
       ...(decrementRtm ? { rtmCards: Math.max(0, Number(teamData.rtmCards || 0) - 1) } : {}),
     });
@@ -621,7 +638,7 @@ export const resolveAuction = async (gameCode: string) => {
       return;
     }
 
-    await applySaleToTeam(tx, gameCode, winningTeamId, playerId, finalBid, isOverseas, false);
+    await applySaleToTeam(tx, gameCode, winningTeamId, playerId, finalBid, isOverseas, false, String(playerSnap.data()?.role || ''));
     tx.update(sessionRef, {
       pendingRtm: null,
       recentPurchases: buildRecentPurchases((sessionData.recentPurchases || []) as any[], { playerId, price: finalBid, teamId: winningTeamId }),
@@ -667,7 +684,7 @@ export const resolveRtmDecision = async (
 
     if ((transition as any).done) {
       const result = transition as any;
-      await applySaleToTeam(tx, gameCode, result.winnerTeamId, pending.playerId, Number(result.finalBid), isOverseas, Boolean(result.rtmUsed && result.winnerTeamId === pending.originalTeamId));
+      await applySaleToTeam(tx, gameCode, result.winnerTeamId, pending.playerId, Number(result.finalBid), isOverseas, Boolean(result.rtmUsed && result.winnerTeamId === pending.originalTeamId), String(playerSnap.data()?.role || ''));
       tx.update(sessionRef, {
         pendingRtm: null,
         recentPurchases: buildRecentPurchases((sessionData.recentPurchases || []) as any[], { playerId: pending.playerId, price: Number(result.finalBid), teamId: result.winnerTeamId }),

@@ -23,13 +23,10 @@ export const TeamGrid = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSe
   const gridTeams = (myTeam ? teams.filter((team) => team.id !== myTeam.id) : teams).slice(0, 9);
 
   return (
-    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-y-auto">
+    <div className="rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3">
       <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Teams</p>
 
-      <div 
-        className="grid gap-[24px] content-start" 
-        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
-      >
+      <div className="grid grid-cols-3 gap-3">
         {gridTeams.map((team) => (
           <TeamCard
             key={team.id}
@@ -43,31 +40,28 @@ export const TeamGrid = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSe
             isCurrentBidder={team.id === currentBidderId}
             shouldGlow={team.id === glowingTeamId}
             isUserTeam={team.id === myTeamId}
-            logoSize="normal"
             onClick={() => onSelectTeam(team.id)}
           />
         ))}
-      </div>
 
-      {myTeam && (
-        <div className="mt-3 border-t border-yellow-500/30 pt-3">
-          <p className="text-[10px] uppercase tracking-widest text-yellow-300 mb-2">My Team</p>
-          <TeamCard
-            id={myTeam.id}
-            shortName={myTeam.shortName}
-            name={myTeam.name}
-            logo={myTeam.logo}
-            purseRemaining={myTeam.purseRemaining}
-            squadSize={myTeam.squadSize}
-            rtmCards={myTeam.rtmCards}
-            isCurrentBidder={myTeam.id === currentBidderId}
-            shouldGlow={myTeam.id === glowingTeamId}
-            isUserTeam
-            logoSize="large"
-            onClick={() => onSelectTeam(myTeam.id)}
-          />
-        </div>
-      )}
+        {myTeam && (
+          <div className="col-span-3">
+            <TeamCard
+              id={myTeam.id}
+              shortName={myTeam.shortName}
+              name={myTeam.name}
+              logo={myTeam.logo}
+              purseRemaining={myTeam.purseRemaining}
+              squadSize={myTeam.squadSize}
+              rtmCards={myTeam.rtmCards}
+              isCurrentBidder={myTeam.id === currentBidderId}
+              shouldGlow={myTeam.id === glowingTeamId}
+              isUserTeam
+              onClick={() => onSelectTeam(myTeam.id)}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 };

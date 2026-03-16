@@ -28,8 +28,6 @@ import { TeamLogo } from "@/components/TeamLogo";
 import { Header } from "@/components/Header";
 import { TeamGrid } from "@/components/TeamGrid";
 import { BidControls } from "@/components/BidControls";
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Menu } from "lucide-react";
 
 export interface TeamState {
   id: string;
@@ -69,6 +67,38 @@ const normalizeRoleKey = (role: string) => {
   if (key.includes("all")) return "ar";
   if (key.includes("bowl")) return "bowl";
   return "bat";
+};
+
+const STRATEGY_AGGRESSION: Record<string, number> = {
+  aggressive: 1.2,
+  balanced: 1,
+  budget: 0.9,
+  starHunter: 1.15,
+  roleFocused: 1.05,
+};
+
+const SET_LABELS: Record<string, string> = {
+  batters: 'Batters',
+  bowlers: 'Bowlers',
+  'all-rounders': 'All-Rounders',
+  wicketkeepers: 'Wicketkeepers',
+  marquee: 'Marquee',
+  uncapped: 'Uncapped',
+  accelerated: 'Accelerated',
+};
+
+const SET_ORDER = ['marquee', 'batters', 'all-rounders', 'wicketkeepers', 'bowlers', 'uncapped', 'accelerated'];
+
+const normalizePoolKey = (pool: string | undefined) => {
+  const key = String(pool || '').toLowerCase().replace(/\s+/g, '').replace('wicket-keepers', 'wicketkeepers');
+  if (['marquee'].includes(key)) return 'marquee';
+  if (['batters', 'batsmen', 'batter'].includes(key)) return 'batters';
+  if (['allrounders', 'all-rounders', 'all-rounder'].includes(key)) return 'all-rounders';
+  if (['wicketkeepers', 'wicketkeeper', 'wicket-keeper'].includes(key)) return 'wicketkeepers';
+  if (['bowlers', 'bowler'].includes(key)) return 'bowlers';
+  if (['uncapped'].includes(key)) return 'uncapped';
+  if (['accelerated', 'acceleratedround'].includes(key)) return 'accelerated';
+  return 'uncapped';
 };
 
 const buildLeaderboard = (teams: TeamState[], resolved: Record<string, { retained: Player[]; bought: Player[] }>) => {
@@ -328,11 +358,14 @@ const Auction = () => {
         purseRemaining: Number(t.purseRemaining || 0),
         overseasCount: Number(t.overseasCount || 0),
         roleNeeds: (t as any).teamNeeds || {},
+        aggressionLevel: STRATEGY_AGGRESSION[String((t as any).aiStrategy || 'balanced')] || 1,
       })),
       {
         id: (currentPlayer as any).id,
+        name: (currentPlayer as any).name,
         role: (currentPlayer as any).role,
         rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 0),
+        basePrice: Number((currentPlayer as any).basePrice || 0),
         overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
       },
       Number(currentAuction.currentBid || 0),
@@ -538,6 +571,7 @@ const Auction = () => {
     rtmAiDecisionKeyRef.current = key;
 
     const timer = window.setTimeout(() => {
+      (async () => {
       if (pendingRtm.status === "AWAIT_ORIGINAL") {
         const pSnap = await getDoc(doc(db, "players", pendingRtm.playerId));
         const rating = Number(pSnap.data()?.rating ?? pSnap.data()?.starRating ?? 0);
@@ -563,6 +597,7 @@ const Auction = () => {
         const shouldMatch = Math.random() > 0.5;
         resolveRtmDecision(gameCode, { action: shouldMatch ? "MATCH" : "DECLINE", actingTeamId: pendingRtm.originalTeamId! }).catch(() => undefined);
       }
+      })().catch(() => undefined);
     }, 1200 + Math.floor(Math.random() * 1200));
 
     return () => window.clearTimeout(timer);
@@ -570,7 +605,7 @@ const Auction = () => {
 
   const recentPurchases = useMemo(() => {
     const purchases = (session?.recentPurchases || []) as Array<{ playerId: string; price: number; teamId: string }>;
-    return purchases.slice(0, 5);
+    return purchases;
   }, [session?.recentPurchases]);
 
   const commentaryTicker = useMemo(() => {
@@ -602,6 +637,38 @@ const Auction = () => {
     const endedQueue = queueLength > 0 && queueIndex >= queueLength;
     return endedQueue && Number((session?.unsoldPlayers || []).length) > 0 && !session?.isAcceleratedRound && !session?.acceleratedRoundSkipped;
   }, [queueLength, session?.queueIndex, session?.unsoldPlayers, session?.isAcceleratedRound, session?.acceleratedRoundSkipped]);
+
+  const setProgress = useMemo(() => {
+    const queue = (session?.auctionQueue || []) as string[];
+    const queueIndex = Number(session?.queueIndex ?? -1);
+    const currentPool = normalizePoolKey(String((currentPlayer as any)?.pool || ''));
+    const activeSetLabel = SET_LABELS[currentPool] || 'General';
+    const currentSetIndex = SET_ORDER.indexOf(currentPool);
+
+    if (!queue.length) return { activeSetLabel, playersRemainingInSet: 0, currentSetIndex };
+
+    const startIndex = Math.max(0, queueIndex);
+    const remainingIds = queue.slice(startIndex);
+    const remainingInSet = remainingIds.filter((id) => {
+      const player = playerById.get(id);
+      return normalizePoolKey(String((player as any)?.pool || '')) === currentPool;
+    }).length;
+
+    return { activeSetLabel, playersRemainingInSet: Math.max(0, remainingInSet), currentSetIndex };
+  }, [session?.auctionQueue, session?.queueIndex, currentPlayer, playerById]);
+
+  const remainingSetPlayers = useMemo(() => {
+    const queue = (session?.auctionQueue || []) as string[];
+    const queueIndex = Number(session?.queueIndex ?? -1);
+    const currentPool = normalizePoolKey(String((currentPlayer as any)?.pool || ''));
+    const startIndex = Math.max(0, queueIndex);
+
+    return queue
+      .slice(startIndex)
+      .filter((id) => normalizePoolKey(String((playerById.get(id) as any)?.pool || '')) === currentPool)
+      .map((id) => String((playerById.get(id) as any)?.name || id))
+      .slice(0, 25);
+  }, [session?.auctionQueue, session?.queueIndex, currentPlayer, playerById]);
 
   const auctionEnded = (session?.phase === "AUCTION_COMPLETE" || session?.phase === "ENDED") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
   useEffect(() => {
@@ -641,10 +708,11 @@ const Auction = () => {
     <div className="h-screen broadcast-container flex flex-col overflow-hidden">
       <Header
         gameCode={gameCode!}
-        timerSeconds={Math.max(0, Math.floor(timerSeconds))}
-        currentPool={(currentPlayer as any)?.pool}
-        playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)}
-        totalPlayers={queueLength}
+        currentSetLabel={`${typeof setProgress.currentSetIndex === "number" && setProgress.currentSetIndex >= 0 ? `Set ${setProgress.currentSetIndex + 1}: ` : ""}${setProgress.activeSetLabel}`}
+        onSkip={gameCode && isHost ? () => skipCurrentPlayer(gameCode) : undefined}
+        onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
+        isPaused={currentAuction?.status === "PAUSED"}
+        canControl={Boolean(isHost)}
         onLeaveGame={async () => {
           if (!gameCode) return;
           await leaveGame(gameCode, userId);
@@ -742,64 +810,56 @@ const Auction = () => {
 
       {!auctionEnded && (
         <>
-          <div className="border-y border-yellow-500/40 bg-[#061734] overflow-hidden py-2">
-            <div className="whitespace-nowrap animate-[marquee_28s_linear_infinite] text-sm text-yellow-100 px-4">
-              {commentaryTicker} &nbsp; • &nbsp; {commentaryTicker}
+          <div className="relative">
+            <div className="border-y border-yellow-500/40 bg-[#061734] overflow-hidden py-1.5">
+              <div className="whitespace-nowrap animate-[marquee_28s_linear_infinite] text-xs md:text-sm text-yellow-100 px-4">
+                {commentaryTicker} &nbsp; • &nbsp; {commentaryTicker}
+              </div>
+            </div>
+
+            <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 translate-y-[-35%] z-20">
+              <div className="relative h-[96px] w-[96px] md:h-[120px] md:w-[120px] rounded-full bg-[#020617] border border-yellow-400/30 grid place-items-center shadow-[0_0_24px_rgba(251,191,36,0.35)]">
+                <svg viewBox="0 0 120 120" className="absolute inset-0 -rotate-90">
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(251,191,36,0.22)" strokeWidth="8" />
+                  <circle
+                    cx="60"
+                    cy="60"
+                    r="50"
+                    fill="none"
+                    stroke="rgba(251,191,36,0.95)"
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 50}
+                    strokeDashoffset={(2 * Math.PI * 50) - (((Math.max(0, Math.floor(timerSeconds))) / (currentAuction?.status === 'RUNNING' ? (session?.isAcceleratedRound ? 10 : 30) : 30)) * (2 * Math.PI * 50))}
+                    className="transition-[stroke-dashoffset] duration-500"
+                  />
+                </svg>
+                <span className="font-display text-2xl md:text-4xl leading-none text-yellow-200">{Math.max(0, Math.floor(timerSeconds)).toString().padStart(2, '0')}</span>
+              </div>
             </div>
           </div>
 
-          <main className="flex-1 overflow-hidden p-3 md:p-5 relative">
-            <div className="absolute top-4 left-4 z-40 md:hidden">
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="bg-[#0f172a]/90 text-yellow-400 border-yellow-500/50 hover:bg-yellow-400/10 hover:text-yellow-300">
-                    <Menu className="w-4 h-4 mr-2" />
-                    Teams
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-[85%] sm:w-[350px] bg-[#020617] border-white/10 p-0 flex flex-col pt-12">
-                  <SheetHeader className="px-6 pb-2 border-b border-white/10 hidden">
-                    <SheetTitle className="text-yellow-400 font-display tracking-widest text-left">FRANCHISES</SheetTitle>
-                  </SheetHeader>
-                  <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                    <TeamGrid
-                      teams={teams.map((team) => ({
-                        id: team.id,
-                        shortName: team.shortName,
-                        name: team.name,
-                        logo: team.logo,
-                        purseRemaining: Number(team.purseRemaining || 0),
-                        squadSize: Number(team.squadSize || 0),
-                        rtmCards: Number(team.rtmCards || 0),
-                      }))}
-                      myTeamId={myTeamId}
-                      currentBidderId={currentAuction?.currentBidderId}
-                      glowingTeamId={glowingTeamId}
-                      onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
-                    />
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </div>
+          <main className="flex-1 overflow-y-auto p-3 md:p-5">
+            <div className="grid grid-cols-1 lg:grid-cols-[3fr_5fr_3fr] gap-4 min-h-full">
+              <div className="order-3 lg:order-1">
+                <TeamGrid
+                  teams={teams.map((team) => ({
+                    id: team.id,
+                    shortName: team.shortName,
+                    name: team.name,
+                    logo: team.logo,
+                    purseRemaining: Number(team.purseRemaining || 0),
+                    squadSize: Number(team.squadSize || 0),
+                    rtmCards: Number(team.rtmCards || 0),
+                  }))}
+                  myTeamId={myTeamId}
+                  currentBidderId={currentAuction?.currentBidderId}
+                  glowingTeamId={glowingTeamId}
+                  onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
+                />
+              </div>
 
-            <div className="grid h-full grid-cols-[1fr_1fr] md:grid-cols-1 lg:grid-cols-[3fr_5fr_2fr] gap-4">
-              <div className="hidden lg:block order-3 lg:order-none h-full overflow-y-auto"><TeamGrid
-                teams={teams.map((team) => ({
-                  id: team.id,
-                  shortName: team.shortName,
-                  name: team.name,
-                  logo: team.logo,
-                  purseRemaining: Number(team.purseRemaining || 0),
-                  squadSize: Number(team.squadSize || 0),
-                  rtmCards: Number(team.rtmCards || 0),
-                }))}
-                myTeamId={myTeamId}
-                currentBidderId={currentAuction?.currentBidderId}
-                glowingTeamId={glowingTeamId}
-                onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
-              /></div>
-
-              <div className="h-full overflow-hidden order-1 lg:order-none">
+              <div className="order-1 lg:order-2 h-full overflow-hidden">
                 <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
                   {currentPlayer && currentAuction?.status === 'RUNNING' && (
                     <div key={currentAuction?.activePlayerId || "player-card"} className="animate-[playerSpotlight_0.8s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] h-full relative isolate">
@@ -823,17 +883,13 @@ const Auction = () => {
                 </div>
               </div>
 
-              <div className="h-full order-2 lg:order-none [&_button]:transition [&_button]:duration-200 [&_button:hover]:scale-[1.03]">
+              <div className="order-2 lg:order-3 h-full">
                 <BidControls
                   currentBid={displayedCurrentBid}
-                  purseRemaining={Number(userTeam.purseRemaining || 0)}
                   canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
                   onBid={handleBid}
-                  isHost={isHost}
-                  onSkip={() => skipCurrentPlayer(gameCode!)}
-                  onPauseToggle={() => togglePauseAuction(gameCode!)}
-                  isPaused={currentAuction?.status === 'PAUSED'}
-                  recentPurchases={recentPurchases.map((p) => {
+                  onPass={() => setCommentary((prev) => ["GT passes.", ...prev].slice(0, 14))}
+                  recentPurchases={recentPurchases.slice(0, 8).map((p) => {
                     const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
                     const team = teams.find((t) => t.id === p.teamId);
                     return {
@@ -842,6 +898,7 @@ const Auction = () => {
                       price: p.price,
                     };
                   })}
+                  upcomingPlayers={remainingSetPlayers}
                 />
               </div>
             </div>

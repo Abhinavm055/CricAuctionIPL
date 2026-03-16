@@ -1,61 +1,52 @@
-import { cn } from '@/lib/utils';
-
 interface HeaderProps {
   gameCode: string;
-  timerSeconds: number;
-  currentPool?: string;
-  playersRemaining: number;
-  totalPlayers: number;
+  currentSetLabel?: string;
+  onSkip?: () => void;
+  onPauseToggle?: () => void;
+  isPaused?: boolean;
+  canControl?: boolean;
   onLeaveGame?: () => void;
 }
 
-export const Header = ({ gameCode, timerSeconds, currentPool, playersRemaining, totalPlayers, onLeaveGame }: HeaderProps) => {
-  const timerState = timerSeconds <= 5 ? 'danger' : timerSeconds <= 10 ? 'warning' : 'normal';
-
-  const timerClasses = timerState === 'danger'
-    ? 'text-red-300 border-red-400 bg-red-900/40 shadow-[0_0_25px_rgba(248,113,113,0.45)] animate-pulse'
-    : timerState === 'warning'
-      ? 'text-orange-300 border-orange-400 bg-orange-900/30 shadow-[0_0_20px_rgba(251,146,60,0.35)]'
-      : 'text-yellow-300 border-yellow-300 bg-yellow-900/20 shadow-[0_0_20px_rgba(250,204,21,0.35)]';
-
+export const Header = ({ gameCode, currentSetLabel, onSkip, onPauseToggle, isPaused, canControl, onLeaveGame }: HeaderProps) => {
   return (
-    <header className="border-b border-yellow-500/40 bg-[#061734] px-3 md:px-5 py-3 text-yellow-100">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center justify-between md:block">
-          <p className="font-display text-lg md:text-xl tracking-wider"><span className="text-yellow-300">CricAuction</span><span className="text-white">IPL</span></p>
-          <span className="md:hidden text-xs font-semibold">{gameCode}</span>
+    <header className="h-14 border-b border-yellow-500/40 bg-[#061734] px-3 md:px-5 text-yellow-100">
+      <div className="h-full flex items-center justify-between gap-3">
+        <div className="min-w-0 flex items-center gap-2 md:gap-3 text-xs md:text-sm">
+          <p className="font-display text-yellow-300 whitespace-nowrap">CricAuctionIPL</p>
+          <span className="text-yellow-500/70">|</span>
+          <span className="rounded-full bg-yellow-400 text-black px-2 py-0.5 font-bold whitespace-nowrap">{gameCode}</span>
+          <span className="text-yellow-500/70">|</span>
+          <span className="truncate">{currentSetLabel || 'General Set'}</span>
         </div>
 
-        <div className="flex items-center justify-center gap-4 md:gap-6">
-          <span className="hidden md:inline text-sm font-semibold">{gameCode}</span>
-          <div className={cn('relative rounded-full border-4 grid place-items-center transition-all', timerClasses, 'h-[68px] w-[68px] md:h-[112px] md:w-[112px]')}>
-            <span className="text-xl md:text-4xl font-display leading-none">{timerSeconds.toString().padStart(2, '0')}</span>
-            <span className="text-[10px] md:text-xs uppercase tracking-widest">sec</span>
-          </div>
-          <div className="text-xs md:text-sm font-semibold space-y-1">
-            <p>
-              {currentPool ? (() => {
-                const OFFICIAL_POOLS = ["marquee", "batters", "all-rounders", "wicketkeepers", "bowlers", "uncapped", "accelerated"];
-                const normalized = String(currentPool).toLowerCase().replace(/\s+/g, "").replace("wicket-keepers", "wicketkeepers");
-                const matchedIndex = OFFICIAL_POOLS.findIndex(p => p.includes(normalized.replace("batsmen", "batters")));
-                const setLabel = matchedIndex >= 0 ? `SET ${matchedIndex + 1}` : 'SET';
-                return `${setLabel}: ${String(currentPool).toUpperCase()}`;
-              })() : 'POOL'}
-            </p>
-            <p>{playersRemaining}/{totalPlayers} remaining</p>
-            <p className="flex items-center gap-1 text-red-400"><span className="text-base">●</span> LIVE</p>
-          </div>
-        </div>
-
-        <div className="flex justify-end">
-          {onLeaveGame && (
-            <button
-              onClick={onLeaveGame}
-              className="rounded-md border border-red-400/60 px-3 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/10 transition"
-            >
-              Leave Game
-            </button>
-          )}
+        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
+          <button
+            onClick={onSkip}
+            disabled={!canControl || !onSkip}
+            className="h-8 w-8 rounded-md border border-yellow-500/60 text-sm disabled:opacity-40 hover:bg-yellow-400/10"
+            aria-label="Skip player"
+            title="Skip"
+          >
+            ⏭
+          </button>
+          <button
+            onClick={onPauseToggle}
+            disabled={!canControl || !onPauseToggle}
+            className="h-8 w-8 rounded-md border border-yellow-500/60 text-sm disabled:opacity-40 hover:bg-yellow-400/10"
+            aria-label="Pause or resume auction"
+            title={isPaused ? 'Resume' : 'Pause'}
+          >
+            ⏸
+          </button>
+          <button
+            onClick={onLeaveGame}
+            className="h-8 w-8 rounded-md border border-red-400/60 text-sm hover:bg-red-500/10"
+            aria-label="Leave game"
+            title="Leave"
+          >
+            🚪
+          </button>
         </div>
       </div>
     </header>
