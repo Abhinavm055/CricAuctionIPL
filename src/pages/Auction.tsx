@@ -28,8 +28,7 @@ import { TeamLogo } from "@/components/TeamLogo";
 import { Header } from "@/components/Header";
 import { TeamGrid } from "@/components/TeamGrid";
 import { BidControls } from "@/components/BidControls";
-import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Menu } from "lucide-react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 export interface TeamState {
   id: string;
@@ -80,14 +79,16 @@ const STRATEGY_AGGRESSION: Record<string, number> = {
 };
 
 const SET_LABELS: Record<string, string> = {
-  batters: 'Batsmen',
+  batters: 'Batters',
   bowlers: 'Bowlers',
-  'all-rounders': 'Allrounders',
+  'all-rounders': 'All-Rounders',
   wicketkeepers: 'Wicketkeepers',
   marquee: 'Marquee',
   uncapped: 'Uncapped',
   accelerated: 'Accelerated',
 };
+
+const SET_ORDER = ['marquee', 'batters', 'all-rounders', 'wicketkeepers', 'bowlers', 'uncapped', 'accelerated'];
 
 const normalizePoolKey = (pool: string | undefined) => {
   const key = String(pool || '').toLowerCase().replace(/\s+/g, '').replace('wicket-keepers', 'wicketkeepers');
@@ -145,6 +146,7 @@ const Auction = () => {
   const [nowMs, setNowMs] = useState<number>(Date.now());
   const [glowingTeamId, setGlowingTeamId] = useState<string | null>(null);
   const [aiThinkingTeamId, setAiThinkingTeamId] = useState<string | null>(null);
+  const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -643,8 +645,9 @@ const Auction = () => {
     const queueIndex = Number(session?.queueIndex ?? -1);
     const currentPool = normalizePoolKey(String((currentPlayer as any)?.pool || ''));
     const activeSetLabel = SET_LABELS[currentPool] || 'General';
+    const currentSetIndex = SET_ORDER.indexOf(currentPool);
 
-    if (!queue.length) return { activeSetLabel, playersRemainingInSet: 0 };
+    if (!queue.length) return { activeSetLabel, playersRemainingInSet: 0, currentSetIndex };
 
     const startIndex = Math.max(0, queueIndex);
     const remainingIds = queue.slice(startIndex);
@@ -653,7 +656,7 @@ const Auction = () => {
       return normalizePoolKey(String((player as any)?.pool || '')) === currentPool;
     }).length;
 
-    return { activeSetLabel, playersRemainingInSet: Math.max(0, remainingInSet) };
+    return { activeSetLabel, playersRemainingInSet: Math.max(0, remainingInSet), currentSetIndex };
   }, [session?.auctionQueue, session?.queueIndex, currentPlayer, playerById]);
 
   const auctionEnded = (session?.phase === "AUCTION_COMPLETE" || session?.phase === "ENDED") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
@@ -695,9 +698,10 @@ const Auction = () => {
       <Header
         gameCode={gameCode!}
         timerSeconds={Math.max(0, Math.floor(timerSeconds))}
-        currentPool={(currentPlayer as any)?.pool}
-        playersRemaining={Math.max(queueLength - ((session?.queueIndex ?? -1) + 1), 0)}
-        totalPlayers={queueLength}
+        timerTotalSeconds={currentAuction?.status === "RUNNING" ? (session?.isAcceleratedRound ? 10 : 30) : 30}
+        currentSetLabel={setProgress.activeSetLabel}
+        currentSetIndex={setProgress.currentSetIndex}
+        onMenuClick={() => setTeamDrawerOpen(true)}
         onLeaveGame={async () => {
           if (!gameCode) return;
           await leaveGame(gameCode, userId);
@@ -802,57 +806,33 @@ const Auction = () => {
           </div>
 
           <main className="flex-1 overflow-hidden p-3 md:p-5 relative">
-            <div className="absolute top-4 left-4 z-40 md:hidden">
-              <Sheet>
-                <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="bg-[#0f172a]/90 text-yellow-400 border-yellow-500/50 hover:bg-yellow-400/10 hover:text-yellow-300">
-                    <Menu className="w-4 h-4 mr-2" />
-                    Teams
-                  </Button>
-                </SheetTrigger>
-                <SheetContent side="left" className="w-[85%] sm:w-[350px] bg-[#020617] border-white/10 p-0 flex flex-col pt-12">
-                  <SheetHeader className="px-6 pb-2 border-b border-white/10 hidden">
-                    <SheetTitle className="text-yellow-400 font-display tracking-widest text-left">FRANCHISES</SheetTitle>
-                  </SheetHeader>
-                  <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
-                    <TeamGrid
-                      teams={teams.map((team) => ({
-                        id: team.id,
-                        shortName: team.shortName,
-                        name: team.name,
-                        logo: team.logo,
-                        purseRemaining: Number(team.purseRemaining || 0),
-                        squadSize: Number(team.squadSize || 0),
-                        rtmCards: Number(team.rtmCards || 0),
-                      }))}
-                      myTeamId={myTeamId}
-                      currentBidderId={currentAuction?.currentBidderId}
-                      glowingTeamId={glowingTeamId}
-                      onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
-                    />
-                  </div>
-                </SheetContent>
-              </Sheet>
-            </div>
+            <Sheet open={teamDrawerOpen} onOpenChange={setTeamDrawerOpen}>
+              <SheetContent side="left" className="w-[85%] sm:w-[350px] bg-[#020617] border-white/10 p-0 flex flex-col pt-12">
+                <SheetHeader className="px-6 pb-2 border-b border-white/10 hidden">
+                  <SheetTitle className="text-yellow-400 font-display tracking-widest text-left">FRANCHISES</SheetTitle>
+                </SheetHeader>
+                <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
+                  <TeamGrid
+                    teams={teams.map((team) => ({
+                      id: team.id,
+                      shortName: team.shortName,
+                      name: team.name,
+                      logo: team.logo,
+                      purseRemaining: Number(team.purseRemaining || 0),
+                      squadSize: Number(team.squadSize || 0),
+                      rtmCards: Number(team.rtmCards || 0),
+                    }))}
+                    myTeamId={myTeamId}
+                    currentBidderId={currentAuction?.currentBidderId}
+                    glowingTeamId={glowingTeamId}
+                    onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
+                  />
+                </div>
+              </SheetContent>
+            </Sheet>
 
-            <div className="grid h-full grid-cols-[1fr_1fr] md:grid-cols-1 lg:grid-cols-[3fr_5fr_2fr] gap-4">
-              <div className="hidden lg:block order-3 lg:order-none h-full overflow-y-auto"><TeamGrid
-                teams={teams.map((team) => ({
-                  id: team.id,
-                  shortName: team.shortName,
-                  name: team.name,
-                  logo: team.logo,
-                  purseRemaining: Number(team.purseRemaining || 0),
-                  squadSize: Number(team.squadSize || 0),
-                  rtmCards: Number(team.rtmCards || 0),
-                }))}
-                myTeamId={myTeamId}
-                currentBidderId={currentAuction?.currentBidderId}
-                glowingTeamId={glowingTeamId}
-                onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
-              /></div>
-
-              <div className="h-full overflow-hidden order-1 lg:order-none">
+            <div className="grid h-full md:grid-cols-1 lg:grid-cols-2 gap-4">
+              <div className="h-full overflow-hidden">
                 <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
                   <div className="mb-3 rounded-lg border border-yellow-500/30 bg-[#0f172a] px-3 py-2 text-xs text-slate-200">
                     <p><span className="text-yellow-300">Current Set:</span> {setProgress.activeSetLabel}</p>
@@ -880,13 +860,15 @@ const Auction = () => {
                 </div>
               </div>
 
-              <div className="h-full order-2 lg:order-none [&_button]:transition [&_button]:duration-200 [&_button:hover]:scale-[1.03]">
+              <div className="h-full [&_button]:transition [&_button]:duration-200 [&_button:hover]:scale-[1.03]">
+                <div className="h-full grid grid-rows-[auto_1fr] gap-3">
                 <BidControls
                   currentBid={displayedCurrentBid}
                   purseRemaining={Number(userTeam.purseRemaining || 0)}
                   canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
                   onBid={handleBid}
                   isHost={isHost}
+                  onPass={() => setCommentary((prev) => ["You passed this bid.", ...prev].slice(0, 14))}
                   onSkip={() => skipCurrentPlayer(gameCode!)}
                   onPauseToggle={() => togglePauseAuction(gameCode!)}
                   isPaused={currentAuction?.status === 'PAUSED'}
@@ -900,6 +882,24 @@ const Auction = () => {
                     };
                   })}
                 />
+                <div className="hidden lg:block overflow-y-auto">
+                  <TeamGrid
+                    teams={teams.map((team) => ({
+                      id: team.id,
+                      shortName: team.shortName,
+                      name: team.name,
+                      logo: team.logo,
+                      purseRemaining: Number(team.purseRemaining || 0),
+                      squadSize: Number(team.squadSize || 0),
+                      rtmCards: Number(team.rtmCards || 0),
+                    }))}
+                    myTeamId={myTeamId}
+                    currentBidderId={currentAuction?.currentBidderId}
+                    glowingTeamId={glowingTeamId}
+                    onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
+                  />
+                </div>
+                </div>
               </div>
             </div>
           </main>

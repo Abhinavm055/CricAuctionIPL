@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { formatPrice, SQUAD_CONSTRAINTS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { TeamLogo } from './TeamLogo';
@@ -13,11 +14,10 @@ interface TeamCardProps {
   isCurrentBidder: boolean;
   shouldGlow?: boolean;
   isUserTeam?: boolean;
-  logoSize?: 'normal' | 'large';
   onClick?: () => void;
 }
 
-export const TeamCard = ({
+const TeamCardComponent = ({
   id,
   shortName,
   name,
@@ -28,7 +28,6 @@ export const TeamCard = ({
   isCurrentBidder,
   shouldGlow = false,
   isUserTeam = false,
-  logoSize = 'normal',
   onClick,
 }: TeamCardProps) => {
   const slots = Math.max(0, SQUAD_CONSTRAINTS.MAX_SQUAD - Number(squadSize || 0));
@@ -37,7 +36,7 @@ export const TeamCard = ({
     <button
       onClick={onClick}
       className={cn(
-        'relative w-full rounded-xl border p-2.5 text-left transition-all',
+        'relative w-full rounded-xl border p-2 text-left transition-all',
         'bg-[#0B1C3D] border-yellow-500/60 hover:scale-[1.03] hover:-translate-y-0.5 hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] hover:border-yellow-400/80',
         isCurrentBidder && 'shadow-[0_0_24px_rgba(234,179,8,0.65)] animate-pulse',
         shouldGlow && 'animate-[teamBidGlow_0.9s_ease-out]',
@@ -53,16 +52,16 @@ export const TeamCard = ({
           shortName={shortName}
           className={cn(
             'rounded-full border border-yellow-500/60 bg-[#06122b] shrink-0',
-            logoSize === 'large' ? 'w-[85px] h-[85px]' : 'w-[60px] h-[60px]',
+            'w-[44px] h-[44px] md:w-[52px] md:h-[52px]',
           )}
         />
         <div className="min-w-0">
-          <p className="text-[11px] font-semibold text-yellow-100 truncate">{name}</p>
+          <p className="text-[9px] md:text-[10px] font-semibold text-yellow-100 truncate">{name}</p>
           <p className="text-[10px] font-bold tracking-wide text-yellow-300">{shortName}</p>
         </div>
       </div>
 
-      <div className="text-[10px] leading-4 text-slate-200 space-y-0.5">
+      <div className="text-[9px] md:text-[10px] leading-4 text-slate-200 space-y-0.5">
         <p>Purse: {formatPrice(Number(purseRemaining || 0))}</p>
         <p>Slots: {slots}</p>
         <p>RTM: {Number(rtmCards || 0)}</p>
@@ -71,3 +70,5 @@ export const TeamCard = ({
     </button>
   );
 };
+
+export const TeamCard = memo(TeamCardComponent);
