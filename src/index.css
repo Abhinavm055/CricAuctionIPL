@@ -365,25 +365,3 @@
   }
 }
 
-/* --- MOBILE LANDSCAPE AUTO-ROTATE VIEW --- */
-@media (orientation: portrait) and (max-width: 850px) {
-  html,
-  body {
-    width: 100dvh;
-    height: 100dvw;
-    overflow: hidden;
-    background: #020617;
-  }
-
-  #root {
-    position: fixed;
-    top: 100%;
-    left: 0;
-    width: 100dvh;
-    height: 100dvw;
-    transform: rotate(-90deg);
-    transform-origin: top left;
-    overflow: auto;
-    background: #020617;
-  }
-}
