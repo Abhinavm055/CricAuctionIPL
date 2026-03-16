@@ -6,6 +6,7 @@ interface HeaderProps {
   isPaused?: boolean;
   canControl?: boolean;
   onLeaveGame?: () => void;
+  onMenuClick?: () => void;
 }
 
 export const Header = ({ gameCode, currentSetLabel, onSkip, onPauseToggle, isPaused, canControl, onLeaveGame }: HeaderProps) => {

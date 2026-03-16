@@ -145,6 +145,7 @@ const Auction = () => {
   const [nowMs, setNowMs] = useState<number>(Date.now());
   const [glowingTeamId, setGlowingTeamId] = useState<string | null>(null);
   const [aiThinkingTeamId, setAiThinkingTeamId] = useState<string | null>(null);
+  const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -861,6 +862,10 @@ const Auction = () => {
 
               <div className="order-1 lg:order-2 h-full overflow-hidden">
                 <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
+                  <div className="mb-3 rounded-lg border border-yellow-500/30 bg-[#0f172a] px-3 py-2 text-xs text-slate-200">
+                    <p><span className="text-yellow-300">Current Set:</span> {setProgress.activeSetLabel}</p>
+                    <p><span className="text-yellow-300">Players Remaining in Set:</span> {setProgress.playersRemainingInSet}</p>
+                  </div>
                   {currentPlayer && currentAuction?.status === 'RUNNING' && (
                     <div key={currentAuction?.activePlayerId || "player-card"} className="animate-[playerSpotlight_0.8s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] h-full relative isolate">
                       <div className="absolute inset-0 bg-yellow-400/20 rounded-xl filter blur-xl animate-[pulseGlow_1.5s_ease-in-out_infinite_alternate] -z-10" />
@@ -900,6 +905,24 @@ const Auction = () => {
                   })}
                   upcomingPlayers={remainingSetPlayers}
                 />
+                <div className="hidden lg:block overflow-y-auto">
+                  <TeamGrid
+                    teams={teams.map((team) => ({
+                      id: team.id,
+                      shortName: team.shortName,
+                      name: team.name,
+                      logo: team.logo,
+                      purseRemaining: Number(team.purseRemaining || 0),
+                      squadSize: Number(team.squadSize || 0),
+                      rtmCards: Number(team.rtmCards || 0),
+                    }))}
+                    myTeamId={myTeamId}
+                    currentBidderId={currentAuction?.currentBidderId}
+                    glowingTeamId={glowingTeamId}
+                    onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
+                  />
+                </div>
+                </div>
               </div>
             </div>
           </main>

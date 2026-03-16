@@ -55,6 +55,10 @@ const BidControlsComponent = ({ currentBid, canBid, onBid, onPass, recentPurchas
         </div>
       </div>
 
+      <Button variant="outline" onClick={onPauseToggle} disabled={!isHost || !onPauseToggle} className="w-full">
+        {isPaused ? 'RESUME' : 'PAUSE'}
+      </Button>
+
       <div>
         <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Recent Purchases</p>
         <div className="max-h-[220px] overflow-y-auto space-y-1 text-xs text-slate-200">
