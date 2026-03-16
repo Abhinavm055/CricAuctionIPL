@@ -71,6 +71,36 @@ const normalizeRoleKey = (role: string) => {
   return "bat";
 };
 
+const STRATEGY_AGGRESSION: Record<string, number> = {
+  aggressive: 1.2,
+  balanced: 1,
+  budget: 0.9,
+  starHunter: 1.15,
+  roleFocused: 1.05,
+};
+
+const SET_LABELS: Record<string, string> = {
+  batters: 'Batsmen',
+  bowlers: 'Bowlers',
+  'all-rounders': 'Allrounders',
+  wicketkeepers: 'Wicketkeepers',
+  marquee: 'Marquee',
+  uncapped: 'Uncapped',
+  accelerated: 'Accelerated',
+};
+
+const normalizePoolKey = (pool: string | undefined) => {
+  const key = String(pool || '').toLowerCase().replace(/\s+/g, '').replace('wicket-keepers', 'wicketkeepers');
+  if (['marquee'].includes(key)) return 'marquee';
+  if (['batters', 'batsmen', 'batter'].includes(key)) return 'batters';
+  if (['allrounders', 'all-rounders', 'all-rounder'].includes(key)) return 'all-rounders';
+  if (['wicketkeepers', 'wicketkeeper', 'wicket-keeper'].includes(key)) return 'wicketkeepers';
+  if (['bowlers', 'bowler'].includes(key)) return 'bowlers';
+  if (['uncapped'].includes(key)) return 'uncapped';
+  if (['accelerated', 'acceleratedround'].includes(key)) return 'accelerated';
+  return 'uncapped';
+};
+
 const buildLeaderboard = (teams: TeamState[], resolved: Record<string, { retained: Player[]; bought: Player[] }>) => {
   return teams
     .map((team) => {
@@ -328,11 +358,14 @@ const Auction = () => {
         purseRemaining: Number(t.purseRemaining || 0),
         overseasCount: Number(t.overseasCount || 0),
         roleNeeds: (t as any).teamNeeds || {},
+        aggressionLevel: STRATEGY_AGGRESSION[String((t as any).aiStrategy || 'balanced')] || 1,
       })),
       {
         id: (currentPlayer as any).id,
+        name: (currentPlayer as any).name,
         role: (currentPlayer as any).role,
         rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 0),
+        basePrice: Number((currentPlayer as any).basePrice || 0),
         overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
       },
       Number(currentAuction.currentBid || 0),
@@ -538,6 +571,7 @@ const Auction = () => {
     rtmAiDecisionKeyRef.current = key;
 
     const timer = window.setTimeout(() => {
+      (async () => {
       if (pendingRtm.status === "AWAIT_ORIGINAL") {
         const pSnap = await getDoc(doc(db, "players", pendingRtm.playerId));
         const rating = Number(pSnap.data()?.rating ?? pSnap.data()?.starRating ?? 0);
@@ -563,6 +597,7 @@ const Auction = () => {
         const shouldMatch = Math.random() > 0.5;
         resolveRtmDecision(gameCode, { action: shouldMatch ? "MATCH" : "DECLINE", actingTeamId: pendingRtm.originalTeamId! }).catch(() => undefined);
       }
+      })().catch(() => undefined);
     }, 1200 + Math.floor(Math.random() * 1200));
 
     return () => window.clearTimeout(timer);
@@ -570,7 +605,7 @@ const Auction = () => {
 
   const recentPurchases = useMemo(() => {
     const purchases = (session?.recentPurchases || []) as Array<{ playerId: string; price: number; teamId: string }>;
-    return purchases.slice(0, 5);
+    return purchases;
   }, [session?.recentPurchases]);
 
   const commentaryTicker = useMemo(() => {
@@ -602,6 +637,24 @@ const Auction = () => {
     const endedQueue = queueLength > 0 && queueIndex >= queueLength;
     return endedQueue && Number((session?.unsoldPlayers || []).length) > 0 && !session?.isAcceleratedRound && !session?.acceleratedRoundSkipped;
   }, [queueLength, session?.queueIndex, session?.unsoldPlayers, session?.isAcceleratedRound, session?.acceleratedRoundSkipped]);
+
+  const setProgress = useMemo(() => {
+    const queue = (session?.auctionQueue || []) as string[];
+    const queueIndex = Number(session?.queueIndex ?? -1);
+    const currentPool = normalizePoolKey(String((currentPlayer as any)?.pool || ''));
+    const activeSetLabel = SET_LABELS[currentPool] || 'General';
+
+    if (!queue.length) return { activeSetLabel, playersRemainingInSet: 0 };
+
+    const startIndex = Math.max(0, queueIndex);
+    const remainingIds = queue.slice(startIndex);
+    const remainingInSet = remainingIds.filter((id) => {
+      const player = playerById.get(id);
+      return normalizePoolKey(String((player as any)?.pool || '')) === currentPool;
+    }).length;
+
+    return { activeSetLabel, playersRemainingInSet: Math.max(0, remainingInSet) };
+  }, [session?.auctionQueue, session?.queueIndex, currentPlayer, playerById]);
 
   const auctionEnded = (session?.phase === "AUCTION_COMPLETE" || session?.phase === "ENDED") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
   useEffect(() => {
@@ -801,6 +854,10 @@ const Auction = () => {
 
               <div className="h-full overflow-hidden order-1 lg:order-none">
                 <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
+                  <div className="mb-3 rounded-lg border border-yellow-500/30 bg-[#0f172a] px-3 py-2 text-xs text-slate-200">
+                    <p><span className="text-yellow-300">Current Set:</span> {setProgress.activeSetLabel}</p>
+                    <p><span className="text-yellow-300">Players Remaining in Set:</span> {setProgress.playersRemainingInSet}</p>
+                  </div>
                   {currentPlayer && currentAuction?.status === 'RUNNING' && (
                     <div key={currentAuction?.activePlayerId || "player-card"} className="animate-[playerSpotlight_0.8s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] h-full relative isolate">
                       <div className="absolute inset-0 bg-yellow-400/20 rounded-xl filter blur-xl animate-[pulseGlow_1.5s_ease-in-out_infinite_alternate] -z-10" />
