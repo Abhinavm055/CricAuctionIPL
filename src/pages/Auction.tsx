@@ -924,7 +924,6 @@ const Auction = () => {
                 </div>
                 </div>
               </div>
-            </div>
           </main>
 
 
