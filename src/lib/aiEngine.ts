@@ -39,6 +39,37 @@ const getRoleNeed = (team: AITeam, player: Player | null, teamSquad: Player[]) =
   return Math.max(0, Math.max(remainingNeed, configuredNeed));
 };
 
+const STAR_PLAYERS = [
+  'Virat Kohli',
+  'Rohit Sharma',
+  'Jasprit Bumrah',
+  'Hardik Pandya',
+  'Shubman Gill',
+  'Rishabh Pant',
+  'Suryakumar Yadav',
+  'Heinrich Klaasen',
+];
+
+const TEAM_PERSONALITIES: Record<string, string> = {
+  mi: 'aggressive',
+  rcb: 'aggressive',
+  csk: 'calculated', 
+  rr: 'conservative', 
+  srh: 'roleFocused',
+  gt: 'balanced',
+  lsg: 'aggressive',
+  dc: 'balanced',
+  pbks: 'conservative',
+  kkr: 'aggressive'
+};
+
+const pseudoRandom = (seedStr: string) => {
+  let h = 0xdeadbeef;
+  for(let i = 0; i < seedStr.length; i++)
+      h = Math.imul(h ^ seedStr.charCodeAt(i), 2654435761);
+  return ((h ^ h >>> 16) >>> 0) / 4294967296;
+};
+
 const estimateMaxBid = (
   team: AITeam,
   player: Player,
@@ -48,44 +79,58 @@ const estimateMaxBid = (
   const rating = clamp(ratingOf(player), 1, 5);
   const teamSquad = context.teamPlayersByTeamId?.[team.id] || [];
   const need = getRoleNeed(team, player, teamSquad);
-  const role = roleKey((player as any)?.role);
-  const roleRemaining = Number(context.remainingRoleCounts[role] || 0);
-  const squadSize = Number(team.squadSize || team.players?.length || 0);
-  const neededToMin = Math.max(0, SQUAD_CONSTRAINTS.MIN_SQUAD - squadSize);
+  
+  const basePrice = player.basePrice;
 
-  let multiplier = 0.9 + (rating / 5) * 0.8;
-  if (need > 0) multiplier += 0.24 + Math.min(0.24, need * 0.07);
-  if (roleRemaining > 0 && roleRemaining < 3) multiplier += 0.2;
-  if (context.remainingPlayersInAuction < 20) multiplier += 0.08;
+  let minRange = basePrice;
+  let maxRange = basePrice;
 
-  // If AI risks elimination due to lack of remaining players, force aggression
-  if (context.remainingPlayersInAuction < neededToMin) multiplier += 0.35;
-
-  const strategy = team.aiStrategy || 'balanced';
-  if (strategy === 'aggressive') multiplier += 0.22;
-  if (strategy === 'budget') multiplier -= 0.2;
-  if (strategy === 'starHunter' && rating >= 4) multiplier += 0.26;
-  if (strategy === 'roleFocused' && need > 0) multiplier += 0.18;
-  if (strategy === 'balanced' && need > 0) multiplier += 0.1;
-
-  if (strategy === 'starHunter' && rating < 4) multiplier -= 0.15;
-
-  let maxBid = Math.floor(player.basePrice * multiplier * 2.2);
-  if (rating >= 4) {
-    // allow marquee prices for stars
-    maxBid = Math.max(maxBid, Math.floor(player.basePrice * 6.5));
+  if (rating === 1) {
+    maxRange = basePrice + 20000000;
+  } else if (rating === 2) {
+    maxRange = basePrice + 40000000;
+  } else if (rating === 3) {
+    minRange = basePrice + 10000000;
+    maxRange = basePrice + 80000000;
+  } else if (rating === 4) {
+    minRange = basePrice + 40000000;
+    maxRange = basePrice + 150000000;
+  } else if (rating >= 5) {
+    minRange = basePrice + 80000000;
+    maxRange = basePrice + 200000000;
   }
 
-  if (Number(team.purseRemaining || 0) < 150000000) maxBid = Math.floor(maxBid * 0.84);
-  maxBid = Math.min(maxBid, Number(team.purseRemaining || 0));
+  const randomFactor = pseudoRandom(`${team.id}-${(player as any).id || player.name}`);
+  let targetPrice = minRange + Math.floor(randomFactor * (maxRange - minRange));
 
-  // keep reserve purse for minimum squad completion
-  while (maxBid >= nextBid && !hasReservePurse(team, maxBid)) {
-    maxBid -= 500000;
+  const strategy = team.aiStrategy || TEAM_PERSONALITIES[team.id] || 'balanced';
+
+  if (strategy === 'aggressive') {
+    targetPrice = Math.floor(targetPrice * 1.25);
+  } else if (strategy === 'conservative' || strategy === 'budget') {
+    targetPrice = Math.floor(targetPrice * 0.85);
+  } else if (strategy === 'calculated') {
+    if (need > 0) targetPrice = Math.floor(targetPrice * 1.15);
+    else targetPrice = Math.floor(targetPrice * 0.7);
+  } else if (strategy === 'roleFocused') {
+    if (need > 0) targetPrice = Math.floor(targetPrice * 1.4);
+    else targetPrice = Math.floor(targetPrice * 0.5);
   }
 
-  if (maxBid < nextBid) return 0;
-  return maxBid;
+  if (need > 0) {
+    targetPrice += 20000000; // Adding 2 Cr if role is needed
+  }
+
+  const purse = Number(team.purseRemaining || 0);
+  targetPrice = Math.min(targetPrice, purse);
+
+  // Stop bidding if it prevents completing squad mathematically
+  while (targetPrice >= nextBid && !hasReservePurse(team, targetPrice)) {
+    targetPrice -= 500000;
+  }
+
+  if (targetPrice < nextBid) return 0;
+  return targetPrice;
 };
 
 export const getAIBid = (
@@ -119,11 +164,14 @@ export const getAIBid = (
       if (roleRemaining > 0 && roleRemaining < 3) bidChance += 0.12;
       if (context.remainingPlayersInAuction < neededToMin) bidChance += 0.2;
 
-      const strategy = team.aiStrategy || 'balanced';
-      if (strategy === 'aggressive') bidChance += 0.12;
-      if (strategy === 'budget') bidChance -= 0.14;
-      if (strategy === 'starHunter' && ratingOf(player) >= 4) bidChance += 0.2;
-      if (strategy === 'roleFocused' && need > 0) bidChance += 0.14;
+      const strategy = team.aiStrategy || TEAM_PERSONALITIES[team.id] || 'balanced';
+      if (strategy === 'aggressive') bidChance += 0.15;
+      if (strategy === 'conservative' || strategy === 'budget') bidChance -= 0.15;
+      if (strategy === 'calculated') {
+        if (need > 0) bidChance += 0.15;
+        else bidChance -= 0.1;
+      }
+      if (strategy === 'roleFocused' && need > 0) bidChance += 0.2;
 
       return {
         team,
@@ -142,7 +190,7 @@ export const getAIBid = (
   return {
     teamId: chosen.team.id,
     bid: nextBid,
-    delayMs: 800 + Math.floor(Math.random() * 1700),
+    delayMs: 600 + Math.floor(Math.random() * 1400), // Random 0.6s to 2s
   };
 };
 

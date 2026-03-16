@@ -539,7 +539,12 @@ const Auction = () => {
 
     const timer = window.setTimeout(() => {
       if (pendingRtm.status === "AWAIT_ORIGINAL") {
-        const shouldUse = Math.random() > 0.35;
+        const pSnap = await getDoc(doc(db, "players", pendingRtm.playerId));
+        const rating = Number(pSnap.data()?.rating ?? pSnap.data()?.starRating ?? 0);
+        const tSnap = await getDoc(doc(db, "sessions", gameCode, "teams", pendingRtm.originalTeamId!));
+        const tPurse = Number(tSnap.data()?.purseRemaining || 0);
+
+        const shouldUse = rating >= 4 && tPurse >= Number(pendingRtm.finalBid || 0);
         resolveRtmDecision(gameCode, { action: shouldUse ? "USE" : "DECLINE", actingTeamId: pendingRtm.originalTeamId! }).catch(() => undefined);
         return;
       }

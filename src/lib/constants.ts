@@ -46,9 +46,10 @@ export const AUCTION_POOLS = ['Marquee', 'Batters', 'All-Rounders', 'Wicketkeepe
 // Official IPL bid increments
 export const PRICE_INCREMENTS = [
   { threshold: 0, increment: 500000 },
-  { threshold: 10000000, increment: 1000000 },
-  { threshold: 20000000, increment: 2000000 },
-  { threshold: 50000000, increment: 2500000 },
+  { threshold: 10000000, increment: 500000 },
+  { threshold: 20000000, increment: 1000000 },
+  { threshold: 50000000, increment: 2000000 },
+  { threshold: 50000001, increment: 2500000 },
 ] as const;
 
 export const RETENTION_COSTS = {
@@ -78,9 +79,9 @@ export const SQUAD_CONSTRAINTS = {
 export const AI_STRATEGIES = ['aggressive', 'balanced', 'budget', 'starHunter', 'roleFocused'] as const;
 
 export const TEAM_NEEDS_TEMPLATE = {
-  batter: 6,
-  bowler: 6,
-  allRounder: 4,
+  batter: 5,
+  bowler: 5,
+  allRounder: 3,
   wicketkeeper: 2,
 } as const;
 

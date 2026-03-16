@@ -11,17 +11,17 @@ import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { addDoc, collection, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
-const TEAM_INSIGHTS: Record<string, { titles: number; home: string; captain: string }> = {
-  csk: { titles: 5, home: 'Chepauk', captain: 'MS Dhoni' },
-  mi: { titles: 5, home: 'Wankhede', captain: 'Hardik Pandya' },
-  rcb: { titles: 0, home: 'Chinnaswamy', captain: 'Rajat Patidar' },
-  kkr: { titles: 3, home: 'Eden Gardens', captain: 'Ajinkya Rahane' },
+const TEAM_INSIGHTS: Record<string, { titles: number; titleYears?: string; home: string; captain: string }> = {
+  csk: { titles: 5, titleYears: '2010, 2011, 2018, 2021, 2023', home: 'MA Chidambaram Stadium', captain: 'Ruturaj Gaikwad' },
+  mi: { titles: 5, titleYears: '2013, 2015, 2017, 2019, 2020', home: 'Wankhede Stadium', captain: 'Hardik Pandya' },
+  kkr: { titles: 3, titleYears: '2012, 2014, 2024', home: 'Eden Gardens', captain: 'Ajinkya Rahane' },
+  rr: { titles: 1, titleYears: '2008', home: 'Sawai Mansingh Stadium', captain: 'Riyan Parag' },
+  srh: { titles: 1, titleYears: '2016', home: 'Rajiv Gandhi International Stadium', captain: 'Pat Cummins' },
+  gt: { titles: 1, titleYears: '2022', home: 'Narendra Modi Stadium', captain: 'Shubman Gill' },
+  rcb: { titles: 1, titleYears: '2025', home: 'M Chinnaswamy Stadium', captain: 'Rajat Patidar' },
   dc: { titles: 0, home: 'Arun Jaitley Stadium', captain: 'Axar Patel' },
-  pbks: { titles: 0, home: 'Mullanpur', captain: 'Shreyas Iyer' },
-  rr: { titles: 1, home: 'Sawai Mansingh', captain: 'Sanju Samson' },
-  srh: { titles: 1, home: 'Rajiv Gandhi Intl Stadium', captain: 'Pat Cummins' },
-  gt: { titles: 1, home: 'Narendra Modi Stadium', captain: 'Shubman Gill' },
-  lsg: { titles: 0, home: 'Ekana Cricket Stadium', captain: 'Rishabh Pant' },
+  lsg: { titles: 0, home: 'BRSABV Ekana Stadium', captain: 'Rishabh Pant' },
+  pbks: { titles: 0, home: 'Maharaja Yadavindra Singh Stadium', captain: 'Shreyas Iyer' },
 };
 
 const AI_MANAGERS = [
@@ -236,10 +236,12 @@ const Lobby = () => {
                   <div className="text-xs uppercase text-muted-foreground font-medium truncate">{team.name}</div>
                 </div>
 
-                <div className={cn('absolute inset-3 transition-opacity duration-300', isSelected ? 'opacity-100' : 'opacity-0 pointer-events-none')}>
+                <div className={cn('absolute inset-3 transition-opacity duration-300 flex flex-col justify-center', isSelected ? 'opacity-100' : 'opacity-0 pointer-events-none')}>
                   <div className="text-sm font-semibold text-yellow-400 mb-1">Captain: {insight.captain}</div>
-                  <div className="text-xs text-gray-300">Home: {insight.home}</div>
-                  <div className="text-xs text-gray-300">Titles: {insight.titles}</div>
+                  <div className="text-xs text-gray-300 mb-0.5">Home: {insight.home}</div>
+                  <div className="text-xs text-gray-300 leading-tight">
+                    Titles: <span className="text-yellow-400 font-bold">{insight.titles}</span> {insight.titleYears && <span className="opacity-80 block mt-0.5">({insight.titleYears})</span>}
+                  </div>
                 </div>
 
                 <p className="text-yellow-400 text-xs mt-2">Manager: {managerLabel}</p>

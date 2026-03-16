@@ -33,7 +33,15 @@ export const Header = ({ gameCode, timerSeconds, currentPool, playersRemaining, 
             <span className="text-[10px] md:text-xs uppercase tracking-widest">sec</span>
           </div>
           <div className="text-xs md:text-sm font-semibold space-y-1">
-            <p>{String(currentPool || 'POOL').toUpperCase()}</p>
+            <p>
+              {currentPool ? (() => {
+                const OFFICIAL_POOLS = ["marquee", "batters", "all-rounders", "wicketkeepers", "bowlers", "uncapped", "accelerated"];
+                const normalized = String(currentPool).toLowerCase().replace(/\s+/g, "").replace("wicket-keepers", "wicketkeepers");
+                const matchedIndex = OFFICIAL_POOLS.findIndex(p => p.includes(normalized.replace("batsmen", "batters")));
+                const setLabel = matchedIndex >= 0 ? `SET ${matchedIndex + 1}` : 'SET';
+                return `${setLabel}: ${String(currentPool).toUpperCase()}`;
+              })() : 'POOL'}
+            </p>
             <p>{playersRemaining}/{totalPlayers} remaining</p>
             <p className="flex items-center gap-1 text-red-400"><span className="text-base">●</span> LIVE</p>
           </div>

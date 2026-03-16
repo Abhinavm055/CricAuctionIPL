@@ -36,7 +36,6 @@ export class RtmEngine {
     return Boolean(
       input.previousTeamId &&
       input.previousTeamId !== input.winningTeamId &&
-      Number(input.playerRating || 0) >= 4 &&
       Number(input.rtmCards || 0) > 0,
     );
   }
