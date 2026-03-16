@@ -16,10 +16,12 @@ export default defineConfig({
       includeAssets: ["icon.svg"],
       manifest: {
         name: "CricAuctionIPL",
-        short_name: "AuctionIPL",
+        short_name: "Auction",
         display: "standalone",
-        background_color: "#020617",
-        theme_color: "#020617",
+        orientation: "landscape",
+        start_url: "/",
+        background_color: "#111111",
+        theme_color: "#111111",
         icons: [
           {
             src: "/icon.svg",

@@ -14,6 +14,7 @@ import RetentionReview from "./pages/RetentionReview";
 import AdminPage from "./pages/AdminPage";
 import Feedback from "./pages/Feedback";
 import Profile from "./pages/Profile";
+import { AddToHomeScreenButton } from "./components/AddToHomeScreenButton";
 
 const Auction = lazy(() => import("./pages/Auction"));
 const Retention = lazy(() => import("./pages/Retention"));
@@ -29,6 +30,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <AddToHomeScreenButton />
             <Suspense fallback={<div className="min-h-screen bg-[#020617] flex items-center justify-center text-yellow-400 font-display text-2xl animate-pulse">Loading...</div>}>
               <Routes>
                 <Route path="/" element={<Landing />} />
