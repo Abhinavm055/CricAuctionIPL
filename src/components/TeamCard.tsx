@@ -38,7 +38,7 @@ export const TeamCard = ({
       onClick={onClick}
       className={cn(
         'relative w-full rounded-xl border p-2.5 text-left transition-all',
-        'bg-[#0B1C3D] border-yellow-500/60 hover:scale-[1.03] hover:-translate-y-0.5 hover:shadow-[0_8px_28px_rgba(15,23,42,0.5)]',
+        'bg-[#0B1C3D] border-yellow-500/60 hover:scale-[1.03] hover:-translate-y-0.5 hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] hover:border-yellow-400/80',
         isCurrentBidder && 'shadow-[0_0_24px_rgba(234,179,8,0.65)] animate-pulse',
         shouldGlow && 'animate-[teamBidGlow_0.9s_ease-out]',
         isUserTeam && 'bg-[#10254f] border-yellow-400 shadow-[0_0_16px_rgba(234,179,8,0.45)]',

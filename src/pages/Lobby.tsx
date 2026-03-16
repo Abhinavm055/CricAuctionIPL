@@ -48,7 +48,7 @@ const Lobby = () => {
   const [copied, setCopied] = useState(false);
   const [draftTeam, setDraftTeam] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [managerName, setManagerName] = useState('');
+  const [managerName, setManagerName] = useState(localStorage.getItem('managerName') || '');
   const [authUid, setAuthUid] = useState<string | null>(null);
 
   const userId = useMemo(() => {
@@ -63,15 +63,17 @@ const Lobby = () => {
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       setAuthUid(user?.uid || null);
-      if (!user) {
-        setManagerName('');
-        localStorage.removeItem('managerName');
-        return;
+      if (user) {
+        const snap = await getDoc(doc(db, 'users', user.uid));
+        const saved = String(snap.data()?.managerName || '').trim();
+        const fallbackName = user.displayName || user.email?.split('@')[0] || '';
+        const nameToSet = saved || fallbackName;
+        
+        if (nameToSet) {
+          setManagerName(nameToSet);
+          localStorage.setItem('managerName', nameToSet);
+        }
       }
-      const snap = await getDoc(doc(db, 'users', user.uid));
-      const saved = String(snap.data()?.managerName || '').trim();
-      setManagerName(saved || '');
-      if (saved) localStorage.setItem('managerName', saved);
     });
     return () => unsub();
   }, []);

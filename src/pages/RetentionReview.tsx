@@ -6,6 +6,7 @@ import { IPL_TEAMS, formatPrice } from '@/lib/constants';
 import { useGameData } from '@/contexts/GameDataContext';
 import { User } from 'lucide-react';
 import { TeamLogo } from '@/components/TeamLogo';
+import { cn } from '@/lib/utils';
 
 const RetentionReview = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
@@ -13,6 +14,7 @@ const RetentionReview = () => {
   const [session, setSession] = useState<any>(null);
   const [teams, setTeams] = useState<any[]>([]);
   const [starting, setStarting] = useState(false);
+  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const { masterPlayerList } = useGameData();
   const userId = localStorage.getItem('uid');
 
@@ -42,7 +44,7 @@ const RetentionReview = () => {
       <div className="max-w-[1500px] mx-auto">
         <h1 className="text-3xl font-display mb-6 text-center text-primary">RETENTION REVIEW</h1>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-10">
+        <div className="grid mb-10" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px' }}>
           {IPL_TEAMS.map((team) => {
             const teamDoc = teams.find((t) => t.id === team.id) || {};
             const retainedIds = (teamDoc.retainedPlayers || session?.retentions?.[team.id]?.players || []) as string[];
@@ -51,36 +53,71 @@ const RetentionReview = () => {
             const managerName = session?.managerNames?.[team.id] || (String(session?.selectedTeams?.[team.id] || '').startsWith('AI-') ? 'AI Manager' : 'Available');
 
             return (
-              <div key={team.id} className="group relative rounded-xl border border-white/10 bg-[#0f172a] p-4 min-h-[250px] transition-all duration-200 hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] hover:border-yellow-400/70">
-                <div className="absolute left-0 right-0 bottom-full mb-3 z-30 grid grid-cols-2 gap-2 opacity-0 translate-y-2 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200 pointer-events-none">
-                  {retainedPlayers.map((p) => (
-                    <div key={p.id} className="rounded-lg border border-white/10 bg-[#111c34] p-2">
-                      <div className="w-full h-20 rounded-md bg-muted flex items-center justify-center overflow-hidden mb-2">
-                        {(p.image || p.imageUrl) ? <img src={p.image || p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <User className="w-4 h-4" />}
-                      </div>
-                      <p className="text-xs font-semibold truncate">{p.name}</p>
-                      <p className="text-[11px] text-yellow-400">{formatPrice(prices[p.id] || 0)}</p>
-                      <p className="text-[10px] text-muted-foreground">{p.isCapped ? 'Capped' : 'Uncapped'}</p>
-                    </div>
-                  ))}
-                </div>
+              <div 
+                key={team.id} 
+                className="group relative h-[320px] rounded-xl cursor-pointer"
+                style={{ perspective: '1000px' }}
+                onClick={() => setExpandedTeamId(expandedTeamId === team.id ? null : team.id)}
+              >
+                <div 
+                  className={cn(
+                    "relative w-full h-full transition-all duration-500 rounded-xl",
+                    expandedTeamId === team.id ? "[transform:rotateY(180deg)]" : ""
+                  )}
+                  style={{ transformStyle: 'preserve-3d' }}
+                >
+                  
+                  {/* FRONT FACE */}
+                  <div 
+                    className="absolute inset-0 border border-white/10 bg-[#0f172a] rounded-xl p-4 flex flex-col justify-between hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] hover:border-yellow-400/70 overflow-hidden"
+                    style={{ backfaceVisibility: 'hidden' }}
+                  >
+                    <div className="relative z-10 transition-all duration-200 h-full group-hover:opacity-90">
+                      <div>
+                        <div className="flex items-center gap-3 mb-3">
+                          <TeamLogo teamId={team.id} logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
+                          <div>
+                            <h2 className="font-display text-lg leading-none">{team.shortName}</h2>
+                            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">{team.name}</p>
+                          </div>
+                        </div>
 
-                <div className="relative z-10 rounded-lg bg-[#0f172a]/95 p-2 transition-all duration-200 group-hover:opacity-80 group-hover:-translate-y-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <TeamLogo teamId={team.id} logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
-                    <div>
-                      <h2 className="font-display text-lg leading-none">{team.shortName}</h2>
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wide">{team.name}</p>
+                        <p className="text-sm mb-1 text-muted-foreground">Manager: <span className="text-foreground truncate block">{managerName}</span></p>
+                        <p className="text-sm mb-1">Retained: {retainedIds.length}/6</p>
+                        <p className="text-sm mb-1">RTM: {teamDoc.rtmCards ?? session?.retentions?.[team.id]?.rtm ?? 0}</p>
+                        <p className="text-sm mb-2">Purse: <span className="text-yellow-400">{formatPrice(teamDoc.purseRemaining ?? team.purse)}</span></p>
+                        <p className={(session?.retentions?.[team.id]?.locked || retainedIds.length) ? 'text-xs font-semibold text-emerald-400' : 'text-xs font-semibold text-yellow-300'}>
+                          {(session?.retentions?.[team.id]?.locked || retainedIds.length) ? '🟢 LOCKED' : '🟡 PENDING'}
+                        </p>
+                      </div>
                     </div>
                   </div>
 
-                  <p className="text-sm mb-1 text-muted-foreground">Manager: <span className="text-foreground">{managerName}</span></p>
-                  <p className="text-sm mb-1">Retained: {retainedIds.length}/6</p>
-                  <p className="text-sm mb-1">RTM: {teamDoc.rtmCards ?? session?.retentions?.[team.id]?.rtm ?? 0}</p>
-                  <p className="text-sm mb-2">Purse: <span className="text-yellow-400">{formatPrice(teamDoc.purseRemaining ?? team.purse)}</span></p>
-                  <p className={(session?.retentions?.[team.id]?.locked || retainedIds.length) ? 'text-xs font-semibold text-emerald-400' : 'text-xs font-semibold text-yellow-300'}>
-                    {(session?.retentions?.[team.id]?.locked || retainedIds.length) ? '🟢 LOCKED' : '🟡 PENDING'}
-                  </p>
+                  {/* BACK FACE */}
+                  <div 
+                    className="absolute inset-0 border border-yellow-500/50 bg-[#0B1C3D] rounded-xl p-4 overflow-y-auto custom-scrollbar"
+                    style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                  >
+                    <h3 className="text-yellow-400 font-display text-lg mb-3 border-b border-white/10 pb-1 sticky top-0 bg-[#0B1C3D] z-10">
+                      Retained Players
+                    </h3>
+                    {retainedPlayers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground mt-4 text-center">No players retained</p>
+                    ) : (
+                      <div className="grid grid-cols-2 gap-2">
+                        {retainedPlayers.map((p) => (
+                          <div key={p.id} className="rounded-lg border border-white/10 bg-[#111c34] p-2 flex flex-col items-center text-center">
+                            <div className="w-16 h-16 rounded-full bg-[#06122b] flex items-center justify-center overflow-hidden mb-2 border border-white/5">
+                              {(p.image || p.imageUrl) ? <img src={p.image || p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <User className="w-6 h-6 text-muted-foreground" />}
+                            </div>
+                            <p className="text-xs font-semibold truncate w-full">{p.name}</p>
+                            <p className="text-[11px] text-yellow-400">{formatPrice(prices[p.id] || 0)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
                 </div>
               </div>
             );

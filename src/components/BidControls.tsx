@@ -33,7 +33,7 @@ export const BidControls = ({
   const nextBid = getNextBid(currentBid);
 
   return (
-    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 space-y-3 relative z-20">
+    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 space-y-3 sticky bottom-0 z-50 shadow-[0_-10px_20px_rgba(2,6,23,0.8)] md:static md:shadow-none bg-opacity-95 md:bg-opacity-100 backdrop-blur-sm md:backdrop-blur-none transition-all">
       <p className="text-xs uppercase tracking-widest text-yellow-300">Control Panel</p>
 
       <div className="space-y-1 text-sm text-slate-200">

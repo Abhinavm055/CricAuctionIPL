@@ -145,6 +145,42 @@
     }
   }
 
+  @keyframes playerSpotlight {
+    0% {
+      opacity: 0;
+      transform: scale(0.9) translateY(10px);
+      box-shadow: 0 0 0px rgba(251, 191, 36, 0);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1.02) translateY(-2px);
+      box-shadow: 0 0 30px rgba(251, 191, 36, 0.4);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+      box-shadow: 0 0 15px rgba(251, 191, 36, 0.2);
+    }
+  }
+
+  @keyframes pulseGlow {
+    0% {
+      opacity: 0.3;
+      transform: scale(0.95);
+    }
+    100% {
+      opacity: 0.8;
+      transform: scale(1.05);
+    }
+  }
+
+  /* Team Card Bid Animations */
+  @keyframes teamBidGlow {
+    0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.7); border-color: rgba(234, 179, 8, 1); }
+    70% { box-shadow: 0 0 0 15px rgba(234, 179, 8, 0); border-color: rgba(234, 179, 8, 0.5); }
+    100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); border-color: rgba(234, 179, 8, 0.2); }
+  }
+
   .button-attention {
     animation: ctaPulse 5s infinite ease-in-out;
   }
@@ -326,5 +362,33 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+}
+
+/* --- MOBILE LANDSCAPE PORTRAIT OVERLAY --- */
+@media (orientation: portrait) and (max-width: 850px) {
+  body::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: #020617;
+    z-index: 999998;
+  }
+  body::after {
+    content: 'Rotate Device \A \A Please rotate your device \A to play the auction.';
+    white-space: pre-wrap;
+    position: fixed;
+    top: 50%; width: 100%; text-align: center;
+    transform: translateY(-50%);
+    color: #fbbf24;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem;
+    z-index: 999999;
+    padding: 1rem;
+    line-height: 1.2;
+    animation: glowPulse 2s infinite ease-in-out;
+  }
+  #root {
+    display: none;
   }
 }

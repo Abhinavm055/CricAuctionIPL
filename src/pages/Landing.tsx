@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { generateGameCode } from '@/lib/constants';
-import { Bot, Users, Volume2, VolumeX } from 'lucide-react';
+import { Bot, Users, Volume2, VolumeX, Menu } from 'lucide-react';
+import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { createSession } from '@/lib/sessionService';
 import { auth, db } from '@/lib/firebase';
 import {
@@ -194,7 +195,35 @@ const Landing = () => {
       <header className="relative z-20 flex justify-between items-center px-8 py-4 bg-[#020617]/85 border-b border-gray-800">
         <h1 className="text-yellow-400 text-xl font-bold tracking-wide">CRICAUCTIONIPL</h1>
 
-        <nav className="flex gap-6 text-gray-300 items-center text-sm md:text-base">
+        <div className="md:hidden flex items-center">
+          <Sheet>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="text-yellow-400 hover:text-yellow-300 hover:bg-yellow-400/10">
+                <Menu className="w-6 h-6" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="bg-[#020617] border-white/10 p-6 flex flex-col gap-6 pt-12">
+              <SheetHeader className="hidden">
+                <SheetTitle className="text-yellow-400">Menu</SheetTitle>
+              </SheetHeader>
+              <Link to="/leaderboard" className="text-xl font-display tracking-widest text-gray-300 hover:text-yellow-400 transition-colors">Leaderboard</Link>
+              <Link to="/feedback" className="text-xl font-display tracking-widest text-gray-300 hover:text-yellow-400 transition-colors">Feedback</Link>
+              {user ? (
+                <>
+                  <button onClick={() => navigate('/profile')} className="block text-left text-xl font-display tracking-widest text-gray-300 hover:text-yellow-400 transition-colors">Profile</button>
+                  <button onClick={async () => {
+                    await signOut(auth);
+                    localStorage.removeItem('managerName');
+                  }} className="block text-left text-xl font-display tracking-widest text-red-400 mt-auto">Logout</button>
+                </>
+              ) : (
+                <button onClick={() => setShowAuthModal(true)} className="block text-left text-xl font-display tracking-widest text-yellow-500 hover:text-yellow-400 transition-colors">Login</button>
+              )}
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        <nav className="hidden md:flex gap-6 text-gray-300 items-center text-sm md:text-base">
           <Link to="/leaderboard" className="hover:text-yellow-400 transition-colors">Leaderboard</Link>
           <Link to="/feedback" className="hover:text-yellow-400 transition-colors">Feedback</Link>
 

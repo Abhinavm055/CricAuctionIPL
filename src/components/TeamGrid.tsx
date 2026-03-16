@@ -26,7 +26,10 @@ export const TeamGrid = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSe
     <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-y-auto">
       <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Teams</p>
 
-      <div className="hidden md:grid grid-cols-3 gap-2 content-start">
+      <div 
+        className="grid gap-[24px] content-start" 
+        style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}
+      >
         {gridTeams.map((team) => (
           <TeamCard
             key={team.id}
@@ -43,27 +46,6 @@ export const TeamGrid = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSe
             logoSize="normal"
             onClick={() => onSelectTeam(team.id)}
           />
-        ))}
-      </div>
-
-      <div className="md:hidden flex gap-3 overflow-x-auto pb-2">
-        {gridTeams.map((team) => (
-          <div key={team.id} className="min-w-[220px]">
-            <TeamCard
-              id={team.id}
-              shortName={team.shortName}
-              name={team.name}
-              logo={team.logo}
-              purseRemaining={team.purseRemaining}
-              squadSize={team.squadSize}
-              rtmCards={team.rtmCards}
-              isCurrentBidder={team.id === currentBidderId}
-              shouldGlow={team.id === glowingTeamId}
-              isUserTeam={team.id === myTeamId}
-              logoSize="normal"
-              onClick={() => onSelectTeam(team.id)}
-            />
-          </div>
         ))}
       </div>
 
