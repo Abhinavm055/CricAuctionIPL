@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { formatPrice, getNextBid } from '@/lib/constants';
 
@@ -12,65 +12,45 @@ interface BidControlsProps {
   currentBid: number;
   canBid: boolean;
   onBid: (amount: number) => void;
-  onPass?: () => void;
   recentPurchases?: RecentPurchase[];
   upcomingPlayers?: string[];
-  onPauseToggle?: () => void;
-  isPaused?: boolean;
-  canControl?: boolean;
 }
 
-const BID_COOLDOWN_MS = 300;
+const BID_COOLDOWN_MS = 250;
 
 const BidControlsComponent = ({
   currentBid,
   canBid,
   onBid,
-  onPass,
   recentPurchases = [],
   upcomingPlayers = [],
-  onPauseToggle,
-  isPaused = false,
-  canControl = false,
 }: BidControlsProps) => {
   const [isBidClicked, setIsBidClicked] = useState(false);
   const [showUpcoming, setShowUpcoming] = useState(false);
   const lastClickRef = useRef(0);
   const nextBid = getNextBid(currentBid);
 
-  const quickBids = useMemo(() => [nextBid, getNextBid(nextBid), getNextBid(getNextBid(nextBid))], [nextBid]);
-
-  const handleBidClick = useCallback((amount: number) => {
+  const handleBidClick = useCallback(() => {
     const now = Date.now();
     if (now - lastClickRef.current < BID_COOLDOWN_MS) return;
     lastClickRef.current = now;
     setIsBidClicked(true);
-    onBid(amount);
+    onBid(nextBid);
     window.setTimeout(() => setIsBidClicked(false), BID_COOLDOWN_MS);
-  }, [onBid]);
+  }, [onBid, nextBid]);
 
   return (
     <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 space-y-4 overflow-y-auto">
       <div>
-        <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Bid Buttons</p>
-        <div className="grid grid-cols-1 gap-2">
-          {quickBids.map((amount, idx) => (
-            <Button
-              key={`${amount}-${idx}`}
-              className="w-full bg-yellow-400 text-black hover:bg-yellow-300 font-bold"
-              onClick={() => handleBidClick(amount)}
-              disabled={!canBid}
-            >
-              {idx === 0 ? (isBidClicked ? 'BIDDING...' : `BID ${formatPrice(amount)}`) : `RAISE TO ${formatPrice(amount)}`}
-            </Button>
-          ))}
-          <Button variant="secondary" onClick={onPass} disabled={!onPass}>PASS</Button>
-        </div>
+        <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Single Bid</p>
+        <Button
+          className="w-full h-14 bg-yellow-400 text-black hover:bg-yellow-300 text-lg font-extrabold shadow-[0_0_16px_rgba(251,191,36,0.45)]"
+          onClick={handleBidClick}
+          disabled={!canBid}
+        >
+          {isBidClicked ? 'BIDDING...' : `BID ${formatPrice(nextBid)}`}
+        </Button>
       </div>
-
-      <Button variant="outline" onClick={onPauseToggle} disabled={!canControl || !onPauseToggle} className="w-full">
-        {isPaused ? 'RESUME' : 'PAUSE'}
-      </Button>
 
       <div>
         <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Recent Purchases</p>
@@ -87,7 +67,7 @@ const BidControlsComponent = ({
           className="w-full border-yellow-500/60 text-yellow-200"
           onClick={() => setShowUpcoming((prev) => !prev)}
         >
-          View Remaining Players
+          View Remaining Players ({upcomingPlayers.length})
         </Button>
         {showUpcoming && (
           <div className="mt-2 rounded-lg border border-white/10 bg-[#0f172a] p-2 max-h-[180px] overflow-y-auto">

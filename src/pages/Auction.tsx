@@ -28,6 +28,7 @@ import { TeamLogo } from "@/components/TeamLogo";
 import { Header } from "@/components/Header";
 import { TeamGrid } from "@/components/TeamGrid";
 import { BidControls } from "@/components/BidControls";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 
 export interface TeamState {
   id: string;
@@ -158,53 +159,63 @@ const Auction = () => {
   const autoAdvanceHostTimeoutRef = useRef<number | null>(null);
   const rtmAiDecisionKeyRef = useRef<string | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
-  const spokenMarksRef = useRef<{ three: string | null; one: string | null }>({ three: null, one: null });
+  const spokenMarksRef = useRef<Record<string, Set<number>>>({});
   const prevTimerEndsAtRef = useRef<number>(0);
   const prevPendingRtmStatusRef = useRef<string | null>(null);
 
   const hasSyncedStatsRef = useRef(false);
 
-  const playSound = useCallback((type: 'bid' | 'hammer' | 'tick') => {
+  const playSound = useCallback((type: 'bid' | 'hammer' | 'tick' | 'cheer' | 'ooh') => {
     try {
       if (!audioRef.current) audioRef.current = new AudioContext();
       const ctx = audioRef.current;
       const t = ctx.currentTime;
 
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
       if (type === 'tick') {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
+        osc.type = 'sine';
         osc.frequency.setValueAtTime(800, t);
         osc.frequency.exponentialRampToValueAtTime(300, t + 0.1);
         gain.gain.setValueAtTime(0.3, t);
         gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
         osc.start(t);
         osc.stop(t + 0.1);
       } else if (type === 'bid') {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
         osc.type = 'square';
         osc.frequency.setValueAtTime(400, t);
         osc.frequency.exponentialRampToValueAtTime(100, t + 0.05);
         gain.gain.setValueAtTime(0.2, t);
         gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
         osc.start(t);
         osc.stop(t + 0.05);
       } else if (type === 'hammer') {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
         osc.type = 'triangle';
         osc.frequency.setValueAtTime(150, t);
         osc.frequency.exponentialRampToValueAtTime(40, t + 0.2);
         gain.gain.setValueAtTime(0.5, t);
         gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
         osc.start(t);
         osc.stop(t + 0.2);
+      } else if (type === 'cheer') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, t);
+        osc.frequency.linearRampToValueAtTime(520, t + 0.35);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.45);
+        osc.start(t);
+        osc.stop(t + 0.45);
+      } else if (type === 'ooh') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(240, t);
+        osc.frequency.exponentialRampToValueAtTime(120, t + 0.5);
+        gain.gain.setValueAtTime(0.15, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+        osc.start(t);
+        osc.stop(t + 0.5);
       }
     } catch {
       // no-op
@@ -321,10 +332,46 @@ const Auction = () => {
     return true;
   };
 
+  const isAIMode = String(session?.mode || "").toUpperCase() === "VS_AI";
   const skipDisabled = useMemo(() => {
+    if (isAIMode) return false;
     if (!currentPlayer || !currentAuction) return true;
     return Number(currentAuction.currentBid || 0) > Number((currentPlayer as any).basePrice || 0);
-  }, [currentPlayer, currentAuction]);
+  }, [currentPlayer, currentAuction, isAIMode]);
+
+  const handleSkip = useCallback(async () => {
+    if (!gameCode || !isHost) return;
+
+    if (isAIMode && currentPlayer && currentAuction?.status === "RUNNING") {
+      const result = aiEngine.simulateSkipOutcome(
+        {
+          id: (currentPlayer as any).id,
+          name: (currentPlayer as any).name,
+          role: (currentPlayer as any).role,
+          rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 50),
+          basePrice: Number((currentPlayer as any).basePrice || 0),
+          overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
+          demandLevel: (currentPlayer as any).demandLevel,
+          interestedTeams: (currentPlayer as any).interestedTeams || [],
+        },
+        teams.map((team) => ({
+          id: team.id,
+          isAI: Boolean(team.isAI),
+          squadSize: Number(team.squadSize || 0),
+          purseRemaining: Number(team.purseRemaining || 0),
+          overseasCount: Number(team.overseasCount || 0),
+        })),
+      );
+
+      if (result.sold && result.teamId && Number.isFinite(result.price)) {
+        await placeBid(gameCode, result.teamId, result.price);
+        await resolveAuction(gameCode);
+        return;
+      }
+    }
+
+    await skipCurrentPlayer(gameCode);
+  }, [gameCode, isHost, isAIMode, currentPlayer, currentAuction?.status, teams, aiEngine]);
 
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
@@ -365,9 +412,11 @@ const Auction = () => {
         id: (currentPlayer as any).id,
         name: (currentPlayer as any).name,
         role: (currentPlayer as any).role,
-        rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 0),
+        rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 50),
         basePrice: Number((currentPlayer as any).basePrice || 0),
         overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
+        demandLevel: (currentPlayer as any).demandLevel,
+        interestedTeams: (currentPlayer as any).interestedTeams || [],
       },
       Number(currentAuction.currentBid || 0),
       currentAuction.currentBidderId,
@@ -433,7 +482,8 @@ const Auction = () => {
       setCommentary((prev) => [`${currentPlayer?.name || 'Player'} SOLD to ${team?.shortName || 'TEAM'} for ${formatCrPrice(Number(currentAuction.currentBid || 0))}!`, ...prev].slice(0, 14));
       setTimeout(() => setBanner(null), 2000);
       playSound('hammer');
-      speakLine('Sold!');
+      playSound('cheer');
+      speakLine(`Sold to ${team?.shortName || 'Team'}`);
     }
 
     if (currentAuction.status === "UNSOLD" && prevStatusRef.current !== "UNSOLD") {
@@ -441,6 +491,8 @@ const Auction = () => {
       setCommentary((prev) => [`${currentPlayer?.name || "Player"} goes UNSOLD.`, ...prev].slice(0, 14));
       setTimeout(() => setBanner(null), 2000);
       playSound('hammer');
+      playSound('ooh');
+      speakLine('Unsold');
     }
 
     prevBidRef.current = Number(currentAuction.currentBid || 0);
@@ -493,21 +545,34 @@ const Auction = () => {
     }, 3000);
   }, [isHost, gameCode, currentAuction, pendingRtm]);
 
+
+  useEffect(() => {
+    if (!currentPlayer?.name || !currentAuction?.activePlayerId) return;
+    if (prevStatusRef.current === 'IDLE') return;
+    speakLine(`Next player ${currentPlayer.name}`);
+  }, [currentAuction?.activePlayerId, currentPlayer?.name, speakLine]);
+
   useEffect(() => {
     if (!currentAuction?.activePlayerId || currentAuction?.status !== "RUNNING") return;
     const playerKey = currentAuction.activePlayerId;
+    const marks = spokenMarksRef.current[playerKey] || new Set<number>();
 
-    if (timerSeconds === 3 && spokenMarksRef.current.three !== playerKey) {
+    if (timerSeconds <= 4 && timerSeconds >= 1 && !marks.has(timerSeconds)) {
       playSound('tick');
+      marks.add(timerSeconds);
+    }
+
+    if (timerSeconds === 3 && !marks.has(103)) {
       speakLine('Going once');
-      spokenMarksRef.current.three = playerKey;
+      marks.add(103);
     }
 
-    if (timerSeconds === 1 && spokenMarksRef.current.one !== playerKey) {
-      playSound('tick');
+    if (timerSeconds === 1 && !marks.has(101)) {
       speakLine('Going twice');
-      spokenMarksRef.current.one = playerKey;
+      marks.add(101);
     }
+
+    spokenMarksRef.current[playerKey] = marks;
 
     if (timerSeconds === 0) playSound('hammer');
   }, [timerSeconds, currentAuction?.status, currentAuction?.activePlayerId, playSound, speakLine]);
@@ -710,16 +775,41 @@ const Auction = () => {
       <Header
         gameCode={gameCode!}
         currentSetLabel={`${typeof setProgress.currentSetIndex === "number" && setProgress.currentSetIndex >= 0 ? `Set ${setProgress.currentSetIndex + 1}: ` : ""}${setProgress.activeSetLabel}`}
-        onSkip={gameCode && isHost ? () => skipCurrentPlayer(gameCode) : undefined}
+        onSkip={gameCode && isHost ? handleSkip : undefined}
         onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
         isPaused={currentAuction?.status === "PAUSED"}
         canControl={Boolean(isHost)}
+        canSkip={!skipDisabled}
+        onMenuClick={() => setTeamDrawerOpen(true)}
         onLeaveGame={async () => {
           if (!gameCode) return;
           await leaveGame(gameCode, userId);
           navigate(`/`);
         }}
       />
+
+      <Sheet open={teamDrawerOpen} onOpenChange={setTeamDrawerOpen}>
+        <SheetContent side="left" className="w-[88vw] max-w-sm bg-[#071a3a] border-yellow-500/40 p-3">
+          <TeamGrid
+            teams={teams.map((team) => ({
+              id: team.id,
+              shortName: team.shortName,
+              name: team.name,
+              logo: team.logo,
+              purseRemaining: Number(team.purseRemaining || 0),
+              squadSize: Number(team.squadSize || 0),
+              rtmCards: Number(team.rtmCards || 0),
+            }))}
+            myTeamId={myTeamId}
+            currentBidderId={currentAuction?.currentBidderId}
+            glowingTeamId={glowingTeamId}
+            onSelectTeam={(teamId) => {
+              setSelectedTeamId(teamId);
+              setTeamDrawerOpen(false);
+            }}
+          />
+        </SheetContent>
+      </Sheet>
 
       {banner && (
         <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none px-4">
@@ -818,8 +908,8 @@ const Auction = () => {
               </div>
             </div>
 
-            <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 translate-y-[-35%] z-20">
-              <div className="relative h-[96px] w-[96px] md:h-[120px] md:w-[120px] rounded-full bg-[#020617] border border-yellow-400/30 grid place-items-center shadow-[0_0_24px_rgba(251,191,36,0.35)]">
+            <div className="pointer-events-none absolute left-1/2 -top-10 -translate-x-1/2 z-20">
+              <div className="relative h-[110px] w-[110px] md:h-[140px] md:w-[140px] rounded-full bg-[#020617] border-2 border-yellow-400/40 grid place-items-center shadow-[0_0_30px_rgba(251,191,36,0.45)]">
                 <svg viewBox="0 0 120 120" className="absolute inset-0 -rotate-90">
                   <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(251,191,36,0.22)" strokeWidth="8" />
                   <circle
@@ -835,14 +925,14 @@ const Auction = () => {
                     className="transition-[stroke-dashoffset] duration-500"
                   />
                 </svg>
-                <span className="font-display text-2xl md:text-4xl leading-none text-yellow-200">{Math.max(0, Math.floor(timerSeconds)).toString().padStart(2, '0')}</span>
+                <span className="font-display text-3xl md:text-5xl leading-none text-yellow-200">{Math.max(0, Math.floor(timerSeconds))}</span>
               </div>
             </div>
           </div>
 
           <main className="flex-1 overflow-y-auto p-3 md:p-5">
-            <div className="grid grid-cols-1 lg:grid-cols-[3fr_5fr_3fr] gap-4 min-h-full">
-              <div className="order-3 lg:order-1">
+            <div className="hidden lg:grid grid-cols-[3fr_5fr_3fr] gap-4 min-h-full">
+              <div>
                 <TeamGrid
                   teams={teams.map((team) => ({
                     id: team.id,
@@ -860,12 +950,8 @@ const Auction = () => {
                 />
               </div>
 
-              <div className="order-1 lg:order-2 h-full overflow-hidden">
+              <div className="h-full overflow-hidden">
                 <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
-                  <div className="mb-3 rounded-lg border border-yellow-500/30 bg-[#0f172a] px-3 py-2 text-xs text-slate-200">
-                    <p><span className="text-yellow-300">Current Set:</span> {setProgress.activeSetLabel}</p>
-                    <p><span className="text-yellow-300">Players Remaining in Set:</span> {setProgress.playersRemainingInSet}</p>
-                  </div>
                   {currentPlayer && currentAuction?.status === 'RUNNING' && (
                     <div key={currentAuction?.activePlayerId || "player-card"} className="animate-[playerSpotlight_0.8s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] h-full relative isolate">
                       <div className="absolute inset-0 bg-yellow-400/20 rounded-xl filter blur-xl animate-[pulseGlow_1.5s_ease-in-out_infinite_alternate] -z-10" />
@@ -888,15 +974,11 @@ const Auction = () => {
                 </div>
               </div>
 
-              <div className="order-2 lg:order-3 h-full">
+              <div className="h-full">
                 <BidControls
                   currentBid={displayedCurrentBid}
                   canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
                   onBid={handleBid}
-                  onPass={() => setCommentary((prev) => ["GT passes.", ...prev].slice(0, 14))}
-                  onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
-                  isPaused={currentAuction?.status === 'PAUSED'}
-                  canControl={Boolean(isHost)}
                   recentPurchases={recentPurchases.slice(0, 8).map((p) => {
                     const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
                     const team = teams.find((t) => t.id === p.teamId);
@@ -908,38 +990,46 @@ const Auction = () => {
                   })}
                   upcomingPlayers={remainingSetPlayers}
                 />
-                <div className="hidden lg:block overflow-y-auto">
-                  <TeamGrid
-                    teams={teams.map((team) => ({
-                      id: team.id,
-                      shortName: team.shortName,
-                      name: team.name,
-                      logo: team.logo,
-                      purseRemaining: Number(team.purseRemaining || 0),
-                      squadSize: Number(team.squadSize || 0),
-                      rtmCards: Number(team.rtmCards || 0),
-                    }))}
-                    myTeamId={myTeamId}
-                    currentBidderId={currentAuction?.currentBidderId}
-                    glowingTeamId={glowingTeamId}
-                    onSelectTeam={(teamId) => setSelectedTeamId(teamId)}
-                  />
-                </div>
-                </div>
               </div>
+            </div>
+
+            <div className="lg:hidden grid grid-cols-2 gap-3 min-h-[70vh]">
+              <div className="rounded-xl border border-yellow-500/40 bg-[#071a3a] p-2 min-h-[420px]">
+                {currentPlayer ? (
+                  <PlayerCard
+                    player={currentPlayer as any}
+                    currentBid={displayedCurrentBid}
+                    currentBidderId={currentBidderTeam?.id || null}
+                    currentBidderName={currentBidderTeam?.shortName || 'BID'}
+                  />
+                ) : (
+                  <div className="h-full grid place-items-center text-xs text-slate-300">Waiting for player...</div>
+                )}
+              </div>
+              <div className="min-h-[420px]">
+                <BidControls
+                  currentBid={displayedCurrentBid}
+                  canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
+                  onBid={handleBid}
+                  recentPurchases={recentPurchases.slice(0, 6).map((p) => {
+                    const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
+                    const team = teams.find((t) => t.id === p.teamId);
+                    return {
+                      playerName: pl?.name || p.playerId,
+                      teamShortName: team?.shortName || p.teamId,
+                      price: p.price,
+                    };
+                  })}
+                  upcomingPlayers={remainingSetPlayers}
+                />
+              </div>
+            </div>
           </main>
-
-
 
           <style>{`
             @keyframes marquee { from { transform: translateX(-50%); } to { transform: translateX(0); } }
             @keyframes teamBidGlow { 0% { box-shadow: 0 0 0 rgba(250,204,21,0); } 35% { box-shadow: 0 0 28px rgba(250,204,21,0.8); } 100% { box-shadow: 0 0 0 rgba(250,204,21,0); } }
-            @keyframes bidPop { 0% { transform: scale(0.75); opacity: .6; } 100% { transform: scale(1); opacity: 1; } }
-            @keyframes starGlow { 0%,100% { box-shadow: 0 0 10px rgba(250,204,21,0.2);} 50% { box-shadow: 0 0 20px rgba(250,204,21,0.6);} }
-            @keyframes timerShake { 0%,100% { transform: translateX(0);} 50% { transform: translateX(-1px);} }
-            @keyframes soldPop { 0% { transform: scale(0.75);} 100% { transform: scale(1);} }
             @keyframes resultPop { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
-            @keyframes playerEntry { 0% { transform: translateY(40px) scale(0.97); opacity: 0; } 100% { transform: translateY(0) scale(1); opacity: 1; } }
             @keyframes rtmFade { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
             @keyframes hammerDrop { 0% { transform: translate(-50%, -45px) rotate(-25deg); opacity: 0; } 70% { transform: translate(-50%, 0) rotate(10deg); opacity: 1; } 100% { transform: translate(-50%, -5px) rotate(0deg); opacity: 1; } }
             @keyframes hammerImpact { 0% { transform: scale(0.7); opacity: 0; } 100% { transform: scale(1.12); opacity: 0; } }

@@ -10,6 +10,9 @@ export interface Player {
   pool: 'Marquee' | 'Batsmen' | 'Bowlers' | 'All-Rounders' | 'Wicket-Keepers';
   starRating: 1 | 2 | 3 | 4 | 5;
   imageUrl?: string;
+  rating?: number;
+  demandLevel?: 'low' | 'medium' | 'high';
+  interestedTeams?: string[];
 }
 
 // Utility to shuffle array
