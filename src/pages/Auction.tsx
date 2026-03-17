@@ -894,6 +894,9 @@ const Auction = () => {
                   canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
                   onBid={handleBid}
                   onPass={() => setCommentary((prev) => ["GT passes.", ...prev].slice(0, 14))}
+                  onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
+                  isPaused={currentAuction?.status === 'PAUSED'}
+                  canControl={Boolean(isHost)}
                   recentPurchases={recentPurchases.slice(0, 8).map((p) => {
                     const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
                     const team = teams.find((t) => t.id === p.teamId);

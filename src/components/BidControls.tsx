@@ -15,11 +15,24 @@ interface BidControlsProps {
   onPass?: () => void;
   recentPurchases?: RecentPurchase[];
   upcomingPlayers?: string[];
+  onPauseToggle?: () => void;
+  isPaused?: boolean;
+  canControl?: boolean;
 }
 
 const BID_COOLDOWN_MS = 300;
 
-const BidControlsComponent = ({ currentBid, canBid, onBid, onPass, recentPurchases = [], upcomingPlayers = [] }: BidControlsProps) => {
+const BidControlsComponent = ({
+  currentBid,
+  canBid,
+  onBid,
+  onPass,
+  recentPurchases = [],
+  upcomingPlayers = [],
+  onPauseToggle,
+  isPaused = false,
+  canControl = false,
+}: BidControlsProps) => {
   const [isBidClicked, setIsBidClicked] = useState(false);
   const [showUpcoming, setShowUpcoming] = useState(false);
   const lastClickRef = useRef(0);
@@ -55,7 +68,7 @@ const BidControlsComponent = ({ currentBid, canBid, onBid, onPass, recentPurchas
         </div>
       </div>
 
-      <Button variant="outline" onClick={onPauseToggle} disabled={!isHost || !onPauseToggle} className="w-full">
+      <Button variant="outline" onClick={onPauseToggle} disabled={!canControl || !onPauseToggle} className="w-full">
         {isPaused ? 'RESUME' : 'PAUSE'}
       </Button>
 
