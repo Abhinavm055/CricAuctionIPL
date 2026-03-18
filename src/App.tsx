@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { collection, doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, serverTimestamp, setDoc, updateDoc } from "firebase/firestore";
 import { Howl } from "howler";
 import { Menu, Pause, Play, SkipForward, Users, LogOut, PlusCircle, Wifi, WifiOff } from "lucide-react";
 import { db } from "@/lib/firebase";
@@ -66,6 +66,15 @@ interface PendingRtm {
   winningTeamId: string;
   price: number;
   caseType: RtmCase;
+}
+
+interface AiSimulationScene {
+  playerId: string;
+  queuedTeams: string[];
+  activeTeams: string[];
+  enteredTeams: string[];
+  exitedTeams: string[];
+  maxBids: Record<string, number>;
 }
 
 interface AuctionState {
@@ -528,6 +537,31 @@ function addMidAuctionPlayer(state: AuctionState, player: AuctionPlayer, mode: "
   };
 }
 
+function buildAiScene(state: AuctionState): AiSimulationScene | null {
+  if (!state.currentPlayer) return null;
+  const candidates = balanceTeams(pickInterestedTeams(state.teams, state.currentPlayer, null))
+    .filter((team) => team.controller === "AI")
+    .slice(0, Math.max(2, Math.min(4, state.currentPlayer.interestedTeams.length || 3)));
+
+  if (!candidates.length) return null;
+
+  const maxBids = Object.fromEntries(
+    candidates.map((team) => {
+      const appetite = 0.88 + Math.random() * 0.32;
+      return [team.id, Number((computeTargetPrice(state.currentPlayer!) * appetite).toFixed(2))];
+    }),
+  );
+
+  return {
+    playerId: state.currentPlayer.id,
+    queuedTeams: candidates.map((team) => team.id),
+    activeTeams: [],
+    enteredTeams: [],
+    exitedTeams: [],
+    maxBids,
+  };
+}
+
 function serialiseState(state: AuctionState) {
   return JSON.parse(JSON.stringify(state));
 }
@@ -547,6 +581,9 @@ function App() {
   const [selectedTeamId, setSelectedTeamId] = useState<string>("mi");
   const [roomCodeInput, setRoomCodeInput] = useState("");
   const [managerName, setManagerName] = useState(identity.name);
+  const [pendingJoinState, setPendingJoinState] = useState<AuctionState | null>(null);
+  const [pendingJoinRoomCode, setPendingJoinRoomCode] = useState("");
+  const [joinTeamChoice, setJoinTeamChoice] = useState<string | null>(null);
   const [firebaseOnline, setFirebaseOnline] = useState(true);
   const [remainingOpen, setRemainingOpen] = useState(false);
   const [addPlayerName, setAddPlayerName] = useState("");
@@ -554,6 +591,8 @@ function App() {
   const [addPlayerRole, setAddPlayerRole] = useState("Batter");
   const [addPlayerMode, setAddPlayerMode] = useState<"CURRENT" | "SUPPLEMENTARY">("CURRENT");
   const pendingAiTimer = useRef<number | null>(null);
+  const aiSceneRef = useRef<AiSimulationScene | null>(null);
+  const stateRef = useRef<AuctionState>(auctionState);
   const countdownMarks = useRef<Set<number>>(new Set());
   const roomUnsubscribe = useRef<null | (() => void)>(null);
   const selectedTeam = useMemo(() => auctionState.teams.find((team) => team.id === selectedTeamId) ?? auctionState.teams[0], [auctionState.teams, selectedTeamId]);
@@ -561,6 +600,10 @@ function App() {
   const skipLocked = auctionState.mode === "MULTI" && auctionState.hasBiddingStarted;
   const bidAmount = useMemo(() => Number((auctionState.currentBid + getIncrement(auctionState.currentBid)).toFixed(2)), [auctionState.currentBid]);
   const canBid = Boolean(auctionState.currentPlayer && selectedTeam && selectedTeam.purse >= bidAmount && auctionState.status === "running" && !auctionState.isPaused && selectedTeam.id !== auctionState.biddingTeam);
+
+  useEffect(() => {
+    stateRef.current = auctionState;
+  }, [auctionState]);
 
   const speak = useCallback((line: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
@@ -598,15 +641,23 @@ function App() {
 
   const createAiRoom = useCallback(() => {
     setMode("AI");
+    aiSceneRef.current = null;
+    setPendingJoinState(null);
+    setPendingJoinRoomCode("");
+    setJoinTeamChoice(null);
     applyState(createInitialAuctionState("AI"), false);
   }, [applyState]);
 
   const createMultiplayerRoom = useCallback(async () => {
     const roomCode = `${ROOM_PREFIX}${Math.floor(1000 + Math.random() * 9000)}`;
     const state = createInitialAuctionState("MULTI", roomCode, identity.id, managerName);
+    aiSceneRef.current = null;
     state.teams = state.teams.map((team, index) => index === 0 ? { ...team, controller: "USER", ownerName: managerName } : team);
     setSelectedTeamId(state.teams[0].id);
     setMode("MULTI");
+    setPendingJoinState(null);
+    setPendingJoinRoomCode("");
+    setJoinTeamChoice(null);
     applyState(state, false);
     try {
       await setDoc(doc(db, "auctionRooms", roomCode), {
@@ -639,30 +690,53 @@ function App() {
         return;
       }
       const remote = snapshot.data() as { state: AuctionState };
-      if (remote.state.joinClosed || remote.state.status === "ended") return;
-      const openTeam = remote.state.teams.find((team) => team.controller === "AI");
-      if (!openTeam) return;
-      const nextState = {
-        ...remote.state,
-        teams: remote.state.teams.map((team) => team.id === openTeam.id ? { ...team, controller: "USER", ownerName: managerName } : team),
-      };
-      setSelectedTeamId(openTeam.id);
-      setMode("MULTI");
-      applyState(nextState, false);
-      await updateDoc(doc(db, "auctionRooms", roomCode), { state: serialiseState(nextState), updatedAt: serverTimestamp() });
+      const canJoin = !remote.state.joinClosed && remote.state.status !== "ended" && !(remote.state.hasBiddingStarted && remote.state.timer <= 3);
+      if (!canJoin) return;
+      const openTeams = remote.state.teams.filter((team) => team.controller === "AI");
+      if (!openTeams.length) return;
+      setPendingJoinState(remote.state);
+      setPendingJoinRoomCode(roomCode);
+      setJoinTeamChoice(openTeams[0].id);
+      aiSceneRef.current = null;
       setFirebaseOnline(true);
+    } catch {
+      setFirebaseOnline(false);
+    }
+  }, [roomCodeInput]);
+
+  const confirmJoinRoom = useCallback(async () => {
+    if (!pendingJoinState || !pendingJoinRoomCode || !joinTeamChoice) return;
+    const nextState = {
+      ...pendingJoinState,
+      teams: pendingJoinState.teams.map((team) =>
+        team.id === joinTeamChoice ? { ...team, controller: "USER", ownerName: managerName } : team,
+      ),
+    };
+    try {
+      setSelectedTeamId(joinTeamChoice);
+      setMode("MULTI");
+      aiSceneRef.current = null;
+      applyState(nextState, false);
+      await updateDoc(doc(db, "auctionRooms", pendingJoinRoomCode), {
+        state: serialiseState(nextState),
+        updatedAt: serverTimestamp(),
+      });
       roomUnsubscribe.current?.();
-      roomUnsubscribe.current = onSnapshot(doc(db, "auctionRooms", roomCode), (docSnap) => {
+      roomUnsubscribe.current = onSnapshot(doc(db, "auctionRooms", pendingJoinRoomCode), (docSnap) => {
         const data = docSnap.data() as { state?: AuctionState } | undefined;
         if (data?.state) {
           setAuctionState(data.state);
           setMode("MULTI");
         }
       });
+      setPendingJoinState(null);
+      setPendingJoinRoomCode("");
+      setJoinTeamChoice(null);
+      setFirebaseOnline(true);
     } catch {
       setFirebaseOnline(false);
     }
-  }, [applyState, managerName, roomCodeInput]);
+  }, [applyState, joinTeamChoice, managerName, pendingJoinRoomCode, pendingJoinState]);
 
   const leaveRoom = useCallback(() => {
     roomUnsubscribe.current?.();
@@ -752,23 +826,86 @@ function App() {
 
   useEffect(() => {
     if (auctionState.status !== "running" || auctionState.isPaused || auctionState.pendingRtm || !auctionState.currentPlayer) return;
+
+    if (aiSceneRef.current?.playerId !== auctionState.currentPlayer.id) {
+      aiSceneRef.current = buildAiScene(auctionState);
+    }
+
+    const scene = aiSceneRef.current;
+    if (!scene) return;
+
     if (pendingAiTimer.current) window.clearTimeout(pendingAiTimer.current);
-    const interested = pickInterestedTeams(auctionState.teams, auctionState.currentPlayer, auctionState.biddingTeam)
-      .filter((team) => team.controller === "AI")
-      .filter((team) => team.purse >= bidAmount);
-    if (!interested.length) return;
-    const currentPrice = auctionState.currentBid;
-    const targetPrice = computeTargetPrice(auctionState.currentPlayer);
-    const shouldBid = currentPrice < targetPrice && Math.random() > (auctionState.hasBiddingStarted ? 0.35 : 0.15);
-    if (!shouldBid) return;
-    const nextTeam = balanceTeams(interested)[Math.floor(Math.random() * Math.min(2, interested.length))] ?? interested[0];
+
     pendingAiTimer.current = window.setTimeout(() => {
-      applyState((current) => resolveHumanBid(current, nextTeam.id));
+      const current = stateRef.current;
+      const activeScene = aiSceneRef.current;
+
+      if (!activeScene || !current.currentPlayer || activeScene.playerId !== current.currentPlayer.id || current.status !== "running" || current.isPaused || current.pendingRtm) {
+        return;
+      }
+
+      const nextBid = Number((current.currentBid + getIncrement(current.currentBid)).toFixed(2));
+
+      if (activeScene.enteredTeams.length < 2 && activeScene.queuedTeams.length) {
+        const teamId = activeScene.queuedTeams.shift()!;
+        activeScene.enteredTeams.push(teamId);
+        activeScene.activeTeams.push(teamId);
+        applyState((state) => {
+          const team = state.teams.find((entry) => entry.id === teamId);
+          if (!team) return state;
+          return {
+            ...state,
+            ticker: appendTicker(state, `${team.shortName} enter the bidding for ${state.currentPlayer?.name ?? "this player"}.`),
+          };
+        });
+        return;
+      }
+
+      const viableTeams = activeScene.activeTeams.filter((teamId) => activeScene.maxBids[teamId] >= nextBid);
+      activeScene.activeTeams = viableTeams;
+
+      if (activeScene.queuedTeams.length && (viableTeams.length < 2 || Math.random() < 0.35)) {
+        const teamId = activeScene.queuedTeams.shift()!;
+        activeScene.enteredTeams.push(teamId);
+        activeScene.activeTeams.push(teamId);
+        applyState((state) => {
+          const team = state.teams.find((entry) => entry.id === teamId);
+          if (!team) return state;
+          return {
+            ...state,
+            ticker: appendTicker(state, `${team.shortName} join late at ${formatCrores(state.currentBid)}.`),
+          };
+        });
+        return;
+      }
+
+      const exitCandidates = activeScene.activeTeams.filter((teamId) => teamId !== current.biddingTeam && activeScene.maxBids[teamId] < nextBid * 1.05);
+      if (exitCandidates.length) {
+        const teamId = exitCandidates[0];
+        activeScene.activeTeams = activeScene.activeTeams.filter((entry) => entry !== teamId);
+        activeScene.exitedTeams.push(teamId);
+        applyState((state) => {
+          const team = state.teams.find((entry) => entry.id === teamId);
+          if (!team) return state;
+          return {
+            ...state,
+            ticker: appendTicker(state, `${team.shortName} exit the race at ${formatCrores(state.currentBid)}.`),
+          };
+        });
+        return;
+      }
+
+      const bidders = activeScene.activeTeams.filter((teamId) => teamId !== current.biddingTeam && activeScene.maxBids[teamId] >= nextBid);
+      if (!bidders.length) return;
+
+      const bidderId = balanceTeams(current.teams.filter((team) => bidders.includes(team.id)))[0]?.id ?? bidders[0];
+      applyState((state) => resolveHumanBid(state, bidderId));
     }, randomBetween(BID_TIMING[0], BID_TIMING[1]));
+
     return () => {
       if (pendingAiTimer.current) window.clearTimeout(pendingAiTimer.current);
     };
-  }, [applyState, auctionState.biddingTeam, auctionState.currentBid, auctionState.currentPlayer, auctionState.hasBiddingStarted, auctionState.isPaused, auctionState.pendingRtm, auctionState.status, auctionState.teams, bidAmount]);
+  }, [applyState, auctionState, auctionState.biddingTeam, auctionState.currentPlayer, auctionState.isPaused, auctionState.pendingRtm, auctionState.status, auctionState.teams]);
 
   useEffect(() => {
     if (!auctionState.pendingRtm) return;
@@ -802,10 +939,10 @@ function App() {
             <div className="rounded-full border border-white/10 px-3 py-1">{auctionState.currentSet}</div>
             <div className="ml-auto hidden rounded-full border border-white/10 px-3 py-1 md:block">Timer</div>
             <Button variant="ghost" size="sm" onClick={handleSkipSet} disabled={!isHost || (auctionState.mode === "MULTI" && skipLocked)} className="h-8 rounded-full border border-white/10 px-3 text-[10px] text-white hover:bg-white/10">
-              <SkipForward className="mr-1 size-3" /> Skip Set
+              <SkipForward className="mr-1 size-3" /> {auctionState.mode === "AI" ? "Skip Set" : "Skip Set (Host Only)"}
             </Button>
             <Button variant="ghost" size="sm" onClick={handleSkipPlayer} disabled={!isHost || (auctionState.mode === "MULTI" && skipLocked)} className="h-8 rounded-full border border-white/10 px-3 text-[10px] text-white hover:bg-white/10">
-              <SkipForward className="mr-1 size-3" /> Skip
+              <SkipForward className="mr-1 size-3" /> {auctionState.mode === "AI" ? "Skip Player" : "Skip Player (Host Only)"}
             </Button>
             <Button variant="ghost" size="sm" onClick={togglePause} disabled={!isHost} className="h-8 rounded-full border border-white/10 px-3 text-[10px] text-white hover:bg-white/10">
               {auctionState.isPaused ? <Play className="mr-1 size-3" /> : <Pause className="mr-1 size-3" />} {auctionState.isPaused ? "Resume" : "Pause"}
@@ -979,6 +1116,26 @@ function App() {
                     <Button onClick={joinRoom} className="rounded-2xl bg-white/10 text-white hover:bg-white/15">Join</Button>
                   </div>
                   <div className="text-xs text-slate-400">Join mid-auction converts the next available AI team into your controlled team, unless the auction has ended.</div>
+                  {pendingJoinState ? (
+                    <div className="rounded-2xl border border-yellow-400/20 bg-yellow-400/10 p-3">
+                      <div className="text-[11px] uppercase tracking-[0.3em] text-yellow-200">Select AI-controlled team</div>
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        {pendingJoinState.teams.filter((team) => team.controller === "AI").map((team) => (
+                          <Button
+                            key={team.id}
+                            variant={joinTeamChoice === team.id ? "default" : "outline"}
+                            onClick={() => setJoinTeamChoice(team.id)}
+                            className="rounded-2xl"
+                          >
+                            {team.shortName}
+                          </Button>
+                        ))}
+                      </div>
+                      <Button onClick={confirmJoinRoom} disabled={!joinTeamChoice} className="mt-3 w-full rounded-2xl bg-yellow-400 text-slate-900 hover:bg-yellow-300">
+                        Confirm Team Replacement
+                      </Button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 
