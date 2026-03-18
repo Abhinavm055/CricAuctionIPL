@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { formatPrice, getNextBid } from '@/lib/constants';
 
@@ -13,83 +13,44 @@ interface BidControlsProps {
   purseRemaining?: number;
   canBid: boolean;
   onBid: (amount: number) => void;
-  isHost?: boolean;
-  onSkip?: () => void;
-  onPauseToggle?: () => void;
-  isPaused?: boolean;
   recentPurchases?: RecentPurchase[];
-  teamLabel?: string;
-  modeLabel?: string;
-  isSpectator?: boolean;
-  onViewRemainingPlayers?: () => void;
-  onSimulateAuction?: () => void;
-  showSimulateAuction?: boolean;
-  canManageAuction?: boolean;
+  upcomingPlayers?: string[];
 }
 
-const BID_COOLDOWN_MS = 300;
+const BID_COOLDOWN_MS = 250;
 
 const BidControlsComponent = ({
   currentBid,
   purseRemaining,
   canBid,
   onBid,
-  isHost,
-  onSkip,
-  onPauseToggle,
-  isPaused,
   recentPurchases = [],
-  teamLabel,
-  modeLabel,
-  isSpectator = false,
-  onViewRemainingPlayers,
-  onSimulateAuction,
-  showSimulateAuction = false,
-  canManageAuction,
+  upcomingPlayers = [],
 }: BidControlsProps) => {
   const [isBidClicked, setIsBidClicked] = useState(false);
   const [showUpcoming, setShowUpcoming] = useState(false);
   const lastClickRef = useRef(0);
   const nextBid = getNextBid(currentBid);
-  const manager = typeof canManageAuction === 'boolean' ? canManageAuction : isHost;
+
+  const handleBidClick = useCallback(() => {
+    const now = Date.now();
+    if (now - lastClickRef.current < BID_COOLDOWN_MS) return;
+    lastClickRef.current = now;
+    setIsBidClicked(true);
+    onBid(nextBid);
+    window.setTimeout(() => setIsBidClicked(false), BID_COOLDOWN_MS);
+  }, [onBid, nextBid]);
 
   return (
-    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 space-y-3 relative z-20">
-      <p className="text-xs uppercase tracking-widest text-yellow-300">Control Panel</p>
-
-      <div className="grid grid-cols-2 gap-2 text-xs text-slate-200">
-        <div className="rounded-lg border border-white/10 bg-black/10 p-2">
-          <p className="text-[10px] uppercase tracking-widest text-slate-400">Mode</p>
-          <p className="mt-1 font-semibold text-white">{modeLabel || 'Auction'}</p>
-        </div>
-        <div className="rounded-lg border border-white/10 bg-black/10 p-2">
-          <p className="text-[10px] uppercase tracking-widest text-slate-400">Seat</p>
-          <p className="mt-1 font-semibold text-white">{teamLabel || (isSpectator ? 'Spectator' : 'Unassigned')}</p>
-        </div>
-      </div>
-
-      <div className="space-y-1 text-sm text-slate-200">
-        <p>{isSpectator ? 'VIEW ONLY' : 'YOUR PURSE'}</p>
-        <p className="text-2xl font-bold text-yellow-300">{isSpectator ? '—' : formatPrice(Number(purseRemaining || 0))}</p>
-      </div>
-
-      <Button
-        className="w-full bg-yellow-400 text-black hover:bg-yellow-300 font-bold relative z-30"
-        onClick={() => onBid(nextBid)}
-        disabled={!canBid || isSpectator}
-      >
-        {isSpectator ? 'SPECTATOR MODE' : `BID ${formatPrice(nextBid)}`}
-      </Button>
-
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" onClick={onViewRemainingPlayers} disabled={!onViewRemainingPlayers}>REMAINING</Button>
-        <Button variant="outline" onClick={onPauseToggle} disabled={!manager || !onPauseToggle}>{isPaused ? 'RESUME' : 'PAUSE'}</Button>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        <Button variant="outline" onClick={onSkip} disabled={!manager || !onSkip}>SKIP PLAYER</Button>
-        <Button variant="outline" onClick={onSimulateAuction} disabled={!showSimulateAuction || !onSimulateAuction}>
-          AI SIM
+    <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 space-y-4 overflow-y-auto">
+      <div>
+        <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Single Bid</p>
+        <Button
+          className="w-full h-14 bg-yellow-400 text-black hover:bg-yellow-300 text-lg font-extrabold shadow-[0_0_16px_rgba(251,191,36,0.45)]"
+          onClick={handleBidClick}
+          disabled={!canBid}
+        >
+          {isBidClicked ? 'BIDDING...' : `BID ${formatPrice(nextBid)}`}
         </Button>
       </div>
 
@@ -100,6 +61,28 @@ const BidControlsComponent = ({
             <p key={`${p.playerName}-${idx}`}>{p.playerName} → {p.teamShortName} → {formatPrice(p.price)}</p>
           )) : <p className="text-muted-foreground">No purchases yet.</p>}
         </div>
+      </div>
+
+      <div>
+        <Button
+          variant="outline"
+          className="w-full border-yellow-500/60 text-yellow-200"
+          onClick={() => setShowUpcoming((prev) => !prev)}
+        >
+          View Remaining Players ({upcomingPlayers.length})
+        </Button>
+        {showUpcoming && (
+          <div className="mt-2 rounded-lg border border-white/10 bg-[#0f172a] p-2 max-h-[180px] overflow-y-auto">
+            <p className="text-xs text-yellow-300 mb-1">Upcoming Players</p>
+            {upcomingPlayers.length ? (
+              <ul className="text-xs text-slate-200 space-y-1">
+                {upcomingPlayers.map((name, idx) => <li key={`${name}-${idx}`}>{name}</li>)}
+              </ul>
+            ) : (
+              <p className="text-xs text-slate-400">No remaining players in this set.</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

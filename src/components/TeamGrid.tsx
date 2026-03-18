@@ -39,6 +39,24 @@ export const TeamGrid = ({ teams, myTeamId, currentBidderId, onSelectTeam }: Tea
           />
         ))}
       </div>
+
+      {myTeam && (
+        <div className="mt-3">
+          <TeamCard
+            id={myTeam.id}
+            shortName={myTeam.shortName}
+            name={myTeam.name}
+            logo={myTeam.logo}
+            purseRemaining={myTeam.purseRemaining}
+            squadSize={myTeam.squadSize}
+            rtmCards={myTeam.rtmCards}
+            isCurrentBidder={myTeam.id === currentBidderId}
+            shouldGlow={myTeam.id === glowingTeamId}
+            isUserTeam
+            onClick={() => onSelectTeam(myTeam.id)}
+          />
+        </div>
+      )}
     </div>
   );
 };
