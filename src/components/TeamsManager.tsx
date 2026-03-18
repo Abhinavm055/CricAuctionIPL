@@ -27,7 +27,7 @@ export const TeamsManager = ({ teams, players, globalSearch = '' }: TeamsManager
     const map: Record<string, Set<string>> = {};
 
     teams.forEach((team) => {
-      map[team.id] = new Set(team.players || []);
+      map[team.id] = new Set();
     });
 
     players.forEach((player) => {

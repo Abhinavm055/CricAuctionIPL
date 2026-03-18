@@ -12,6 +12,7 @@ interface RTMModalProps {
   stage: "AWAIT_ORIGINAL" | "AWAIT_WINNER_COUNTER" | "AWAIT_ORIGINAL_MATCH";
   onPrimary: () => void;
   onSecondary: () => void;
+  countdownSeconds?: number;
 }
 
 export const RTMModal = ({
@@ -23,6 +24,7 @@ export const RTMModal = ({
   stage,
   onPrimary,
   onSecondary,
+  countdownSeconds,
 }: RTMModalProps) => {
   const contentByStage = {
     AWAIT_ORIGINAL: {
@@ -53,6 +55,9 @@ export const RTMModal = ({
         <DialogHeader>
           <DialogTitle>{copy.title}</DialogTitle>
           <DialogDescription>{copy.description}</DialogDescription>
+          {typeof countdownSeconds === "number" && (
+            <p className="text-xs text-muted-foreground mt-2">Decision window: {countdownSeconds}s</p>
+          )}
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" onClick={onSecondary}>{copy.secondary}</Button>

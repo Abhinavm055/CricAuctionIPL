@@ -19,7 +19,7 @@ const PlayerRow = ({ player, price, type }: { player: Player; price: number; typ
     </div>
     <div className="flex-1">
       <p className="font-medium text-sm">{player.name}</p>
-      <p className="text-xs text-muted-foreground">{player.role} • {type}</p>
+      <p className="text-xs text-muted-foreground">{player.role} • {type} {((player as any).overseas || player.isOverseas) ? <span className="text-yellow-400">✈️</span> : null}</p>
     </div>
     <p className="text-xs font-semibold">{formatPrice(price || player.basePrice)}</p>
   </div>

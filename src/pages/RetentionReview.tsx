@@ -52,7 +52,7 @@ const RetentionReview = () => {
           return (
             <div key={team.id} className="p-4 border rounded-xl bg-secondary/30">
               <div className="flex items-center gap-3 mb-2">
-                <TeamLogo logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
+                <TeamLogo teamId={team.id} logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
                 <h2 className="font-display text-xl">{team.shortName}</h2>
               </div>
               <div className="flex gap-2 flex-wrap mb-3">
@@ -62,7 +62,10 @@ const RetentionReview = () => {
                       {(p.image || p.imageUrl) ? <img src={(p.image || p.imageUrl)} className="w-full h-full object-cover" /> : <User className="w-4 h-4" />}
                     </div>
                     <p className="text-[10px] mt-1 w-16 truncate">{p.name}</p>
+                    {Number(p.rating || 0) >= 4 && <p className="text-[10px] text-yellow-400">{Array(Math.floor(Number(p.rating || 0))).fill('⭐').join(' ')}</p>}
                     <p className="text-[10px] text-muted-foreground">{formatPrice(prices[p.id] || 0)}</p>
+                    <p className={`text-[9px] font-semibold ${p.isCapped ? 'text-emerald-500' : 'text-slate-400'}`}>{p.isCapped ? 'CAPPED' : 'UNCAPPED'}</p>
+                    {p.overseas && <p className="text-[10px] text-yellow-400">✈️</p>}
                   </div>
                 ))}
               </div>
