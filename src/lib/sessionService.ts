@@ -7,10 +7,14 @@ import {
   serverTimestamp,
   writeBatch,
   arrayUnion,
+  arrayRemove,
+  deleteField,
   query,
   runTransaction,
   Timestamp,
   getDocs,
+  setDoc,
+  increment,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import {
@@ -69,7 +73,7 @@ const getPlayerPreviousTeamId = (playerData: any) => String(playerData?.previous
 const getPlayerRating = (playerData: any) => Number(playerData?.rating ?? playerData?.starRating ?? 0);
 
 const buildRecentPurchases = (existing: Array<{ playerId: string; price: number; teamId: string }>, purchase: { playerId: string; price: number; teamId: string }) => {
-  return [purchase, ...(existing || [])].slice(0, 5);
+  return [purchase, ...(existing || [])];
 };
 
 const retentionEngine = new RetentionEngine();
@@ -128,6 +132,7 @@ export const createSession = async (gameCode: string, hostId: string, mode: "MUL
     selectedTeams: {},
     retentions: {},
     playersJoined: [hostId],
+    disconnectedPlayers: {},
     mode,
     allTeams: IPL_TEAMS.map((t) => ({ id: t.id, name: t.name, isAI: true })),
     auctionQueue: [],
@@ -137,13 +142,7 @@ export const createSession = async (gameCode: string, hostId: string, mode: "MUL
     isAcceleratedRound: false,
     acceleratedRoundSkipped: false,
     pendingRtm: null,
-    currentAuction: {
-      activePlayerId: null,
-      currentBid: 0,
-      currentBidderId: null,
-      timerEndsAt: null,
-      status: "IDLE",
-    },
+    currentAuction: DEFAULT_AUCTION_STATE,
   });
 
   IPL_TEAMS.forEach((team, index) => {
@@ -157,6 +156,7 @@ export const createSession = async (gameCode: string, hostId: string, mode: "MUL
       overseasCount: 0,
       rtmCards: 0,
       isAI: mode === "VS_AI",
+      ownerId: null,
       aiStrategy: AI_STRATEGIES[index % AI_STRATEGIES.length],
       teamNeeds: { ...TEAM_NEEDS_TEMPLATE },
       createdAt: serverTimestamp(),
@@ -170,20 +170,83 @@ export const joinSession = async (gameCode: string, userId: string) => {
   await updateDoc(doc(db, "sessions", gameCode), { playersJoined: arrayUnion(userId) });
 };
 
-export const selectTeam = async (gameCode: string, teamId: string, userId: string) => {
+
+export const leaveGame = async (gameCode: string, userId: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
-  const snap = await getDoc(sessionRef);
-  if (!snap.exists()) return;
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) throw new Error("Session not found");
+    const session = sessionSnap.data() as any;
 
-  const selectedTeams = { ...(snap.data().selectedTeams || {}), [teamId]: userId };
-  const allTeams = IPL_TEAMS.map((team) => ({
-    id: team.id,
-    name: team.name,
-    isAI: String(selectedTeams[team.id] || '').startsWith('AI-'),
-  }));
+    const selectedTeams = (session.selectedTeams || {}) as Record<string, string>;
+    const teamId = Object.entries(selectedTeams).find(([_, uid]) => uid === userId)?.[0] || null;
 
-  await updateDoc(sessionRef, { [`selectedTeams.${teamId}`]: userId, allTeams });
-  await updateDoc(doc(db, "sessions", gameCode, "teams", teamId), { isAI: userId.startsWith("AI-") });
+    if (session.hostId === userId) {
+      tx.update(sessionRef, {
+        phase: "ENDED",
+        [`disconnectedPlayers.${userId}`]: true,
+        playersJoined: arrayRemove(userId),
+        currentAuction: DEFAULT_AUCTION_STATE,
+      });
+      return;
+    }
+
+    tx.update(sessionRef, {
+      [`disconnectedPlayers.${userId}`]: true,
+      playersJoined: arrayRemove(userId),
+    });
+
+    if (!teamId) return;
+
+    tx.update(doc(db, "sessions", gameCode, "teams", teamId), {
+      isAI: true,
+      ownerId: null,
+    });
+
+    if (session.currentAuction?.status === "RUNNING" && session.currentAuction?.currentBidderId === teamId && session.currentAuction?.activePlayerId) {
+      const playerSnap = await tx.get(doc(db, "players", session.currentAuction.activePlayerId));
+      const basePrice = Number(playerSnap.data()?.basePrice || 0);
+      tx.update(sessionRef, {
+        "currentAuction.currentBid": basePrice,
+        "currentAuction.currentBidderId": null,
+        "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + AUCTION_TIMER * 1000),
+        "currentAuction.timerMode": "AUCTION",
+      });
+    }
+  });
+};
+
+export const rejoinGame = async (gameCode: string, userId: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) return;
+
+    const session = sessionSnap.data() as any;
+    const disconnected = Boolean(session?.disconnectedPlayers?.[userId]);
+    const selectedTeams = (session.selectedTeams || {}) as Record<string, string>;
+    const teamId = Object.entries(selectedTeams).find(([_, uid]) => uid === userId)?.[0] || null;
+
+    if (!disconnected || !teamId) return;
+
+    tx.update(sessionRef, {
+      [`disconnectedPlayers.${userId}`]: deleteField(),
+      playersJoined: arrayUnion(userId),
+    });
+
+    tx.update(doc(db, "sessions", gameCode, "teams", teamId), {
+      isAI: false,
+      ownerId: userId,
+    });
+  });
+};
+
+export const selectTeam = async (gameCode: string, teamId: string, userId: string, managerName?: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await updateDoc(sessionRef, {
+    [`selectedTeams.${teamId}`]: userId,
+    ...(managerName ? { [`managerNames.${teamId}`]: managerName } : {}),
+  });
 };
 
 export const startRetention = async (gameCode: string) => {
@@ -191,11 +254,7 @@ export const startRetention = async (gameCode: string) => {
   const snap = await getDoc(sessionRef);
   if (!snap.exists()) return;
 
-  await fillAITeams(gameCode);
-
-  const refreshed = await getDoc(sessionRef);
-  if (!refreshed.exists()) return;
-  const sessionData = refreshed.data() as any;
+  const sessionData = snap.data() as any;
   const selectedTeams = (sessionData.selectedTeams || {}) as Record<string, string>;
 
   const playersSnap = await getDocs(query(collection(db, "players")));
@@ -207,9 +266,19 @@ export const startRetention = async (gameCode: string) => {
 
   const batch = writeBatch(db);
 
+  const humanSelectedTeams = selectedTeams as Record<string, string>;
+  const allTeams = IPL_TEAMS.map((team) => {
+    const assignedId = humanSelectedTeams[team.id] || null;
+    const ownerId = assignedId && !String(assignedId).startsWith("AI-") ? assignedId : null;
+    const isAI = !ownerId;
+    batch.update(doc(db, "sessions", gameCode, "teams", team.id), { isAI, ownerId });
+    return { id: team.id, name: team.name, isAI, ownerId };
+  });
+
   IPL_TEAMS.forEach((team) => {
-    const owner = String(selectedTeams[team.id] || '');
-    const isAI = owner.startsWith('AI-');
+    const assignedId = humanSelectedTeams[team.id] || null;
+    const ownerId = assignedId && !String(assignedId).startsWith("AI-") ? assignedId : null;
+    const isAI = !ownerId;
 
     if (!isAI) {
       if (!retentions[team.id]) {
@@ -242,6 +311,9 @@ export const startRetention = async (gameCode: string) => {
     phase: "RETENTION",
     retentionStartedAt: serverTimestamp(),
     retentions,
+    allTeams,
+    "currentAuction.timerMode": "RETENTION",
+    "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + 30000),
   });
 
   await batch.commit();
@@ -342,13 +414,7 @@ export const startAuction = async (gameCode: string) => {
     isAcceleratedRound: false,
     acceleratedRoundSkipped: false,
     pendingRtm: null,
-    currentAuction: {
-      activePlayerId: null,
-      currentBid: 0,
-      currentBidderId: null,
-      timerEndsAt: null,
-      status: "IDLE",
-    },
+    currentAuction: { ...DEFAULT_AUCTION_STATE, timerMode: "AUCTION" },
   });
 };
 
@@ -368,7 +434,7 @@ export const loadNextPlayer = async (gameCode: string) => {
       tx.update(sessionRef, {
         phase: "AUCTION_COMPLETE",
         queueIndex: auctionQueue.length,
-        currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE" },
+        currentAuction: DEFAULT_AUCTION_STATE,
       });
       return;
     }
@@ -383,6 +449,14 @@ export const loadNextPlayer = async (gameCode: string) => {
         currentBidderId: null,
         timerEndsAt: Timestamp.fromMillis(Date.now() + (sessionData.isAcceleratedRound ? BID_RESET_TIMER : AUCTION_TIMER) * 1000),
         status: "RUNNING",
+        timerMode: "AUCTION",
+        rtmStage: "NONE",
+        rtmTeamId: null,
+        rtmWinningTeamId: null,
+        rtmPlayerId: null,
+        rtmFinalBid: 0,
+        rtmCounterBid: 0,
+        rtmExpiresAt: null,
       },
     });
   });
@@ -427,6 +501,7 @@ export const placeBid = async (gameCode: string, teamId: string, amount: number)
       "currentAuction.currentBid": amount,
       "currentAuction.currentBidderId": teamId,
       "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + BID_RESET_TIMER * 1000),
+      "currentAuction.timerMode": "AUCTION",
     });
   });
 };
@@ -438,7 +513,8 @@ const applySaleToTeam = (
   playerId: string,
   price: number,
   isOverseas: boolean,
-  decrementRtm: boolean
+  decrementRtm: boolean,
+  playerRole?: string
 ) => {
   const teamRef = doc(db, "sessions", gameCode, "teams", teamId);
   return tx.get(teamRef).then((teamSnap: any) => {
@@ -453,6 +529,7 @@ const applySaleToTeam = (
       purseRemaining: Number(teamData.purseRemaining || 0) - price,
       squadSize: squadSize + 1,
       overseasCount: overseasCount + (isOverseas ? 1 : 0),
+      teamNeeds: deriveTeamNeeds(teamData.teamNeeds, playerRole),
       [`playerPurchasePrices.${playerId}`]: price,
       ...(decrementRtm ? { rtmCards: Math.max(0, Number(teamData.rtmCards || 0) - 1) } : {}),
     });
@@ -472,6 +549,7 @@ export const resolveAuction = async (gameCode: string) => {
     if (!playerSnap.exists()) throw new Error("Player not found");
 
     const playerId = auction.activePlayerId;
+    const playerName = String(playerSnap.data().name || playerId);
     const winningTeamId = auction.currentBidderId as string | null;
     const finalBid = Number(auction.currentBid || 0);
     const isOverseas = getPlayerOverseasFlag(playerSnap.data());
@@ -481,7 +559,7 @@ export const resolveAuction = async (gameCode: string) => {
       tx.update(sessionRef, {
         unsoldPlayers: unsold,
         pendingRtm: null,
-        currentAuction: { activePlayerId: playerId, currentBid: finalBid, currentBidderId: null, timerEndsAt: null, status: "UNSOLD" },
+        currentAuction: { activePlayerId: playerId, currentBid: finalBid, currentBidderId: null, timerEndsAt: null, status: "UNSOLD", timerMode: "NONE", rtmStage: "NONE", rtmTeamId: null, rtmWinningTeamId: null, rtmPlayerId: null, rtmFinalBid: 0, rtmCounterBid: 0, rtmExpiresAt: null },
       });
       return;
     }
@@ -509,11 +587,11 @@ export const resolveAuction = async (gameCode: string) => {
       }
     }
 
-    await applySaleToTeam(tx, gameCode, winningTeamId, playerId, finalBid, isOverseas, false);
+    await applySaleToTeam(tx, gameCode, winningTeamId, playerId, finalBid, isOverseas, false, String(playerSnap.data()?.role || ''));
     tx.update(sessionRef, {
       pendingRtm: null,
       recentPurchases: buildRecentPurchases((sessionData.recentPurchases || []) as any[], { playerId, price: finalBid, teamId: winningTeamId }),
-      currentAuction: { activePlayerId: playerId, currentBid: finalBid, currentBidderId: winningTeamId, timerEndsAt: null, status: "SOLD" },
+      currentAuction: { activePlayerId: playerId, currentBid: finalBid, currentBidderId: winningTeamId, timerEndsAt: null, status: "SOLD", timerMode: "NONE", rtmStage: "NONE", rtmTeamId: null, rtmWinningTeamId: null, rtmPlayerId: null, rtmFinalBid: 0, rtmCounterBid: 0, rtmExpiresAt: null },
     });
   });
 };
@@ -531,6 +609,7 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
 
     const playerSnap = await tx.get(doc(db, "players", pending.playerId));
     const isOverseas = getPlayerOverseasFlag(playerSnap.data());
+    const playerName = String(playerSnap.data()?.name || pending.playerId);
 
     if (pending.status === "AWAIT_ORIGINAL") {
       if (action === "ORIGINAL_NO") {
@@ -572,27 +651,54 @@ export const resolveRtmDecision = async (gameCode: string, action: "ORIGINAL_YES
       return;
     }
 
-    if (pending.status === "AWAIT_ORIGINAL_MATCH") {
-      if (action === "ORIGINAL_MATCH_YES") {
-        await applySaleToTeam(tx, gameCode, pending.originalTeamId, pending.playerId, Number(pending.finalBid), isOverseas, true);
-        tx.update(sessionRef, {
-          pendingRtm: null,
-          recentPurchases: buildRecentPurchases((sessionData.recentPurchases || []) as any[], { playerId: pending.playerId, price: Number(pending.finalBid), teamId: pending.originalTeamId }),
-          currentAuction: { activePlayerId: pending.playerId, currentBid: Number(pending.finalBid), currentBidderId: pending.originalTeamId, timerEndsAt: null, status: "SOLD" },
-        });
-        return;
-      }
-      if (action === "ORIGINAL_MATCH_NO") {
-        await applySaleToTeam(tx, gameCode, pending.winningTeamId, pending.playerId, Number(pending.finalBid), isOverseas, false);
-        tx.update(sessionRef, {
-          pendingRtm: null,
-          recentPurchases: buildRecentPurchases((sessionData.recentPurchases || []) as any[], { playerId: pending.playerId, price: Number(pending.finalBid), teamId: pending.winningTeamId }),
-          currentAuction: { activePlayerId: pending.playerId, currentBid: Number(pending.finalBid), currentBidderId: pending.winningTeamId, timerEndsAt: null, status: "SOLD" },
-        });
-      }
-    }
+    const next = transition as any;
+    const statusMap: Record<string, string> = {
+      COUNTER_BID: "AWAIT_WINNER_COUNTER",
+      FINAL: "AWAIT_ORIGINAL_MATCH",
+    };
+
+    tx.update(sessionRef, {
+      "pendingRtm.status": statusMap[next.nextStage],
+      "pendingRtm.finalBid": Number(next.finalBid),
+      "pendingRtm.counterBid": Number(next.counterBid),
+      "pendingRtm.expiresAt": Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
+      "currentAuction.status": "RTM",
+      "currentAuction.timerMode": "RTM",
+      "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
+      "currentAuction.rtmStage": next.nextStage === "COUNTER_BID" ? "COUNTER" : "PROMPT",
+      "currentAuction.rtmFinalBid": Number(next.finalBid),
+      "currentAuction.rtmCounterBid": Number(next.counterBid),
+      "currentAuction.rtmExpiresAt": Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
+    });
   });
 };
+
+export const resolveRtmTimeout = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  const sessionSnap = await getDoc(sessionRef);
+  if (!sessionSnap.exists()) return;
+
+  const pending = sessionSnap.data().pendingRtm;
+  if (!pending) return;
+
+  const actionMap: Record<string, "USE" | "DECLINE" | "COUNTER" | "MATCH"> = {
+    AWAIT_ORIGINAL: "DECLINE",
+    AWAIT_WINNER_COUNTER: "DECLINE",
+    AWAIT_ORIGINAL_MATCH: "DECLINE",
+  };
+
+  const actingTeamMap: Record<string, string> = {
+    AWAIT_ORIGINAL: pending.originalTeamId,
+    AWAIT_WINNER_COUNTER: pending.winningTeamId,
+    AWAIT_ORIGINAL_MATCH: pending.originalTeamId,
+  };
+
+  await resolveRtmDecision(gameCode, {
+    action: actionMap[pending.status],
+    actingTeamId: actingTeamMap[pending.status],
+  });
+};
+
 
 
 
@@ -641,6 +747,14 @@ export const skipCurrentPlayer = async (gameCode: string) => {
         currentBidderId: null,
         timerEndsAt: null,
         status: "UNSOLD",
+        timerMode: "NONE",
+        rtmStage: "NONE",
+        rtmTeamId: null,
+        rtmWinningTeamId: null,
+        rtmPlayerId: null,
+        rtmFinalBid: 0,
+        rtmCounterBid: 0,
+        rtmExpiresAt: null,
       },
     });
   });
@@ -660,12 +774,14 @@ export const togglePauseAuction = async (gameCode: string) => {
         "currentAuction.status": "PAUSED",
         "currentAuction.pausedRemainingSec": remaining,
         "currentAuction.timerEndsAt": null,
+        "currentAuction.timerMode": "NONE",
       });
     } else if (auction.status === "PAUSED") {
       const remaining = Number(auction.pausedRemainingSec || AUCTION_TIMER);
       tx.update(sessionRef, {
         "currentAuction.status": "RUNNING",
         "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + remaining * 1000),
+        "currentAuction.timerMode": "AUCTION",
       });
     }
   });

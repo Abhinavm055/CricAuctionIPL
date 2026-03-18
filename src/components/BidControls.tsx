@@ -1,3 +1,4 @@
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { formatPrice, getNextBid } from '@/lib/constants';
 
@@ -26,7 +27,9 @@ interface BidControlsProps {
   canManageAuction?: boolean;
 }
 
-export const BidControls = ({
+const BID_COOLDOWN_MS = 300;
+
+const BidControlsComponent = ({
   currentBid,
   purseRemaining,
   canBid,
@@ -44,6 +47,9 @@ export const BidControls = ({
   showSimulateAuction = false,
   canManageAuction,
 }: BidControlsProps) => {
+  const [isBidClicked, setIsBidClicked] = useState(false);
+  const [showUpcoming, setShowUpcoming] = useState(false);
+  const lastClickRef = useRef(0);
   const nextBid = getNextBid(currentBid);
   const manager = typeof canManageAuction === 'boolean' ? canManageAuction : isHost;
 
@@ -98,3 +104,5 @@ export const BidControls = ({
     </div>
   );
 };
+
+export const BidControls = memo(BidControlsComponent);

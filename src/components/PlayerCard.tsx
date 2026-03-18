@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Player } from '@/lib/samplePlayers';
 import { formatPrice } from '@/lib/constants';
 import { User } from 'lucide-react';
