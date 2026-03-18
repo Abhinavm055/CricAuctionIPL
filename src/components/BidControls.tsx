@@ -10,6 +10,7 @@ interface RecentPurchase {
 
 interface BidControlsProps {
   currentBid: number;
+  purseRemaining?: number;
   canBid: boolean;
   onBid: (amount: number) => void;
   recentPurchases?: RecentPurchase[];
@@ -20,6 +21,7 @@ const BID_COOLDOWN_MS = 250;
 
 const BidControlsComponent = ({
   currentBid,
+  purseRemaining,
   canBid,
   onBid,
   recentPurchases = [],
@@ -54,7 +56,7 @@ const BidControlsComponent = ({
 
       <div>
         <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Recent Purchases</p>
-        <div className="max-h-[220px] overflow-y-auto space-y-1 text-xs text-slate-200">
+        <div className="max-h-28 overflow-auto space-y-1 text-xs text-slate-200">
           {recentPurchases.length ? recentPurchases.map((p, idx) => (
             <p key={`${p.playerName}-${idx}`}>{p.playerName} → {p.teamShortName} → {formatPrice(p.price)}</p>
           )) : <p className="text-muted-foreground">No purchases yet.</p>}

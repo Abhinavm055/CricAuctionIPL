@@ -2,7 +2,6 @@ import { SQUAD_CONSTRAINTS, getNextBid } from '@/lib/constants';
 
 export interface EnginePlayer {
   id: string;
-  name?: string;
   role?: string;
   rating?: number;
   overseas?: boolean;
@@ -18,7 +17,6 @@ export interface EngineTeam {
   purseRemaining: number;
   overseasCount: number;
   roleNeeds?: Record<string, number>;
-  aggressionLevel?: number;
 }
 
 const CR = 10_000_000;
