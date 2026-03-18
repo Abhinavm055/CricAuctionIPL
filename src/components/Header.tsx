@@ -1,53 +1,31 @@
 interface HeaderProps {
   gameCode: string;
-  currentSetLabel?: string;
-  onSkip?: () => void;
-  onPauseToggle?: () => void;
-  isPaused?: boolean;
-  canControl?: boolean;
-  onLeaveGame?: () => void;
-  onMenuClick?: () => void;
+  timerSeconds: number;
+  currentPool?: string;
+  playersRemaining: number;
+  totalPlayers: number;
 }
 
-export const Header = ({ gameCode, currentSetLabel, onSkip, onPauseToggle, isPaused, canControl, onLeaveGame }: HeaderProps) => {
+export const Header = ({ gameCode, timerSeconds, currentPool, playersRemaining, totalPlayers }: HeaderProps) => {
   return (
-    <header className="h-14 border-b border-yellow-500/40 bg-[#061734] px-3 md:px-5 text-yellow-100">
-      <div className="h-full flex items-center justify-between gap-3">
-        <div className="min-w-0 flex items-center gap-2 md:gap-3 text-xs md:text-sm">
-          <p className="font-display text-yellow-300 whitespace-nowrap">CricAuctionIPL</p>
-          <span className="text-yellow-500/70">|</span>
-          <span className="rounded-full bg-yellow-400 text-black px-2 py-0.5 font-bold whitespace-nowrap">{gameCode}</span>
-          <span className="text-yellow-500/70">|</span>
-          <span className="truncate">{currentSetLabel || 'General Set'}</span>
+    <header className="border-b border-yellow-500/40 bg-[#061734] px-5 py-3 text-yellow-100">
+      <div className="flex items-center justify-between gap-4 text-sm font-semibold">
+        <p className="font-display text-xl tracking-wider text-yellow-300">CRICAUCTION</p>
+
+        <div className="flex items-center gap-3">
+          <span>{gameCode}</span>
+          <span className="inline-flex items-center gap-2">
+            <span className="inline-flex h-7 w-7 items-center justify-center rounded-full border-2 border-yellow-300 text-[11px] text-yellow-200">
+              {timerSeconds.toString().padStart(2, '0')}
+            </span>
+            <span>{timerSeconds.toString().padStart(2, '0')}s</span>
+          </span>
         </div>
 
-        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
-          <button
-            onClick={onSkip}
-            disabled={!canControl || !onSkip}
-            className="h-8 w-8 rounded-md border border-yellow-500/60 text-sm disabled:opacity-40 hover:bg-yellow-400/10"
-            aria-label="Skip player"
-            title="Skip"
-          >
-            ⏭
-          </button>
-          <button
-            onClick={onPauseToggle}
-            disabled={!canControl || !onPauseToggle}
-            className="h-8 w-8 rounded-md border border-yellow-500/60 text-sm disabled:opacity-40 hover:bg-yellow-400/10"
-            aria-label="Pause or resume auction"
-            title={isPaused ? 'Resume' : 'Pause'}
-          >
-            ⏸
-          </button>
-          <button
-            onClick={onLeaveGame}
-            className="h-8 w-8 rounded-md border border-red-400/60 text-sm hover:bg-red-500/10"
-            aria-label="Leave game"
-            title="Leave"
-          >
-            🚪
-          </button>
+        <div className="flex items-center gap-4">
+          <span>{String(currentPool || 'POOL').toUpperCase()}</span>
+          <span>{playersRemaining}/{totalPlayers}</span>
+          <span className="flex items-center gap-1 text-red-400"><span className="text-base">●</span> LIVE</span>
         </div>
       </div>
     </header>

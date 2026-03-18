@@ -73,9 +73,6 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
     return map;
   }, [teams]);
 
-  const pools = useMemo(() => Array.from(new Set(players.map((p) => p.pool).filter(Boolean))).sort(), [players]);
-  const nationalities = useMemo(() => Array.from(new Set(players.map((p) => (p.nationality || '').trim()).filter(Boolean))).sort(), [players]);
-
   const filteredPlayers = useMemo(() => {
     const q = search.toLowerCase().trim();
     const globalQ = globalSearch.toLowerCase().trim();
@@ -87,28 +84,20 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
           || player.name.toLowerCase().includes(globalQ)
           || player.role.toLowerCase().includes(globalQ)
           || (teamNameById[player.previousTeamId] || '').toLowerCase().includes(globalQ)
-          || (player.nationality || '').toLowerCase().includes(globalQ)
-          || (player.pool || '').toLowerCase().includes(globalQ);
+          || (player.nationality || '').toLowerCase().includes(globalQ);
         const roleMatch = roleFilter === 'all' ? true : player.role === roleFilter;
         const teamMatch = teamFilter === 'all' ? true : (player.previousTeamId || '') === teamFilter;
+        const ratingMatch = Number(player.rating) >= ratingRange[0] && Number(player.rating) <= ratingRange[1];
         const overseasMatch = overseasFilter === 'all'
           ? true
           : overseasFilter === 'overseas'
             ? !!player.overseas
             : !player.overseas;
-        const poolMatch = poolFilter === 'all' ? true : String(player.pool || '') === poolFilter;
-        const nationalityMatch = nationalityFilter === 'all' ? true : String(player.nationality || '') === nationalityFilter;
-        const ratingBandMatch = ratingFilter === 'all'
-          ? true
-          : ratingFilter === '4plus'
-            ? Number(player.rating) >= 4
-            : Number(player.rating) >= 5;
-        const ratingRangeMatch = Number(player.rating) >= ratingRange[0] && Number(player.rating) <= ratingRange[1];
 
-        return globalMatch && nameMatch && roleMatch && teamMatch && overseasMatch && poolMatch && nationalityMatch && ratingBandMatch && ratingRangeMatch;
+        return globalMatch && nameMatch && roleMatch && teamMatch && ratingMatch && overseasMatch;
       })
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [players, search, globalSearch, roleFilter, teamFilter, ratingRange, overseasFilter, teamNameById, poolFilter, nationalityFilter, ratingFilter]);
+  }, [players, search, globalSearch, roleFilter, teamFilter, ratingRange, overseasFilter, teamNameById]);
 
   const syncTeamMembership = async (playerId: string, newTeamId: string, previousTeamId: string) => {
     if (previousTeamId && previousTeamId !== newTeamId) {
