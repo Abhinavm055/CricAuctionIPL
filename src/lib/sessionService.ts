@@ -98,7 +98,7 @@ const DEFAULT_AUCTION_STATE = {
   currentBidderId: null,
   timerEndsAt: null,
   status: "IDLE",
-  auctionState: "READY_NEXT",
+  auctionState: "NEXT_READY",
   isAuctionLocked: false,
   timerMode: "NONE",
   rtmStage: "NONE",
@@ -112,6 +112,7 @@ const DEFAULT_AUCTION_STATE = {
   soldPrice: 0,
   soldAt: null,
   soldPlayerId: null,
+  rtmResultMessage: null,
   lastEvent: null,
 };
 
@@ -503,6 +504,7 @@ export const loadNextPlayer = async (gameCode: string) => {
         soldPrice: 0,
         soldAt: null,
         soldPlayerId: null,
+        rtmResultMessage: null,
         lastEvent: {
           type: "next-player",
           playerId: auctionQueue[nextIndex],
@@ -616,7 +618,7 @@ export const resolveAuction = async (gameCode: string) => {
           currentBidderId: null,
           timerEndsAt: null,
           status: "UNSOLD",
-          auctionState: "READY_NEXT",
+          auctionState: "NEXT_READY",
           isAuctionLocked: false,
           timerMode: "NONE",
           rtmStage: "NONE",
@@ -630,6 +632,7 @@ export const resolveAuction = async (gameCode: string) => {
           soldPrice: 0,
           soldAt: null,
           soldPlayerId: null,
+          rtmResultMessage: null,
           lastEvent: {
             type: "player-unsold",
             playerId,
@@ -691,6 +694,7 @@ export const resolveAuction = async (gameCode: string) => {
         "currentAuction.soldPrice": 0,
         "currentAuction.soldAt": null,
         "currentAuction.soldPlayerId": null,
+        "currentAuction.rtmResultMessage": null,
         "currentAuction.lastEvent": {
           type: "rtm-start",
           stage: "RTM_STEP_1",
@@ -724,6 +728,7 @@ export const resolveAuction = async (gameCode: string) => {
         rtmFinalBid: 0,
         rtmCounterBid: 0,
         rtmExpiresAt: null,
+        rtmResultMessage: null,
         ...soldBasePayload,
         lastEvent: {
           type: "player-sold",
@@ -751,9 +756,14 @@ export const resolveRtmDecision = async (
     const pending = sessionData.pendingRtm;
     if (!pending) return;
 
+    const originalTeamSnap = pending.originalTeamId
+      ? await tx.get(doc(db, "sessions", gameCode, "teams", pending.originalTeamId))
+      : null;
+
     const playerSnap = await tx.get(doc(db, "players", pending.playerId));
     const isOverseas = getPlayerOverseasFlag(playerSnap.data());
     const playerName = String(playerSnap.data()?.name || pending.playerId);
+    const originalTeamShortName = String(originalTeamSnap?.data()?.shortName || pending.originalTeamId || "Original Team").toUpperCase();
 
     const stageMap: Record<string, "NONE" | "AVAILABLE" | "COUNTER_BID" | "FINAL"> = {
       AWAIT_ORIGINAL: "AVAILABLE",
@@ -774,6 +784,10 @@ export const resolveRtmDecision = async (
 
     if ((transition as any).done) {
       const result = transition as any;
+      const rtmResultMessage =
+        payload.action === "USE" || payload.action === "MATCH" || (payload.action === "DECLINE" && pending.status === "AWAIT_WINNER_COUNTER")
+          ? `${originalTeamShortName} used RTM`
+          : `${originalTeamShortName} declined RTM`;
       await applySaleToTeam(tx, gameCode, result.winnerTeamId, pending.playerId, Number(result.finalBid), isOverseas, Boolean(result.rtmUsed && result.winnerTeamId === pending.originalTeamId), String(playerSnap.data()?.role || ''));
       tx.update(sessionRef, {
         pendingRtm: null,
@@ -794,6 +808,7 @@ export const resolveRtmDecision = async (
           rtmFinalBid: 0,
           rtmCounterBid: 0,
           rtmExpiresAt: null,
+          rtmResultMessage,
           soldToTeamId: result.winnerTeamId,
           soldPrice: Number(result.finalBid),
           soldAt: Timestamp.fromMillis(Date.now()),
@@ -836,8 +851,9 @@ export const resolveRtmDecision = async (
       "currentAuction.rtmFinalBid": Number(next.finalBid),
       "currentAuction.rtmCounterBid": Number(next.counterBid),
       "currentAuction.rtmExpiresAt": Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
+      "currentAuction.rtmResultMessage": next.nextStage === "COUNTER_BID" ? `${originalTeamShortName} used RTM` : null,
       "currentAuction.lastEvent": {
-        type: next.nextStage === "COUNTER_BID" ? "rtm-decision" : "rtm-new-bid",
+        type: next.nextStage === "COUNTER_BID" ? "rtm-bid-input" : "rtm-final-decision",
         stage: next.nextStage === "COUNTER_BID" ? "RTM_STEP_2" : "RTM_FINAL",
         playerId: pending.playerId,
         originalTeamId: pending.originalTeamId,
@@ -902,7 +918,7 @@ export const skipCurrentPlayer = async (gameCode: string) => {
         currentBidderId: null,
         timerEndsAt: null,
         status: "UNSOLD",
-        auctionState: "READY_NEXT",
+        auctionState: "NEXT_READY",
         isAuctionLocked: false,
         timerMode: "NONE",
         rtmStage: "NONE",
@@ -916,6 +932,7 @@ export const skipCurrentPlayer = async (gameCode: string) => {
         soldPrice: 0,
         soldAt: null,
         soldPlayerId: null,
+        rtmResultMessage: null,
         lastEvent: {
           type: "player-unsold",
           playerId: auction.activePlayerId,
@@ -936,8 +953,9 @@ export const markPlayerReadyForNext = async (gameCode: string, playerId: string)
     if (auction.status !== "SOLD") return;
 
     tx.update(sessionRef, {
-      "currentAuction.auctionState": "READY_NEXT",
+      "currentAuction.auctionState": "NEXT_READY",
       "currentAuction.isAuctionLocked": false,
+      "currentAuction.rtmResultMessage": null,
       "currentAuction.lastEvent": {
         type: "next-player",
         playerId,

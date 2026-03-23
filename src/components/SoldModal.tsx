@@ -31,6 +31,7 @@ export const SoldModal = ({ open, player, teamId, teamName, teamShortName, teamL
               </div>
               <div>
                 <p className="text-2xl font-bold text-white sm:text-3xl">{player?.name || "Player"}</p>
+                <p className="mt-1 text-sm font-semibold uppercase tracking-[0.3em] text-slate-300">Sold to {teamShortName || teamName || "Team"}</p>
                 <p className="mt-1 text-base text-emerald-300 sm:text-lg">{formatPrice(price)}</p>
               </div>
               <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
