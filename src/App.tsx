@@ -2,6 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ThemeProvider } from "next-themes";
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Landing from "./pages/Landing";
@@ -26,30 +27,30 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AdminProvider>
       <GameDataProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AddToHomeScreenButton />
-            <Suspense fallback={<div className="min-h-screen bg-[#020617] flex items-center justify-center text-yellow-400 font-display text-2xl animate-pulse">Loading...</div>}>
-              <Routes>
-                <Route path="/" element={<Landing />} />
-                <Route path="/multiplayer" element={<Multiplayer />} />
-                <Route path="/lobby/:gameCode" element={<Lobby />} />
-                <Route path="/retention/:gameCode" element={<Retention />} />
-                <Route path="/retention-review/:gameCode" element={<RetentionReview />} />
-                <Route path="/auction/:gameCode" element={<Auction />} />
-                <Route path="/leaderboard" element={<Leaderboard />} />
-                <Route path="/feedback" element={<Feedback />} />
-                <Route path="/profile" element={<Profile />} />
-                <Route path="/admin" element={<AdminPage />} />
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </Suspense>
-
-
-          </BrowserRouter>
-        </TooltipProvider>
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AddToHomeScreenButton />
+              <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center text-primary font-display text-2xl animate-pulse">Loading...</div>}>
+                <Routes>
+                  <Route path="/" element={<Landing />} />
+                  <Route path="/multiplayer" element={<Multiplayer />} />
+                  <Route path="/lobby/:gameCode" element={<Lobby />} />
+                  <Route path="/retention/:gameCode" element={<Retention />} />
+                  <Route path="/retention-review/:gameCode" element={<RetentionReview />} />
+                  <Route path="/auction/:gameCode" element={<Auction />} />
+                  <Route path="/leaderboard" element={<Leaderboard />} />
+                  <Route path="/feedback" element={<Feedback />} />
+                  <Route path="/profile" element={<Profile />} />
+                  <Route path="/admin" element={<AdminPage />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Suspense>
+            </BrowserRouter>
+          </TooltipProvider>
+        </ThemeProvider>
       </GameDataProvider>
     </AdminProvider>
   </QueryClientProvider>

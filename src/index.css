@@ -6,36 +6,33 @@
 
 @layer base {
   :root {
-    /* Core Theme */
-    --background: 222 47% 8%;
-    --foreground: 210 40% 98%;
+    --background: 220 33% 97%;
+    --foreground: 220 25% 11%;
 
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 11%;
 
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 11%;
 
-    /* Primary: Gold/Amber for auction energy */
-    --primary: 43 96% 56%;
-    --primary-foreground: 222 47% 8%;
+    --primary: 210 80% 52%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Secondary: Slate blue */
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 220 40% 96%;
+    --secondary-foreground: 220 25% 11%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 220 30% 94%;
+    --muted-foreground: 220 12% 40%;
 
-    --accent: 217 33% 22%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 210 100% 96%;
+    --accent-foreground: 220 25% 11%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
 
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 43 96% 56%;
+    --border: 220 20% 88%;
+    --input: 220 20% 88%;
+    --ring: 210 80% 52%;
 
     --radius: 0.75rem;
 
@@ -52,61 +49,65 @@
     --team-lsg: 210 80% 50%;
 
     /* Custom Effects */
-    --glow-gold: 0 0 30px hsl(43 96% 56% / 0.5);
-    --glow-primary: 0 0 20px hsl(43 96% 56% / 0.3);
-    --gradient-broadcast: linear-gradient(135deg, hsl(222 47% 8%) 0%, hsl(222 47% 14%) 50%, hsl(222 47% 8%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(222 47% 14%) 0%, hsl(222 47% 10%) 100%);
-    --gradient-gold: linear-gradient(135deg, hsl(43 96% 56%) 0%, hsl(35 100% 50%) 100%);
-    --gradient-hero: linear-gradient(180deg, transparent 0%, hsl(222 47% 8% / 0.8) 100%);
+    --glow-gold: 0 0 30px hsl(210 80% 52% / 0.25);
+    --glow-primary: 0 0 20px hsl(210 80% 52% / 0.2);
+    --gradient-broadcast: linear-gradient(135deg, hsl(220 33% 97%) 0%, hsl(210 100% 98%) 50%, hsl(220 33% 97%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(220 30% 96%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(210 80% 52%) 0%, hsl(195 100% 50%) 100%);
+    --gradient-hero: linear-gradient(180deg, transparent 0%, hsl(220 33% 97% / 0.92) 100%);
 
     /* Sidebar */
-    --sidebar-background: 222 47% 10%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 43 96% 56%;
-    --sidebar-primary-foreground: 222 47% 8%;
-    --sidebar-accent: 217 33% 17%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217 33% 20%;
-    --sidebar-ring: 43 96% 56%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 25% 11%;
+    --sidebar-primary: 210 80% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 40% 96%;
+    --sidebar-accent-foreground: 220 25% 11%;
+    --sidebar-border: 220 20% 88%;
+    --sidebar-ring: 210 80% 52%;
   }
 
   .dark {
-    --background: 222 47% 8%;
+    --background: 225 36% 7%;
     --foreground: 210 40% 98%;
-    --card: 222 47% 11%;
+    --card: 223 34% 11%;
     --card-foreground: 210 40% 98%;
-    --popover: 222 47% 11%;
+    --popover: 223 34% 11%;
     --popover-foreground: 210 40% 98%;
-    --primary: 43 96% 56%;
-    --primary-foreground: 222 47% 8%;
-    --secondary: 217 33% 17%;
+    --primary: 195 100% 50%;
+    --primary-foreground: 225 36% 7%;
+    --secondary: 223 24% 14%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
+    --muted: 223 24% 14%;
     --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 22%;
+    --accent: 223 24% 18%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62% 30%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 43 96% 56%;
+    --border: 223 24% 18%;
+    --input: 223 24% 18%;
+    --ring: 195 100% 50%;
+    --glow-gold: 0 0 30px hsl(195 100% 50% / 0.35);
+    --glow-primary: 0 0 20px hsl(195 100% 50% / 0.25);
+    --gradient-broadcast: linear-gradient(135deg, #0b0f1a 0%, #121826 50%, #0b0f1a 100%);
+    --gradient-card: linear-gradient(180deg, #121826 0%, #0f1523 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(195 100% 50%) 0%, hsl(210 80% 52%) 100%);
+    --gradient-hero: linear-gradient(180deg, transparent 0%, hsl(225 36% 7% / 0.85) 100%);
   }
 }
 
 @layer base {
   * {
     @apply border-border;
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow, opacity;
+    transition-duration: 0.3s;
+    transition-timing-function: ease-in-out;
   }
 
   body {
-    @apply text-foreground font-sans antialiased;
+    @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
-    background:
-      radial-gradient(circle at center, #0b1f4d, #020617),
-      url('/stadium.jpg');
-    background-size: cover;
-    background-position: center;
-    background-blend-mode: overlay;
+    background: hsl(var(--background));
   }
 
   h1, h2, h3, .display-text {
@@ -364,4 +365,3 @@
     text-wrap: balance;
   }
 }
-

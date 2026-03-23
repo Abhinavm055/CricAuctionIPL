@@ -26,7 +26,6 @@ import { AIEngine } from "@/engine/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
 import { RTMModal } from "@/components/RTMModal";
 import { BidInputModal } from "@/components/BidInputModal";
-import { BidConfirmModal } from "@/components/BidConfirmModal";
 import { SoldModal } from "@/components/SoldModal";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Header } from "@/components/Header";
@@ -153,8 +152,6 @@ const Auction = () => {
   const [aiThinkingTeamId, setAiThinkingTeamId] = useState<string | null>(null);
   const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
   const [rtmSubmissionLocked, setRtmSubmissionLocked] = useState(false);
-  const [pendingBidAmount, setPendingBidAmount] = useState<number | null>(null);
-  const [bidSubmissionLocked, setBidSubmissionLocked] = useState(false);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -303,12 +300,6 @@ const Auction = () => {
     }
   }, [currentAuction?.currentBid, currentAuction?.currentBidderId, currentAuction?.status, optimisticBid, optimisticBidderId]);
 
-  useEffect(() => {
-    if (currentAuction?.status !== "RUNNING" || currentAuction?.isAuctionLocked) {
-      setPendingBidAmount(null);
-    }
-  }, [currentAuction?.status, currentAuction?.isAuctionLocked, currentAuction?.activePlayerId]);
-
   const aiEngine = useMemo(() => new AIEngine(), []);
   const enrichedPlayers = useMemo(() => enrichPlayersWithDynamicValue(masterPlayerList as any[]), [masterPlayerList]);
   const playerById = useMemo(() => new Map(enrichedPlayers.map((p: any) => [p.id, p])), [enrichedPlayers]);
@@ -364,6 +355,11 @@ const Auction = () => {
     if (!currentPlayer || !currentAuction) return true;
     return Number(currentAuction.currentBid || 0) > Number((currentPlayer as any).basePrice || 0);
   }, [currentPlayer, currentAuction, isAIMode]);
+  const canNextSet = useMemo(() => {
+    if (!isHost || !gameCode) return false;
+    if (pendingRtm || currentAuction?.isAuctionLocked) return false;
+    return !currentAuction?.activePlayerId || ["UNSOLD", "SOLD"].includes(String(currentAuction?.status || ""));
+  }, [isHost, gameCode, pendingRtm, currentAuction?.isAuctionLocked, currentAuction?.activePlayerId, currentAuction?.status]);
 
   const handleSkip = useCallback(async () => {
     if (!gameCode || !isHost) return;
@@ -405,32 +401,17 @@ const Auction = () => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
     if (currentAuction?.isAuctionLocked) return;
     if (!canTeamBid(userTeam, currentPlayer, amount)) return;
-    if (bidSubmissionLocked) return;
 
-    setPendingBidAmount(amount);
-  }, [gameCode, myTeamId, userTeam, currentPlayer, currentAuction?.isAuctionLocked, bidSubmissionLocked]);
-
-  const confirmBid = useCallback(async () => {
-    if (!gameCode || !myTeamId || !userTeam || !currentPlayer || pendingBidAmount === null) return;
-    if (!canTeamBid(userTeam, currentPlayer, pendingBidAmount)) {
-      setPendingBidAmount(null);
-      return;
-    }
-
-    setBidSubmissionLocked(true);
-    setOptimisticBid(pendingBidAmount);
+    setOptimisticBid(amount);
     setOptimisticBidderId(myTeamId);
 
     try {
-      await placeBid(gameCode, myTeamId, pendingBidAmount);
-      setPendingBidAmount(null);
+      await placeBid(gameCode, myTeamId, amount);
     } catch {
       setOptimisticBid(null);
       setOptimisticBidderId(null);
-    } finally {
-      setBidSubmissionLocked(false);
     }
-  }, [gameCode, myTeamId, userTeam, currentPlayer, pendingBidAmount]);
+  }, [gameCode, myTeamId, userTeam, currentPlayer, currentAuction?.isAuctionLocked]);
 
   const handleFinalize = useCallback(async () => {
     if (!gameCode || !isHost) return;
@@ -893,10 +874,12 @@ const Auction = () => {
         gameCode={gameCode!}
         currentSetLabel={`${typeof setProgress.currentSetIndex === "number" && setProgress.currentSetIndex >= 0 ? `Set ${setProgress.currentSetIndex + 1}: ` : ""}${setProgress.activeSetLabel}`}
         onSkip={gameCode && isHost ? handleSkip : undefined}
+        onNextSet={gameCode && canNextSet ? () => loadNextPlayer(gameCode) : undefined}
         onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
         isPaused={currentAuction?.status === "PAUSED"}
         canControl={Boolean(isHost)}
         canSkip={!skipDisabled}
+        canNextSet={canNextSet}
         onMenuClick={() => setTeamDrawerOpen(true)}
         onLeaveGame={async () => {
           if (!gameCode) return;
@@ -1187,14 +1170,6 @@ const Auction = () => {
         retainedPlayers={selectedTeamId ? teamPlayersResolved[selectedTeamId]?.retained || [] : []}
         boughtPlayers={selectedTeamId ? teamPlayersResolved[selectedTeamId]?.bought || [] : []}
         playerPrices={selectedTeamId ? teams.find((t) => t.id === selectedTeamId)?.playerPurchasePrices || {} : {}}
-      />
-
-      <BidConfirmModal
-        open={pendingBidAmount !== null}
-        amount={Number(pendingBidAmount || 0)}
-        disabled={bidSubmissionLocked}
-        onConfirm={confirmBid}
-        onCancel={() => setPendingBidAmount(null)}
       />
 
       {!!pendingRtm && pendingRtm.status !== "AWAIT_WINNER_COUNTER" && rtmNeedsMyDecision && canUseRtm && rtmModalCopy && (
