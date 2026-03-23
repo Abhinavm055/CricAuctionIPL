@@ -87,7 +87,7 @@ export const TEAM_NEEDS_TEMPLATE = {
 
 export const AUCTION_TIMER = 30;
 export const BID_RESET_TIMER = 10;
-export const RTM_TIMER = 20;
+export const RTM_TIMER = 30;
 
 export const formatPrice = (price: number): string => {
   if (price >= 10000000) return `₹${(price / 10000000).toFixed(2)} Cr`;
