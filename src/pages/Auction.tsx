@@ -43,6 +43,18 @@ export interface TeamState {
   isAI: boolean;
 }
 
+interface PendingRtmState {
+  teamId?: string;
+  playerId: string;
+  price?: number;
+  winningTeamId?: string;
+  originalTeamId?: string;
+  finalBid?: number;
+  status?: "AWAIT_ORIGINAL" | "AWAIT_WINNER_COUNTER" | "AWAIT_ORIGINAL_MATCH";
+  counterBid?: number;
+  expiresAt?: { toMillis?: () => number };
+}
+
 const isOverseasPlayer = (player: any) => Boolean(player?.overseas ?? player?.isOverseas);
 
 const normalizeRoleKey = (role: string) => {
@@ -88,9 +100,9 @@ const Auction = () => {
   const [session, setSession] = useState<any>(null);
   const [teams, setTeams] = useState<TeamState[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
+  const [pendingRtm, setPendingRtm] = useState<PendingRtmState | null>(null);
   const [commentary, setCommentary] = useState<string[]>([]);
-  const [banner, setBanner] = useState<{ kind: 'SOLD' | 'UNSOLD'; text: string } | null>(null);
-  const [showHammer, setShowHammer] = useState(false);
+  const [banner, setBanner] = useState<{ kind: 'SOLD' | 'UNSOLD'; price?: number; team?: string } | null>(null);
   const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
   const [nowMs, setNowMs] = useState<number>(Date.now());
 
@@ -103,21 +115,66 @@ const Auction = () => {
   const autoAdvanceKeyRef = useRef<string | null>(null);
   const autoAdvanceTimerRef = useRef<number | null>(null);
   const autoAdvanceHostTimeoutRef = useRef<number | null>(null);
+  const rtmAiDecisionKeyRef = useRef<string | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
+  const spokenMarksRef = useRef<Record<string, Set<number>>>({});
+  const prevTimerEndsAtRef = useRef<number>(0);
+  const prevPendingRtmStatusRef = useRef<string | null>(null);
 
-  const playTone = useCallback((freq: number, duration = 0.12, volume = 0.04) => {
+  const hasSyncedStatsRef = useRef(false);
+
+  const playSound = useCallback((type: 'bid' | 'hammer' | 'tick' | 'cheer' | 'ooh') => {
     try {
       if (!audioRef.current) audioRef.current = new AudioContext();
       const ctx = audioRef.current;
+      const t = ctx.currentTime;
+
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.frequency.value = freq;
-      osc.type = "sine";
-      gain.gain.value = volume;
       osc.connect(gain);
       gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + duration);
+
+      if (type === 'tick') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, t);
+        osc.frequency.exponentialRampToValueAtTime(300, t + 0.1);
+        gain.gain.setValueAtTime(0.3, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+        osc.start(t);
+        osc.stop(t + 0.1);
+      } else if (type === 'bid') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(400, t);
+        osc.frequency.exponentialRampToValueAtTime(100, t + 0.05);
+        gain.gain.setValueAtTime(0.2, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+        osc.start(t);
+        osc.stop(t + 0.05);
+      } else if (type === 'hammer') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(150, t);
+        osc.frequency.exponentialRampToValueAtTime(40, t + 0.2);
+        gain.gain.setValueAtTime(0.5, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+        osc.start(t);
+        osc.stop(t + 0.2);
+      } else if (type === 'cheer') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(220, t);
+        osc.frequency.linearRampToValueAtTime(520, t + 0.35);
+        gain.gain.setValueAtTime(0.12, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.45);
+        osc.start(t);
+        osc.stop(t + 0.45);
+      } else if (type === 'ooh') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(240, t);
+        osc.frequency.exponentialRampToValueAtTime(120, t + 0.5);
+        gain.gain.setValueAtTime(0.15, t);
+        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.5);
+        osc.start(t);
+        osc.stop(t + 0.5);
+      }
     } catch {
       // no-op
     }
@@ -135,6 +192,16 @@ const Auction = () => {
     return () => unsub();
   }, [gameCode]);
 
+
+  useEffect(() => {
+    const tick = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, []);
+
+  useEffect(() => {
+    setPendingRtm((session?.pendingRtm as PendingRtmState) || null);
+  }, [session?.pendingRtm]);
+
   useEffect(() => {
     if (!gameCode) return;
     const unsub = listenTeams(gameCode, (teamDocs) => {
@@ -145,13 +212,20 @@ const Auction = () => {
   }, [gameCode]);
 
   useEffect(() => {
-    if (session && !["AUCTION", "AUCTION_COMPLETE"].includes(session.phase)) navigate(`/lobby/${gameCode}`);
+    if (session && !["AUCTION", "AUCTION_COMPLETE", "ENDED"].includes(session.phase)) navigate(`/lobby/${gameCode}`);
   }, [session, gameCode, navigate]);
 
   const isHost = session?.hostId === userId;
   const queueLength = (session?.auctionQueue || []).length;
   const myTeamId = Object.entries(session?.selectedTeams || {}).find(([_, uid]) => uid === userId)?.[0] as string | undefined;
   const userTeam = teams.find((team) => team.id === myTeamId);
+  const isSpectator = !myTeamId;
+  const auctionModeLabel = session?.mode === "VS_AI" ? "VS AI" : "Multiplayer";
+
+  useEffect(() => {
+    if (!gameCode || !session?.disconnectedPlayers?.[userId]) return;
+    rejoinGame(gameCode, userId).catch(() => undefined);
+  }, [gameCode, userId, session?.disconnectedPlayers]);
 
   const currentAuction = session?.currentAuction;
   const pendingRtm = session?.pendingRtm;
@@ -161,7 +235,13 @@ const Auction = () => {
   const playerById = useMemo(() => new Map(masterPlayerList.map((p: any) => [p.id, p])), [masterPlayerList]);
 
   const currentPlayer = useMemo(() => masterPlayerList.find((p: any) => p.id === currentAuction?.activePlayerId) || null, [masterPlayerList, currentAuction?.activePlayerId]);
-  const currentBidderTeam = teams.find((team) => team.id === currentAuction?.currentBidderId);
+  const displayedCurrentBid = optimisticBid ?? Number(currentAuction?.currentBid || 0);
+  const displayedCurrentBidderId = optimisticBidderId ?? (currentAuction?.currentBidderId || null);
+  const currentBidderTeam = teams.find((team) => team.id === displayedCurrentBidderId);
+
+  const nextBid = getNextBid(displayedCurrentBid || 0);
+  const timerEndsAtMs = currentAuction?.timerEndsAt?.toMillis?.() || 0;
+  const timerSeconds = Math.max(0, Math.floor((timerEndsAtMs - nowMs) / 1000));
 
   const nextBid = getNextBid(currentAuction?.currentBid || 0);
   const timerSeconds = Math.max(0, Math.floor(((currentAuction?.timerEndsAt?.toMillis?.() || nowMs) - nowMs) / 1000));
@@ -180,7 +260,7 @@ const Auction = () => {
   const canTeamBid = useCallback((team: TeamState | undefined, player: Player | null, amount: number) => {
     if (!team || !player) return false;
     if (currentAuction?.status !== "RUNNING") return false;
-    if (currentAuction?.currentBidderId === team.id) return false;
+    if (displayedCurrentBidderId === team.id) return false;
     if (Number(team.purseRemaining || 0) < amount) return false;
     if (Number(team.squadSize || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD) return false;
     if (isOverseasPlayer(player) && Number(team.overseasCount || 0) >= SQUAD_CONSTRAINTS.MAX_OVERSEAS) return false;
@@ -188,9 +268,44 @@ const Auction = () => {
   }, [currentAuction?.status, currentAuction?.currentBidderId]);
 
   const skipDisabled = useMemo(() => {
+    if (isAIMode) return false;
     if (!currentPlayer || !currentAuction) return true;
     return Number(currentAuction.currentBid || 0) > Number((currentPlayer as any).basePrice || 0);
-  }, [currentPlayer, currentAuction]);
+  }, [currentPlayer, currentAuction, isAIMode]);
+
+  const handleSkip = useCallback(async () => {
+    if (!gameCode || !isHost) return;
+
+    if (isAIMode && currentPlayer && currentAuction?.status === "RUNNING") {
+      const result = aiEngine.simulateSkipOutcome(
+        {
+          id: (currentPlayer as any).id,
+          name: (currentPlayer as any).name,
+          role: (currentPlayer as any).role,
+          rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 50),
+          basePrice: Number((currentPlayer as any).basePrice || 0),
+          overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
+          demandLevel: (currentPlayer as any).demandLevel,
+          interestedTeams: (currentPlayer as any).interestedTeams || [],
+        },
+        teams.map((team) => ({
+          id: team.id,
+          isAI: Boolean(team.isAI),
+          squadSize: Number(team.squadSize || 0),
+          purseRemaining: Number(team.purseRemaining || 0),
+          overseasCount: Number(team.overseasCount || 0),
+        })),
+      );
+
+      if (result.sold && result.teamId && Number.isFinite(result.price)) {
+        await placeBid(gameCode, result.teamId, result.price);
+        await resolveAuction(gameCode);
+        return;
+      }
+    }
+
+    await skipCurrentPlayer(gameCode);
+  }, [gameCode, isHost, isAIMode, currentPlayer, currentAuction?.status, teams, aiEngine]);
 
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
@@ -203,6 +318,41 @@ const Auction = () => {
     playTone(220, 0.2, 0.08); // hammer
     await resolveAuction(gameCode);
   }, [gameCode, isHost, playTone]);
+
+  const handleSimulateAiAuction = useCallback(async () => {
+    if (!gameCode || !isHost || session?.mode !== "VS_AI" || !currentPlayer || currentAuction?.status !== "RUNNING") return;
+
+    let simulatedBid = Number(currentAuction.currentBid || 0);
+    let simulatedBidderId = currentAuction.currentBidderId || null;
+
+    for (let i = 0; i < 50; i += 1) {
+      const decision = aiEngine.decideForAuction(
+        teams.map((t) => ({
+          id: t.id,
+          isAI: Boolean(t.isAI),
+          squadSize: Number(t.squadSize || 0),
+          purseRemaining: Number(t.purseRemaining || 0),
+          overseasCount: Number(t.overseasCount || 0),
+          roleNeeds: (t as any).teamNeeds || {},
+        })),
+        {
+          id: (currentPlayer as any).id,
+          role: (currentPlayer as any).role,
+          rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 0),
+          overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
+        },
+        simulatedBid,
+        simulatedBidderId,
+      );
+
+      if (!decision) break;
+      await placeBid(gameCode, decision.teamId, decision.bid);
+      simulatedBid = decision.bid;
+      simulatedBidderId = decision.teamId;
+    }
+
+    await resolveAuction(gameCode);
+  }, [gameCode, isHost, session?.mode, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId, aiEngine, teams]);
 
   useEffect(() => {
     if (!isHost || !gameCode || !currentPlayer) return;
@@ -240,38 +390,56 @@ const Auction = () => {
   }, []);
 
   useEffect(() => {
+    if (!currentAuction?.currentBidderId) return;
+    if (Number(currentAuction.currentBid || 0) === prevBidRef.current) return;
+
+    setGlowingTeamId(currentAuction.currentBidderId);
+    const timeout = window.setTimeout(() => setGlowingTeamId(null), 900);
+    return () => window.clearTimeout(timeout);
+  }, [currentAuction?.currentBid, currentAuction?.currentBidderId]);
+
+  useEffect(() => {
     if (!currentAuction) return;
 
     if (currentAuction.currentBidderId && Number(currentAuction.currentBid || 0) !== prevBidRef.current) {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
-      const line = prevBidderRef.current ? `${team?.shortName || "Team"} raises to ₹${(Number(currentAuction.currentBid) / 10000000).toFixed(2)} Cr` : `${team?.shortName || "Team"} enters the bidding`;
-      setCommentary((prev) => [line, ...prev].slice(0, 8));
-      playTone(880, 0.08, 0.05); // bid sound
+      const previousTeam = teams.find((t) => t.id === prevBidderRef.current);
+      const amount = formatCrPrice(Number(currentAuction.currentBid || 0));
+
+      if (prevBidderRef.current && prevBidderRef.current !== currentAuction.currentBidderId) {
+        setCommentary((prev) => [`${previousTeam?.shortName || "Team"} backs out at ${amount}!`, ...prev].slice(0, 14));
+      }
+
+      const line = prevBidderRef.current
+        ? `${team?.shortName || "Team"} raises bid to ${amount}!`
+        : `${team?.shortName || "Team"} bids ${amount}`;
+      setCommentary((prev) => [line, ...prev].slice(0, 14));
+      playSound('bid');
     }
 
     if (currentAuction.status === "SOLD" && prevStatusRef.current !== "SOLD") {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
-      const text = `SOLD TO ${team?.shortName || "TEAM"} • ₹${(Number(currentAuction.currentBid || 0) / 10000000).toFixed(2)} Cr`;
-      setBanner({ kind: 'SOLD', text });
-      setShowHammer(true);
-      setCommentary((prev) => [text, ...prev].slice(0, 8));
-      setTimeout(() => setShowHammer(false), 1400);
-      setTimeout(() => setBanner(null), 3000);
-      playTone(260, 0.2, 0.08);
+      setBanner({ kind: 'SOLD', price: Number(currentAuction.currentBid || 0), team: team?.shortName || 'TEAM' });
+      setCommentary((prev) => [`${currentPlayer?.name || 'Player'} SOLD to ${team?.shortName || 'TEAM'} for ${formatCrPrice(Number(currentAuction.currentBid || 0))}!`, ...prev].slice(0, 14));
+      setTimeout(() => setBanner(null), 2000);
+      playSound('hammer');
+      playSound('cheer');
+      speakLine(`Sold to ${team?.shortName || 'Team'}`);
     }
 
     if (currentAuction.status === "UNSOLD" && prevStatusRef.current !== "UNSOLD") {
-      const text = `UNSOLD • ${currentPlayer?.name || "Player"}`;
-      setBanner({ kind: 'UNSOLD', text });
-      setCommentary((prev) => [text, ...prev].slice(0, 8));
-      setTimeout(() => setBanner(null), 2500);
-      playTone(180, 0.22, 0.07);
+      setBanner({ kind: 'UNSOLD' });
+      setCommentary((prev) => [`${currentPlayer?.name || "Player"} goes UNSOLD.`, ...prev].slice(0, 14));
+      setTimeout(() => setBanner(null), 2000);
+      playSound('hammer');
+      playSound('ooh');
+      speakLine('Unsold');
     }
 
     prevBidRef.current = Number(currentAuction.currentBid || 0);
     prevBidderRef.current = currentAuction.currentBidderId || null;
     prevStatusRef.current = currentAuction.status || "IDLE";
-  }, [currentAuction, teams, currentPlayer, playTone]);
+  }, [currentAuction, teams, currentPlayer, playSound, speakLine]);
 
   useEffect(() => {
     if (!currentAuction) return;
@@ -319,10 +487,15 @@ const Auction = () => {
   }, [isHost, gameCode, currentAuction, session?.pendingRtm]);
 
   useEffect(() => {
-    if (timerSeconds === 5) playTone(500, 0.05, 0.03);
-    if (timerSeconds === 3) playTone(900, 0.08, 0.05);
-    if (timerSeconds === 0 && currentAuction?.status === "RUNNING") playTone(220, 0.2, 0.08);
-  }, [timerSeconds, currentAuction?.status, playTone]);
+    if (!isHost || !gameCode || !session?.pendingRtm?.expiresAt) return;
+
+    const ms = Math.max(0, session.pendingRtm.expiresAt.toMillis() - Date.now());
+    const timeout = window.setTimeout(() => {
+      resolveRtmTimeout(gameCode).catch(() => undefined);
+    }, ms + 100);
+
+    return () => window.clearTimeout(timeout);
+  }, [isHost, gameCode, session?.pendingRtm?.status, session?.pendingRtm?.expiresAt]);
 
   useEffect(() => {
     if (!isHost || !gameCode) return;
@@ -347,10 +520,78 @@ const Auction = () => {
   const rtmPlayer = masterPlayerList.find((p: any) => p.id === pendingRtm?.playerId) || null;
   const rtmOriginalTeam = teams.find((t) => t.id === pendingRtm?.originalTeamId);
   const rtmWinningTeam = teams.find((t) => t.id === pendingRtm?.winningTeamId);
+  const rtmControllerTeamId = pendingRtm?.status === "AWAIT_WINNER_COUNTER" ? pendingRtm?.winningTeamId : pendingRtm?.originalTeamId;
+  const rtmControllerTeam = teams.find((t) => t.id === rtmControllerTeamId);
+  const canUseRtm = pendingRtm?.originalTeamId === myTeamId;
+  const rtmNeedsMyDecision = Boolean(pendingRtm && rtmControllerTeamId === myTeamId && !rtmControllerTeam?.isAI);
+
+  useEffect(() => {
+    if (!pendingRtm?.status) {
+      prevPendingRtmStatusRef.current = null;
+      return;
+    }
+
+    if (prevPendingRtmStatusRef.current === pendingRtm.status) return;
+
+    if (pendingRtm.status === 'AWAIT_ORIGINAL') {
+      setCommentary((prev) => [`${rtmOriginalTeam?.shortName || 'Original Team'} can use RTM now.`, ...prev].slice(0, 14));
+    }
+
+    if (pendingRtm.status === 'AWAIT_WINNER_COUNTER') {
+      setCommentary((prev) => [`${rtmOriginalTeam?.shortName || 'Original Team'} uses RTM! ${rtmWinningTeam?.shortName || 'Bid Team'} can counter.`, ...prev].slice(0, 14));
+    }
+
+    if (pendingRtm.status === 'AWAIT_ORIGINAL_MATCH') {
+      const counterAmount = formatCrPrice(Number(pendingRtm.counterBid || pendingRtm.finalBid || 0));
+      setCommentary((prev) => [`${rtmWinningTeam?.shortName || 'Bid Team'} raises counter bid to ${counterAmount}.`, ...prev].slice(0, 14));
+    }
+
+    prevPendingRtmStatusRef.current = pendingRtm.status;
+  }, [pendingRtm?.status, pendingRtm?.counterBid, pendingRtm?.finalBid, rtmOriginalTeam?.shortName, rtmWinningTeam?.shortName]);
+
+  useEffect(() => {
+    if (!gameCode || !pendingRtm || !rtmControllerTeam?.isAI || !rtmControllerTeamId) return;
+
+    const key = `${pendingRtm.playerId}-${pendingRtm.status}-${pendingRtm.finalBid}-${pendingRtm.counterBid}`;
+    if (rtmAiDecisionKeyRef.current === key) return;
+    rtmAiDecisionKeyRef.current = key;
+
+    const timer = window.setTimeout(() => {
+      (async () => {
+      if (pendingRtm.status === "AWAIT_ORIGINAL") {
+        const pSnap = await getDoc(doc(db, "players", pendingRtm.playerId));
+        const rating = Number(pSnap.data()?.rating ?? pSnap.data()?.starRating ?? 0);
+        const tSnap = await getDoc(doc(db, "sessions", gameCode, "teams", pendingRtm.originalTeamId!));
+        const tPurse = Number(tSnap.data()?.purseRemaining || 0);
+
+        const shouldUse = rating >= 4 && tPurse >= Number(pendingRtm.finalBid || 0);
+        resolveRtmDecision(gameCode, { action: shouldUse ? "USE" : "DECLINE", actingTeamId: pendingRtm.originalTeamId! }).catch(() => undefined);
+        return;
+      }
+
+      if (pendingRtm.status === "AWAIT_WINNER_COUNTER") {
+        const shouldCounter = Math.random() > 0.45;
+        resolveRtmDecision(gameCode, {
+          action: shouldCounter ? "COUNTER" : "DECLINE",
+          actingTeamId: pendingRtm.winningTeamId!,
+          counterBid: Number(pendingRtm.counterBid || pendingRtm.finalBid || 0),
+        }).catch(() => undefined);
+        return;
+      }
+
+      if (pendingRtm.status === "AWAIT_ORIGINAL_MATCH") {
+        const shouldMatch = Math.random() > 0.5;
+        resolveRtmDecision(gameCode, { action: shouldMatch ? "MATCH" : "DECLINE", actingTeamId: pendingRtm.originalTeamId! }).catch(() => undefined);
+      }
+      })().catch(() => undefined);
+    }, 1200 + Math.floor(Math.random() * 1200));
+
+    return () => window.clearTimeout(timer);
+  }, [gameCode, pendingRtm, rtmControllerTeam?.isAI, rtmControllerTeamId]);
 
   const recentPurchases = useMemo(() => {
     const purchases = (session?.recentPurchases || []) as Array<{ playerId: string; price: number; teamId: string }>;
-    return purchases.slice(0, 5);
+    return purchases;
   }, [session?.recentPurchases]);
 
   const commentaryTicker = useMemo(() => {
@@ -379,7 +620,7 @@ const Auction = () => {
 
   const auctionEnded = (session?.phase === "AUCTION_COMPLETE") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
 
-  if (!session || !userTeam) return <p className="p-6">Loading auction…</p>;
+  if (!session || (myTeamId && !userTeam)) return <p className="p-6">Loading auction…</p>;
 
   return (
     <div className="h-screen broadcast-container flex flex-col overflow-hidden">
@@ -391,12 +632,47 @@ const Auction = () => {
         totalPlayers={queueLength}
       />
 
-      <HammerSoldEffect open={showHammer} text={banner?.kind === "SOLD" ? banner.text : ""} />
+      <Sheet open={teamDrawerOpen} onOpenChange={setTeamDrawerOpen}>
+        <SheetContent side="left" className="w-[88vw] max-w-sm bg-[#071a3a] border-yellow-500/40 p-3">
+          <TeamGrid
+            teams={teams.map((team) => ({
+              id: team.id,
+              shortName: team.shortName,
+              name: team.name,
+              logo: team.logo,
+              purseRemaining: Number(team.purseRemaining || 0),
+              squadSize: Number(team.squadSize || 0),
+              rtmCards: Number(team.rtmCards || 0),
+            }))}
+            myTeamId={myTeamId}
+            currentBidderId={currentAuction?.currentBidderId}
+            glowingTeamId={glowingTeamId}
+            onSelectTeam={(teamId) => {
+              setSelectedTeamId(teamId);
+              setTeamDrawerOpen(false);
+            }}
+          />
+        </SheetContent>
+      </Sheet>
 
       {banner && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center pointer-events-none ${banner.kind === 'SOLD' ? 'bg-yellow-500/20' : 'bg-red-500/20'} animate-pulse`}>
-          <div className={`px-8 py-6 rounded-2xl text-3xl font-display shadow-2xl ${banner.kind === 'SOLD' ? 'bg-yellow-500 text-black' : 'bg-red-600 text-white'} `}>
-            {banner.kind}: {banner.text}
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none px-4">
+          <div className="relative">
+            <div className="absolute -top-14 left-1/2 -translate-x-1/2 text-4xl md:text-5xl animate-[hammerDrop_0.45s_ease-out]">🔨</div>
+            <div className="absolute inset-0 rounded-2xl border-2 border-white/20 animate-[hammerImpact_0.45s_ease-out]" />
+            <div
+              className={`min-w-[260px] rounded-2xl border px-7 py-5 text-center shadow-2xl animate-[resultPop_0.35s_ease-out] ${banner.kind === 'SOLD' ? 'border-green-500 text-green-400 bg-green-900/30 shadow-[0_0_30px_rgba(34,197,94,0.35)]' : 'border-red-500 text-red-400 bg-red-900/30 shadow-[0_0_30px_rgba(248,113,113,0.35)]'}`}
+            >
+              <p className="text-3xl md:text-4xl font-display">{banner.kind}</p>
+              {banner.kind === 'SOLD' ? (
+                <>
+                  <p className="text-lg md:text-2xl font-semibold mt-2">{formatCrPrice(Number(banner.price || 0))}</p>
+                  <p className="text-xl md:text-3xl font-display mt-1">{banner.team}</p>
+                </>
+              ) : (
+                <p className="text-base mt-2">Player UNSOLD</p>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -451,6 +727,8 @@ const Auction = () => {
               {commentaryTicker} &nbsp; • &nbsp; {commentaryTicker}
             </div>
           </div>
+        </div>
+      )}
 
           <main className="flex-1 overflow-hidden p-4 md:p-5">
             <div className="grid h-full grid-cols-[3fr_5fr_2fr] gap-4">
@@ -527,6 +805,13 @@ const Auction = () => {
         playerPrices={selectedTeamId ? teams.find((t) => t.id === selectedTeamId)?.playerPurchasePrices || {} : {}}
       />
 
+      <RemainingPlayersPanel
+        open={showRemainingPlayers}
+        onOpenChange={setShowRemainingPlayers}
+        upcomingPlayers={upcomingPlayers}
+        unsoldPlayers={unsoldPlayersResolved}
+      />
+
       {!!pendingRtm && isHost && (
         <RTMModal
           open={true}
@@ -538,19 +823,28 @@ const Auction = () => {
           countdownSeconds={Math.max(0, Math.ceil(((pendingRtm?.expiresAt?.toMillis?.() || nowMs) - nowMs) / 1000))}
           onPrimary={() => {
             const actionByStage: Record<string, any> = {
-              AWAIT_ORIGINAL: "ORIGINAL_YES",
-              AWAIT_WINNER_COUNTER: "WINNER_COUNTER_YES",
-              AWAIT_ORIGINAL_MATCH: "ORIGINAL_MATCH_YES",
+              AWAIT_ORIGINAL: "USE",
+              AWAIT_WINNER_COUNTER: "COUNTER",
+              AWAIT_ORIGINAL_MATCH: "MATCH",
             };
-            resolveRtmDecision(gameCode!, actionByStage[pendingRtm.status]);
+            if (pendingRtm.status === "AWAIT_WINNER_COUNTER") {
+              const defaultValue = Number(pendingRtm.counterBid || 0);
+              const input = window.prompt("Enter counter bid", String(defaultValue));
+              if (!input) return;
+              const parsed = Number(input);
+              if (!Number.isFinite(parsed) || parsed < defaultValue) return;
+              resolveRtmDecision(gameCode!, { action: actionByStage[pendingRtm.status], actingTeamId: myTeamId!, counterBid: parsed });
+              return;
+            }
+            resolveRtmDecision(gameCode!, { action: actionByStage[pendingRtm.status], actingTeamId: myTeamId! });
           }}
           onSecondary={() => {
             const actionByStage: Record<string, any> = {
-              AWAIT_ORIGINAL: "ORIGINAL_NO",
-              AWAIT_WINNER_COUNTER: "WINNER_COUNTER_NO",
-              AWAIT_ORIGINAL_MATCH: "ORIGINAL_MATCH_NO",
+              AWAIT_ORIGINAL: "DECLINE",
+              AWAIT_WINNER_COUNTER: "DECLINE",
+              AWAIT_ORIGINAL_MATCH: "DECLINE",
             };
-            resolveRtmDecision(gameCode!, actionByStage[pendingRtm.status]);
+            resolveRtmDecision(gameCode!, { action: actionByStage[pendingRtm.status], actingTeamId: myTeamId! });
           }}
         />
       )}

@@ -78,9 +78,9 @@ export const SQUAD_CONSTRAINTS = {
 export const AI_STRATEGIES = ['aggressive', 'balanced', 'budget', 'starHunter', 'roleFocused'] as const;
 
 export const TEAM_NEEDS_TEMPLATE = {
-  batter: 6,
-  bowler: 6,
-  allRounder: 4,
+  batter: 5,
+  bowler: 5,
+  allRounder: 3,
   wicketkeeper: 2,
 } as const;
 

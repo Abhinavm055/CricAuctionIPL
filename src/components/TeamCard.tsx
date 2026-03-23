@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { formatPrice, SQUAD_CONSTRAINTS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { TeamLogo } from './TeamLogo';
@@ -68,3 +69,5 @@ export const TeamCard = ({
     </button>
   );
 };
+
+export const TeamCard = memo(TeamCardComponent);

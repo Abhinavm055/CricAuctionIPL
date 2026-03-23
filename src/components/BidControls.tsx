@@ -1,3 +1,4 @@
+import { memo, useCallback, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { formatPrice, getNextBid } from '@/lib/constants';
 
@@ -19,7 +20,9 @@ interface BidControlsProps {
   recentPurchases?: RecentPurchase[];
 }
 
-export const BidControls = ({
+const BID_COOLDOWN_MS = 250;
+
+const BidControlsComponent = ({
   currentBid,
   purseRemaining,
   canBid,
@@ -30,6 +33,9 @@ export const BidControls = ({
   isPaused,
   recentPurchases = [],
 }: BidControlsProps) => {
+  const [isBidClicked, setIsBidClicked] = useState(false);
+  const [showUpcoming, setShowUpcoming] = useState(false);
+  const lastClickRef = useRef(0);
   const nextBid = getNextBid(currentBid);
 
   return (
@@ -65,3 +71,5 @@ export const BidControls = ({
     </div>
   );
 };
+
+export const BidControls = memo(BidControlsComponent);

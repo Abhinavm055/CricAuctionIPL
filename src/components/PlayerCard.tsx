@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { Player } from '@/lib/samplePlayers';
 import { formatPrice } from '@/lib/constants';
 import { User } from 'lucide-react';
@@ -81,6 +82,8 @@ export const PlayerCard = ({ player, currentBid, currentBidderId, currentBidderN
             <TeamLogo teamId={currentBidderId || null} shortName={currentBidderName || 'BID'} className="w-[50px] h-[50px] rounded-full" />
           </div>
         </div>
+
+        <p className="text-xs mt-3 text-yellow-100/85">Base Price {formatPrice(player.basePrice)}</p>
       </div>
     </div>
   );
