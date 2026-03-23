@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { collection, onSnapshot, setDoc, doc } from 'firebase/firestore';
+import { collection, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { IPL_TEAMS } from '@/lib/constants';
 import { EditablePlayer } from '@/components/PlayerForm';
 import { PlayersManager } from '@/components/PlayersManager';
-import { TeamsManager } from '@/components/TeamsManager';
+import AdminTeamsPage from './AdminTeamsPage';
 
 interface TeamRecord {
   id: string;
@@ -15,10 +15,6 @@ interface TeamRecord {
   logo?: string;
   players?: string[];
 }
-
-const defaultPlayerImage = (name: string) =>
-  `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'IPL Player')}&background=0f172a&color=ffffff&size=256`;
-
 
 const teamIdByShortName = IPL_TEAMS.reduce<Record<string, string>>((acc, team) => {
   acc[team.shortName.toLowerCase()] = team.id;
@@ -59,16 +55,12 @@ const AdminPage = () => {
           image: String(raw.image || raw.imageUrl || ''),
           pool: String(raw.pool || 'Batters'),
           previousTeamId: teamId,
+          nationality: String(raw.nationality || ''),
+          isCapped: Boolean(raw.isCapped ?? false),
         } as EditablePlayer;
       }).filter((player) => player.name);
 
       setPlayers(mapped);
-
-      mapped.forEach((player) => {
-        if (!player.image) {
-          setDoc(doc(db, 'players', player.id!), { image: defaultPlayerImage(player.name) }, { merge: true });
-        }
-      });
     });
 
     const unsubTeams = onSnapshot(collection(db, 'teams'), (snap) => {
@@ -135,7 +127,7 @@ const AdminPage = () => {
 
         <section className="border rounded-xl p-4 bg-card">
           {tab === 'players' && <PlayersManager players={players} teams={teams} globalSearch={globalSearch} />}
-          {tab === 'teams' && <TeamsManager players={players} teams={teams} globalSearch={globalSearch} />}
+          {tab === 'teams' && <AdminTeamsPage players={players} teams={teams} />}
         </section>
       </div>
     </div>
