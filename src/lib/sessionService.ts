@@ -98,7 +98,7 @@ const DEFAULT_AUCTION_STATE = {
   currentBidderId: null,
   timerEndsAt: null,
   status: "IDLE",
-  auctionState: "READY_NEXT",
+  auctionState: "NEXT_READY",
   isAuctionLocked: false,
   timerMode: "NONE",
   rtmStage: "NONE",
@@ -618,7 +618,7 @@ export const resolveAuction = async (gameCode: string) => {
           currentBidderId: null,
           timerEndsAt: null,
           status: "UNSOLD",
-          auctionState: "READY_NEXT",
+          auctionState: "NEXT_READY",
           isAuctionLocked: false,
           timerMode: "NONE",
           rtmStage: "NONE",
@@ -816,10 +816,11 @@ export const resolveRtmDecision = async (
           soldAt: Timestamp.fromMillis(Date.now()),
           soldPlayerId: pending.playerId,
           lastEvent: {
-            type: "player-sold",
+            type: "rtm-result",
             playerId: pending.playerId,
             teamId: result.winnerTeamId,
             price: Number(result.finalBid),
+            rtmResultMessage,
             createdAt: Timestamp.fromMillis(Date.now()),
           },
         },
@@ -855,7 +856,7 @@ export const resolveRtmDecision = async (
       "currentAuction.rtmExpiresAt": Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
       "currentAuction.rtmResultMessage": next.nextStage === "COUNTER_BID" ? `${originalTeamShortName} used RTM` : null,
       "currentAuction.lastEvent": {
-        type: next.nextStage === "COUNTER_BID" ? "rtm-decision" : "rtm-new-bid",
+        type: next.nextStage === "COUNTER_BID" ? "rtm-bid-input" : "rtm-final-decision",
         stage: next.nextStage === "COUNTER_BID" ? "RTM_STEP_2" : "RTM_FINAL",
         playerId: pending.playerId,
         originalTeamId: pending.originalTeamId,
@@ -917,7 +918,7 @@ export const skipCurrentPlayer = async (gameCode: string) => {
         currentBidderId: null,
         timerEndsAt: null,
         status: "UNSOLD",
-        auctionState: "READY_NEXT",
+        auctionState: "NEXT_READY",
         isAuctionLocked: false,
         timerMode: "NONE",
         rtmStage: "NONE",
@@ -952,7 +953,7 @@ export const markPlayerReadyForNext = async (gameCode: string, playerId: string)
     if (auction.status !== "SOLD") return;
 
     tx.update(sessionRef, {
-      "currentAuction.auctionState": "READY_NEXT",
+      "currentAuction.auctionState": "NEXT_READY",
       "currentAuction.isAuctionLocked": false,
       "currentAuction.rtmResultMessage": null,
       "currentAuction.lastEvent": {

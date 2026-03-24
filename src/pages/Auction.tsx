@@ -705,7 +705,7 @@ const Auction = () => {
         resolveRtmDecision(gameCode, { action: shouldMatch ? "MATCH" : "DECLINE", actingTeamId: pendingRtm.originalTeamId! }).catch(() => undefined);
       }
       })().catch(() => undefined);
-    }, 5000 + Math.floor(Math.random() * 3000));
+    }, 5000 + Math.floor(Math.random() * 5000));
 
     return () => window.clearTimeout(timer);
   }, [isHost, gameCode, pendingRtm, rtmControllerTeam?.isAI, rtmControllerTeamId, aiEngine, rtmPlayer, rtmControllerTeam?.purseRemaining, rtmWinningTeam?.squadSize, rtmWinningTeam?.purseRemaining, rtmWinningTeam?.overseasCount]);

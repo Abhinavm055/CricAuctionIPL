@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { formatPrice, getNextBid } from '@/lib/constants';
+import { BidConfirmModal } from './BidConfirmModal';
 
 interface RecentPurchase {
   playerName: string;
@@ -29,6 +30,7 @@ const BidControlsComponent = ({
 }: BidControlsProps) => {
   const [isBidPending, setIsBidPending] = useState(false);
   const [showUpcoming, setShowUpcoming] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const lastClickRef = useRef(0);
   const nextBid = getNextBid(currentBid);
 
@@ -40,12 +42,25 @@ const BidControlsComponent = ({
     const now = Date.now();
     if (now - lastClickRef.current < BID_COOLDOWN_MS || !canBid || isBidPending) return;
     lastClickRef.current = now;
+    setShowConfirm(true);
+  }, [canBid, isBidPending]);
+
+  const handleConfirmBid = useCallback(() => {
+    if (!canBid || isBidPending) return;
+    setShowConfirm(false);
     setIsBidPending(true);
     onBid(nextBid);
   }, [canBid, isBidPending, onBid, nextBid]);
 
   return (
     <div className="h-full overflow-y-auto rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 space-y-4">
+      <BidConfirmModal
+        open={showConfirm}
+        amount={nextBid}
+        disabled={isBidPending}
+        onCancel={() => setShowConfirm(false)}
+        onConfirm={handleConfirmBid}
+      />
       <div>
         <p className="mb-2 text-xs uppercase tracking-widest text-[hsl(var(--primary))]">Single Bid</p>
         <Button
