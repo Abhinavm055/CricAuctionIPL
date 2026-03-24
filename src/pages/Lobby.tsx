@@ -106,7 +106,6 @@ const Lobby = () => {
     return <div className="min-h-screen flex items-center justify-center"><p className="animate-pulse font-display text-xl">Loading Lobby...</p></div>;
   }
 
-  const isHost = session?.hostId === userId;
   const isVsAI = session.mode === 'VS_AI';
   const selectedTeams = session.selectedTeams || {};
   const managerNames = session.managerNames || {};

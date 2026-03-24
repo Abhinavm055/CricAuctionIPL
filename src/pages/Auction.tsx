@@ -18,6 +18,8 @@ import {
   togglePauseAuction,
   startAcceleratedRound,
   skipAcceleratedRound,
+  leaveGame,
+  rejoinGame,
 } from "@/lib/sessionService";
 import { AIEngine } from "@/engine/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
@@ -274,9 +276,19 @@ const Auction = () => {
   const nextBid = getNextBid(displayedCurrentBid || 0);
   const timerEndsAtMs = currentAuction?.timerEndsAt?.toMillis?.() || 0;
   const timerSeconds = Math.max(0, Math.floor((timerEndsAtMs - nowMs) / 1000));
-
-  const nextBid = getNextBid(currentAuction?.currentBid || 0);
-  const timerSeconds = Math.max(0, Math.floor(((currentAuction?.timerEndsAt?.toMillis?.() || nowMs) - nowMs) / 1000));
+  const formatCrPrice = useCallback((amount: number) => `₹${(Number(amount || 0) / 10000000).toFixed(2)} Cr`, []);
+  const speakLine = useCallback((line: string) => {
+    if (!line || typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    try {
+      const utterance = new SpeechSynthesisUtterance(line);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    } catch {
+      // no-op
+    }
+  }, []);
 
   const teamPlayersResolved = useMemo(() => {
     const lookup = new Map(enrichedPlayers.map((p: any) => [p.id, p]));
@@ -375,9 +387,9 @@ const Auction = () => {
 
   const handleFinalize = useCallback(async () => {
     if (!gameCode || !isHost) return;
-    playTone(220, 0.2, 0.08); // hammer
+    playSound("hammer");
     await resolveAuction(gameCode);
-  }, [gameCode, isHost, playTone]);
+  }, [gameCode, isHost, playSound]);
 
   const handleSimulateAiAuction = useCallback(async () => {
     if (!gameCode || !isHost || session?.mode !== "VS_AI" || !currentPlayer || currentAuction?.status !== "RUNNING") return;
@@ -514,9 +526,7 @@ const Auction = () => {
     autoAdvanceKeyRef.current = key;
     if (autoAdvanceHostTimeoutRef.current) window.clearTimeout(autoAdvanceHostTimeoutRef.current);
 
-    const delayMs = currentAuction.status === 'SOLD'
-      ? (currentAuction?.rtmResultMessage ? 5000 : 3000)
-      : 2000;
+    const delayMs = currentAuction.status === 'SOLD' ? 5000 : 2000;
 
     autoAdvanceHostTimeoutRef.current = window.setTimeout(async () => {
       if (autoAdvanceKeyRef.current !== key) return;
@@ -596,8 +606,7 @@ const Auction = () => {
   const showSoldModal = Boolean(
     currentAuction?.status === "SOLD"
       && soldAtMs
-      && soldElapsedMs >= (currentAuction?.rtmResultMessage ? 2000 : 0)
-      && soldElapsedMs < (currentAuction?.rtmResultMessage ? 5000 : 3000),
+      && soldElapsedMs < 5000,
   );
 
   useEffect(() => {
@@ -791,9 +800,9 @@ const Auction = () => {
 
   return (
     <div className="h-screen broadcast-container flex flex-col overflow-hidden">
-      <Header
+        <Header
         gameCode={gameCode!}
-        currentSetLabel={`${typeof setProgress.currentSetIndex === "number" && setProgress.currentSetIndex >= 0 ? `Set ${setProgress.currentSetIndex + 1}: ` : ""}${setProgress.activeSetLabel}`}
+        currentSetLabel={session?.isAcceleratedRound ? "Accelerated Round" : "Main Auction"}
         onSkip={gameCode && isHost ? handleSkip : undefined}
         onNextSet={gameCode && canNextSet ? () => loadNextPlayer(gameCode) : undefined}
         onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
@@ -851,7 +860,6 @@ const Auction = () => {
               )}
             </div>
           </div>
-        </div>
       )}
 
       {showRtmResultBanner && (
@@ -1039,7 +1047,7 @@ const Auction = () => {
                       price: p.price,
                     };
                   })}
-                  upcomingPlayers={remainingSetPlayers}
+                  upcomingPlayers={upcomingPlayers}
                 />
               </div>
             </div>
