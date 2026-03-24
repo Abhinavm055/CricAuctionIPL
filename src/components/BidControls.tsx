@@ -1,7 +1,6 @@
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from './ui/button';
 import { formatPrice, getNextBid } from '@/lib/constants';
-import { BidConfirmModal } from './BidConfirmModal';
 
 interface RecentPurchase {
   playerName: string;
@@ -30,37 +29,28 @@ const BidControlsComponent = ({
 }: BidControlsProps) => {
   const [isBidPending, setIsBidPending] = useState(false);
   const [showUpcoming, setShowUpcoming] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const lastClickRef = useRef(0);
+  const pendingTimeoutRef = useRef<number | null>(null);
   const nextBid = getNextBid(currentBid);
 
   useEffect(() => {
-    if (canBid) setIsBidPending(false);
-  }, [canBid, currentBid]);
+    return () => {
+      if (pendingTimeoutRef.current) window.clearTimeout(pendingTimeoutRef.current);
+    };
+  }, []);
 
   const handleBidClick = useCallback(() => {
     const now = Date.now();
     if (now - lastClickRef.current < BID_COOLDOWN_MS || !canBid || isBidPending) return;
     lastClickRef.current = now;
-    setShowConfirm(true);
-  }, [canBid, isBidPending]);
-
-  const handleConfirmBid = useCallback(() => {
-    if (!canBid || isBidPending) return;
-    setShowConfirm(false);
     setIsBidPending(true);
     onBid(nextBid);
+    if (pendingTimeoutRef.current) window.clearTimeout(pendingTimeoutRef.current);
+    pendingTimeoutRef.current = window.setTimeout(() => setIsBidPending(false), 1500);
   }, [canBid, isBidPending, onBid, nextBid]);
 
   return (
     <div className="h-full overflow-y-auto rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--card))] p-3 space-y-4">
-      <BidConfirmModal
-        open={showConfirm}
-        amount={nextBid}
-        disabled={isBidPending}
-        onCancel={() => setShowConfirm(false)}
-        onConfirm={handleConfirmBid}
-      />
       <div>
         <p className="mb-2 text-xs uppercase tracking-widest text-[hsl(var(--primary))]">Single Bid</p>
         <Button
@@ -68,9 +58,8 @@ const BidControlsComponent = ({
           onClick={handleBidClick}
           disabled={!canBid || isBidPending}
         >
-          {isBidPending ? 'Bidding...' : 'BID'}
+          {isBidPending ? 'Bidding...' : formatPrice(nextBid)}
         </Button>
-        <p className="mt-2 text-center text-xs text-[hsl(var(--muted-foreground))]">Next bid: {formatPrice(nextBid)}</p>
       </div>
 
       <div>
