@@ -62,24 +62,6 @@ const Lobby = () => {
   }, []);
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async (user) => {
-      setAuthUid(user?.uid || null);
-      if (user) {
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        const saved = String(snap.data()?.managerName || '').trim();
-        const fallbackName = user.displayName || user.email?.split('@')[0] || '';
-        const nameToSet = saved || fallbackName;
-        
-        if (nameToSet) {
-          setManagerName(nameToSet);
-          localStorage.setItem('managerName', nameToSet);
-        }
-      }
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
     if (!gameCode) return;
     const unsub = listenSession(gameCode, (data) => setSession(data));
     return () => unsub();
@@ -90,6 +72,35 @@ const Lobby = () => {
     if (session?.phase === 'RETENTION') navigate(`/retention/${gameCode}`);
     if (session?.phase === 'ENDED') navigate(`/auction/${gameCode}`);
   }, [session?.phase, gameCode, navigate]);
+
+  const isHost = session?.hostId === userId;
+
+  useEffect(() => {
+    if (!session?.hostId) return;
+    console.log('hostId:', session.hostId);
+    console.log('userId:', userId);
+  }, [session?.hostId, userId]);
+
+  useEffect(() => {
+    if (!isHost || !session || !gameCode) return;
+    if (session.isAIFilled) return;
+
+    const selectedTeams = session.selectedTeams || {};
+    const humanSelected = Object.values(selectedTeams).some((uid: string) => !uid.startsWith('AI-'));
+    if (!humanSelected) return;
+
+    const fillRemainingTeams = async () => {
+      const takenTeamIds = Object.keys(selectedTeams);
+      const remainingTeams = IPL_TEAMS.filter((team) => !takenTeamIds.includes(team.id));
+
+      for (const team of remainingTeams) {
+        await selectTeam(gameCode, team.id, `AI-${team.id}`);
+      }
+      await fillAITeams(gameCode);
+    };
+
+    fillRemainingTeams().catch((error) => console.error('AI Fill failed:', error));
+  }, [isHost, session, gameCode]);
 
   if (!session) {
     return <div className="min-h-screen flex items-center justify-center"><p className="animate-pulse font-display text-xl">Loading Lobby...</p></div>;
@@ -251,7 +262,42 @@ const Lobby = () => {
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-          {IPL_TEAMS.map((team, index) => renderTeamCard(team, index, false))}
+          {IPL_TEAMS.map((team) => {
+            const takenBy = selectedTeams[team.id];
+            const isTaken = !!takenBy;
+            const isMine = myConfirmedTeam === team.id;
+            const isDraft = draftTeam === team.id;
+            const isAI = String(takenBy || '').startsWith('AI-');
+
+            return (
+              <button
+                key={team.id}
+                disabled={!!myConfirmedTeam || (isTaken && !isMine)}
+                onClick={() => setDraftTeam(team.id)}
+                className={cn(
+                  'relative p-4 rounded-xl border-2 transition-all duration-300 text-left h-32 flex flex-col justify-between overflow-hidden',
+                  'bg-card/40 backdrop-blur-sm border-white/5',
+                  isDraft && !myConfirmedTeam && 'border-yellow-500 bg-yellow-500/10',
+                  isMine && 'border-primary bg-primary/10',
+                  isTaken && !isMine && 'opacity-50 cursor-not-allowed grayscale',
+                )}
+              >
+                <div>
+                  <TeamLogo teamId={team.id} logo={(team as any).logo} shortName={team.shortName} size="md" className="mb-2" />
+                  <div className="font-display text-xl leading-none mb-1">{team.shortName}</div>
+                  <div className="text-[10px] uppercase text-muted-foreground font-medium truncate">{team.name}</div>
+                </div>
+
+                {isMine && (
+                  <div className="flex items-center gap-1 text-primary text-[10px] font-bold">
+                    <ShieldCheck className="w-3 h-3" /> SECURED
+                  </div>
+                )}
+                {isAI && <div className="text-[10px] font-bold text-muted-foreground italic">AI BOT</div>}
+                {isTaken && !isMine && !isAI && <div className="text-[10px] font-bold text-red-500">OCCUPIED</div>}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex flex-col items-center gap-5 py-8 border-t border-white/5">
@@ -259,8 +305,11 @@ const Lobby = () => {
             <Button variant="gold" size="xl" className="px-12" onClick={handleConfirmTeam} disabled={isSubmitting}>{isSubmitting ? 'Locking...' : `Confirm ${draftTeam.toUpperCase()}`}</Button>
           )}
           {isHost && (
-            <Button variant="gold" size="xl" disabled={!canStartRetention} onClick={() => startRetention(gameCode!)} className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-semibold hover:scale-105 hover:shadow-[0_0_20px_rgba(251,191,36,0.8)] transition-all">⚡ START RETENTION ROUND</Button>
+            <Button variant="gold" size="xl" disabled={!canStartRetention} onClick={() => startRetention(gameCode!)}>
+              Start Retention
+            </Button>
           )}
+
           {!isHost && <p className="text-muted-foreground animate-pulse">Host is preparing the auction...</p>}
         </div>
 
