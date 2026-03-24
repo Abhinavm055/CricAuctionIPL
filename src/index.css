@@ -6,39 +6,106 @@
 
 @layer base {
   :root {
-    --background: 224 71% 4%;
-    --foreground: 210 40% 98%;
-    --card: 224 47% 11%;
-    --card-foreground: 210 40% 98%;
-    --popover: 224 47% 11%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 48 96% 53%;
-    --primary-foreground: 222 47% 11%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 215 28% 17%;
-    --muted-foreground: 217 12% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
+    --background: 220 33% 97%;
+    --foreground: 220 25% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 220 25% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 25% 11%;
+
+    --primary: 210 80% 52%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 220 40% 96%;
+    --secondary-foreground: 220 25% 11%;
+
+    --muted: 220 30% 94%;
+    --muted-foreground: 220 12% 40%;
+
+    --accent: 210 100% 96%;
+    --accent-foreground: 220 25% 11%;
+
     --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 215 28% 17%;
-    --input: 215 28% 17%;
-    --ring: 48 96% 53%;
-    --radius: 1rem;
+
+    --border: 220 20% 88%;
+    --input: 220 20% 88%;
+    --ring: 210 80% 52%;
+
+    --radius: 0.75rem;
+
+    /* IPL Team Colors */
+    --team-csk: 45 100% 50%;
+    --team-mi: 217 91% 60%;
+    --team-rcb: 0 84% 50%;
+    --team-kkr: 280 60% 35%;
+    --team-dc: 217 91% 55%;
+    --team-pbks: 0 80% 55%;
+    --team-rr: 330 80% 55%;
+    --team-srh: 25 100% 55%;
+    --team-gt: 200 60% 45%;
+    --team-lsg: 210 80% 50%;
+
+    /* Custom Effects */
+    --glow-gold: 0 0 30px hsl(210 80% 52% / 0.25);
+    --glow-primary: 0 0 20px hsl(210 80% 52% / 0.2);
+    --gradient-broadcast: linear-gradient(135deg, hsl(220 33% 97%) 0%, hsl(210 100% 98%) 50%, hsl(220 33% 97%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(220 30% 96%) 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(210 80% 52%) 0%, hsl(195 100% 50%) 100%);
+    --gradient-hero: linear-gradient(180deg, transparent 0%, hsl(220 33% 97% / 0.92) 100%);
+
+    /* Sidebar */
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 220 25% 11%;
+    --sidebar-primary: 210 80% 52%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 220 40% 96%;
+    --sidebar-accent-foreground: 220 25% 11%;
+    --sidebar-border: 220 20% 88%;
+    --sidebar-ring: 210 80% 52%;
+  }
+
+  .dark {
+    --background: 225 36% 7%;
+    --foreground: 210 40% 98%;
+    --card: 223 34% 11%;
+    --card-foreground: 210 40% 98%;
+    --popover: 223 34% 11%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 195 100% 50%;
+    --primary-foreground: 225 36% 7%;
+    --secondary: 223 24% 14%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 223 24% 14%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 223 24% 18%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 223 24% 18%;
+    --input: 223 24% 18%;
+    --ring: 195 100% 50%;
+    --glow-gold: 0 0 30px hsl(195 100% 50% / 0.35);
+    --glow-primary: 0 0 20px hsl(195 100% 50% / 0.25);
+    --gradient-broadcast: linear-gradient(135deg, #0b0f1a 0%, #121826 50%, #0b0f1a 100%);
+    --gradient-card: linear-gradient(180deg, #121826 0%, #0f1523 100%);
+    --gradient-gold: linear-gradient(135deg, hsl(195 100% 50%) 0%, hsl(210 80% 52%) 100%);
+    --gradient-hero: linear-gradient(180deg, transparent 0%, hsl(225 36% 7% / 0.85) 100%);
   }
 
   * {
     @apply border-border;
+    transition-property: background-color, border-color, color, fill, stroke, box-shadow, opacity;
+    transition-duration: 0.3s;
+    transition-timing-function: ease-in-out;
   }
 
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground font-sans antialiased;
     font-family: 'Inter', sans-serif;
-    background-image:
-      radial-gradient(circle at top, rgba(250, 204, 21, 0.14), transparent 28%),
-      radial-gradient(circle at bottom right, rgba(56, 189, 248, 0.1), transparent 32%),
-      linear-gradient(180deg, #030712 0%, #020617 42%, #050b18 100%);
+    background: hsl(var(--background));
   }
 
   button,

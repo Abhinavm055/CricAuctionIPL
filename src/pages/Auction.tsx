@@ -13,6 +13,7 @@ import {
   resolveRtmDecision,
   resolveRtmTimeout,
   loadNextPlayer,
+  markPlayerReadyForNext,
   skipCurrentPlayer,
   togglePauseAuction,
   startAcceleratedRound,
@@ -21,12 +22,14 @@ import {
 import { AIEngine } from "@/engine/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
 import { RTMModal } from "@/components/RTMModal";
-import { HammerSoldEffect } from "@/components/HammerSoldEffect";
+import { BidInputModal } from "@/components/BidInputModal";
+import { SoldModal } from "@/components/SoldModal";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Header } from "@/components/Header";
 import { TeamGrid } from "@/components/TeamGrid";
 import { BidControls } from "@/components/BidControls";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { enrichPlayersWithDynamicValue } from "@/lib/playerValue";
 
 export interface TeamState {
   id: string;
@@ -53,6 +56,7 @@ interface PendingRtmState {
   finalBid?: number;
   status?: "AWAIT_ORIGINAL" | "AWAIT_WINNER_COUNTER" | "AWAIT_ORIGINAL_MATCH";
   counterBid?: number;
+  lastDecision?: { action?: string; actingTeamId?: string; amount?: number; createdAt?: { toMillis?: () => number } };
   expiresAt?: { toMillis?: () => number };
 }
 
@@ -104,9 +108,13 @@ const Auction = () => {
   const [pendingRtm, setPendingRtm] = useState<PendingRtmState | null>(null);
   const [commentary, setCommentary] = useState<string[]>([]);
   const [banner, setBanner] = useState<{ kind: 'SOLD' | 'UNSOLD'; price?: number; team?: string } | null>(null);
-  const [autoNextCountdown, setAutoNextCountdown] = useState<number | null>(null);
+  const [optimisticBid, setOptimisticBid] = useState<number | null>(null);
+  const [optimisticBidderId, setOptimisticBidderId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(Date.now());
-  const [showRemainingPlayers, setShowRemainingPlayers] = useState(false);
+  const [glowingTeamId, setGlowingTeamId] = useState<string | null>(null);
+  const [aiThinkingTeamId, setAiThinkingTeamId] = useState<string | null>(null);
+  const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
+  const [rtmSubmissionLocked, setRtmSubmissionLocked] = useState(false);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -115,13 +123,13 @@ const Auction = () => {
   const prevBidderRef = useRef<string | null>(null);
   const prevStatusRef = useRef<string>("IDLE");
   const autoAdvanceKeyRef = useRef<string | null>(null);
-  const autoAdvanceTimerRef = useRef<number | null>(null);
   const autoAdvanceHostTimeoutRef = useRef<number | null>(null);
   const rtmAiDecisionKeyRef = useRef<string | null>(null);
   const audioRef = useRef<AudioContext | null>(null);
   const spokenMarksRef = useRef<Record<string, Set<number>>>({});
   const prevTimerEndsAtRef = useRef<number>(0);
   const prevPendingRtmStatusRef = useRef<string | null>(null);
+  const autoStartKeyRef = useRef<string | null>(null);
 
   const hasSyncedStatsRef = useRef(false);
 
@@ -231,11 +239,34 @@ const Auction = () => {
 
   const currentAuction = session?.currentAuction;
 
+  useEffect(() => {
+    if (!isHost || !gameCode || session?.phase !== "AUCTION") return;
+    if (currentAuction?.activePlayerId || ["RUNNING", "PAUSED", "RTM", "SOLD", "UNSOLD"].includes(String(currentAuction?.status || ""))) return;
+
+    const key = `${session?.phase}-${session?.queueIndex ?? -1}`;
+    if (autoStartKeyRef.current === key) return;
+    autoStartKeyRef.current = key;
+
+    loadNextPlayer(gameCode).catch(() => undefined);
+  }, [isHost, gameCode, session?.phase, session?.queueIndex, currentAuction?.activePlayerId, currentAuction?.status]);
+
+  useEffect(() => {
+    const serverBid = Number(currentAuction?.currentBid || 0);
+    const serverBidder = currentAuction?.currentBidderId || null;
+
+    if (optimisticBid === null && optimisticBidderId === null) return;
+
+    if (serverBid >= Number(optimisticBid || 0) || serverBidder !== optimisticBidderId || currentAuction?.status !== "RUNNING") {
+      setOptimisticBid(null);
+      setOptimisticBidderId(null);
+    }
+  }, [currentAuction?.currentBid, currentAuction?.currentBidderId, currentAuction?.status, optimisticBid, optimisticBidderId]);
+
   const aiEngine = useMemo(() => new AIEngine(), []);
+  const enrichedPlayers = useMemo(() => enrichPlayersWithDynamicValue(masterPlayerList as any[]), [masterPlayerList]);
+  const playerById = useMemo(() => new Map(enrichedPlayers.map((p: any) => [p.id, p])), [enrichedPlayers]);
 
-  const playerById = useMemo(() => new Map(masterPlayerList.map((p: any) => [p.id, p])), [masterPlayerList]);
-
-  const currentPlayer = useMemo(() => masterPlayerList.find((p: any) => p.id === currentAuction?.activePlayerId) || null, [masterPlayerList, currentAuction?.activePlayerId]);
+  const currentPlayer = useMemo(() => playerById.get(currentAuction?.activePlayerId) || null, [playerById, currentAuction?.activePlayerId]);
   const displayedCurrentBid = optimisticBid ?? Number(currentAuction?.currentBid || 0);
   const displayedCurrentBidderId = optimisticBidderId ?? (currentAuction?.currentBidderId || null);
   const currentBidderTeam = teams.find((team) => team.id === displayedCurrentBidderId);
@@ -248,7 +279,7 @@ const Auction = () => {
   const timerSeconds = Math.max(0, Math.floor(((currentAuction?.timerEndsAt?.toMillis?.() || nowMs) - nowMs) / 1000));
 
   const teamPlayersResolved = useMemo(() => {
-    const lookup = new Map(masterPlayerList.map((p: any) => [p.id, p]));
+    const lookup = new Map(enrichedPlayers.map((p: any) => [p.id, p]));
     return teams.reduce<Record<string, { retained: Player[]; bought: Player[] }>>((acc, team) => {
       acc[team.id] = {
         retained: (team.retainedPlayers || []).map((id) => lookup.get(id)).filter(Boolean) as Player[],
@@ -256,11 +287,12 @@ const Auction = () => {
       };
       return acc;
     }, {});
-  }, [teams, masterPlayerList]);
+  }, [teams, enrichedPlayers]);
 
   const canTeamBid = useCallback((team: TeamState | undefined, player: Player | null, amount: number) => {
     if (!team || !player) return false;
     if (currentAuction?.status !== "RUNNING") return false;
+    if (currentAuction?.isAuctionLocked) return false;
     if (displayedCurrentBidderId === team.id) return false;
     if (Number(team.purseRemaining || 0) < amount) return false;
     if (Number(team.squadSize || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD) return false;
@@ -283,6 +315,11 @@ const Auction = () => {
     if (!currentPlayer || !currentAuction) return true;
     return Number(currentAuction.currentBid || 0) > Number((currentPlayer as any).basePrice || 0);
   }, [currentPlayer, currentAuction, isAIMode]);
+  const canNextSet = useMemo(() => {
+    if (!isHost || !gameCode) return false;
+    if (pendingRtm || currentAuction?.isAuctionLocked) return false;
+    return !currentAuction?.activePlayerId || ["UNSOLD", "SOLD"].includes(String(currentAuction?.status || ""));
+  }, [isHost, gameCode, pendingRtm, currentAuction?.isAuctionLocked, currentAuction?.activePlayerId, currentAuction?.status]);
 
   const handleSkip = useCallback(async () => {
     if (!gameCode || !isHost) return;
@@ -293,11 +330,13 @@ const Auction = () => {
           id: (currentPlayer as any).id,
           name: (currentPlayer as any).name,
           role: (currentPlayer as any).role,
-          rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 50),
+          rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 3),
+          starRating: Number((currentPlayer as any).starRating ?? 3),
           basePrice: Number((currentPlayer as any).basePrice || 0),
           overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
           demandLevel: (currentPlayer as any).demandLevel,
           interestedTeams: (currentPlayer as any).interestedTeams || [],
+          dynamicValue: Number((currentPlayer as any).dynamicValue || (currentPlayer as any).basePrice || 0),
         },
         teams.map((team) => ({
           id: team.id,
@@ -320,6 +359,7 @@ const Auction = () => {
 
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
+    if (currentAuction?.isAuctionLocked) return;
     if (!canTeamBid(userTeam, currentPlayer, amount)) return;
 
     setOptimisticBid(amount);
@@ -331,7 +371,7 @@ const Auction = () => {
       setOptimisticBid(null);
       setOptimisticBidderId(null);
     }
-  }, [gameCode, myTeamId, userTeam, currentPlayer, currentAuction?.status, currentAuction?.currentBidderId]);
+  }, [gameCode, myTeamId, userTeam, currentPlayer, currentAuction?.isAuctionLocked]);
 
   const handleFinalize = useCallback(async () => {
     if (!gameCode || !isHost) return;
@@ -390,11 +430,13 @@ const Auction = () => {
       {
         id: (currentPlayer as any).id,
         role: (currentPlayer as any).role,
-        rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 50),
+        rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 3),
+        starRating: Number((currentPlayer as any).starRating ?? 3),
         basePrice: Number((currentPlayer as any).basePrice || 0),
         overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
         demandLevel: (currentPlayer as any).demandLevel,
         interestedTeams: (currentPlayer as any).interestedTeams || [],
+        dynamicValue: Number((currentPlayer as any).dynamicValue || (currentPlayer as any).basePrice || 0),
       },
       Number(currentAuction.currentBid || 0),
       currentAuction.currentBidderId,
@@ -407,7 +449,6 @@ const Auction = () => {
 
   useEffect(() => {
     return () => {
-      if (autoAdvanceTimerRef.current) window.clearInterval(autoAdvanceTimerRef.current);
       if (autoAdvanceHostTimeoutRef.current) window.clearTimeout(autoAdvanceHostTimeoutRef.current);
     };
   }, []);
@@ -442,9 +483,7 @@ const Auction = () => {
 
     if (currentAuction.status === "SOLD" && prevStatusRef.current !== "SOLD") {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
-      setBanner({ kind: 'SOLD', price: Number(currentAuction.currentBid || 0), team: team?.shortName || 'TEAM' });
       setCommentary((prev) => [`${currentPlayer?.name || 'Player'} SOLD to ${team?.shortName || 'TEAM'} for ${formatCrPrice(Number(currentAuction.currentBid || 0))}!`, ...prev].slice(0, 14));
-      setTimeout(() => setBanner(null), 2000);
       playSound('hammer');
       playSound('cheer');
       speakLine(`Sold to ${team?.shortName || 'Team'}`);
@@ -465,48 +504,29 @@ const Auction = () => {
   }, [currentAuction, teams, currentPlayer, playSound, speakLine]);
 
   useEffect(() => {
-    if (!currentAuction) return;
-    if (!['SOLD', 'UNSOLD'].includes(currentAuction.status || '') || pendingRtm) {
-      setAutoNextCountdown(null);
-      return;
-    }
-
-    const key = `${currentAuction.activePlayerId}-${currentAuction.status}`;
-    if (autoAdvanceKeyRef.current === key) return;
-    autoAdvanceKeyRef.current = key;
-
-    if (autoAdvanceTimerRef.current) window.clearInterval(autoAdvanceTimerRef.current);
-
-    let counter = 3;
-    setAutoNextCountdown(counter);
-
-    autoAdvanceTimerRef.current = window.setInterval(() => {
-      counter -= 1;
-
-      if (counter <= 0) {
-        setAutoNextCountdown(null);
-        if (autoAdvanceTimerRef.current) {
-          window.clearInterval(autoAdvanceTimerRef.current);
-          autoAdvanceTimerRef.current = null;
-        }
-        return;
-      }
-
-      setAutoNextCountdown(counter);
-    }, 1000);
-  }, [currentAuction, pendingRtm]);
-
-  useEffect(() => {
     if (!isHost || !gameCode || !currentAuction) return;
-    if (!['SOLD', 'UNSOLD'].includes(currentAuction.status || '') || pendingRtm) return;
+    if (pendingRtm) return;
 
     const key = `${currentAuction.activePlayerId}-${currentAuction.status}`;
+    if (!currentAuction.activePlayerId || autoAdvanceKeyRef.current === key) return;
+    if (!['SOLD', 'UNSOLD'].includes(currentAuction.status || '')) return;
+
+    autoAdvanceKeyRef.current = key;
     if (autoAdvanceHostTimeoutRef.current) window.clearTimeout(autoAdvanceHostTimeoutRef.current);
 
-    autoAdvanceHostTimeoutRef.current = window.setTimeout(() => {
+    const delayMs = currentAuction.status === 'SOLD'
+      ? (currentAuction?.rtmResultMessage ? 5000 : 3000)
+      : 2000;
+
+    autoAdvanceHostTimeoutRef.current = window.setTimeout(async () => {
       if (autoAdvanceKeyRef.current !== key) return;
+
+      if (currentAuction.status === 'SOLD') {
+        await markPlayerReadyForNext(gameCode, currentAuction.activePlayerId).catch(() => undefined);
+      }
+
       loadNextPlayer(gameCode).catch(() => undefined);
-    }, 3000);
+    }, delayMs);
   }, [isHost, gameCode, currentAuction, pendingRtm]);
 
 
@@ -551,7 +571,7 @@ const Auction = () => {
 
 
   useEffect(() => {
-    if (!isHost || !gameCode || !session?.pendingRtm?.expiresAt) return;
+    if (!isHost || !gameCode || !pendingRtm?.expiresAt?.toMillis) return;
 
     const ms = Math.max(0, session.pendingRtm.expiresAt.toMillis() - Date.now());
     const timeout = window.setTimeout(() => {
@@ -559,16 +579,30 @@ const Auction = () => {
     }, ms + 100);
 
     return () => window.clearTimeout(timeout);
-  }, [isHost, gameCode, session?.pendingRtm?.status, session?.pendingRtm?.expiresAt]);
+  }, [isHost, gameCode, pendingRtm?.status, pendingRtm?.expiresAt]);
 
-  const pendingRtm = session?.pendingRtm;
-  const rtmPlayer = masterPlayerList.find((p: any) => p.id === pendingRtm?.playerId) || null;
+  const rtmPlayer = playerById.get(pendingRtm?.playerId) || null;
   const rtmOriginalTeam = teams.find((t) => t.id === pendingRtm?.originalTeamId);
   const rtmWinningTeam = teams.find((t) => t.id === pendingRtm?.winningTeamId);
   const rtmControllerTeamId = pendingRtm?.status === "AWAIT_WINNER_COUNTER" ? pendingRtm?.winningTeamId : pendingRtm?.originalTeamId;
   const rtmControllerTeam = teams.find((t) => t.id === rtmControllerTeamId);
   const canUseRtm = pendingRtm?.originalTeamId === myTeamId;
   const rtmNeedsMyDecision = Boolean(pendingRtm && rtmControllerTeamId === myTeamId && !rtmControllerTeam?.isAI);
+  const rtmCountdownSeconds = Math.max(0, Math.ceil(((pendingRtm?.expiresAt?.toMillis?.() || 0) - nowMs) / 1000));
+  const soldTeam = teams.find((team) => team.id === currentAuction?.soldToTeamId);
+  const soldAtMs = currentAuction?.soldAt?.toMillis?.() || 0;
+  const soldElapsedMs = Math.max(0, nowMs - soldAtMs);
+  const showRtmResultBanner = Boolean(currentAuction?.status === "SOLD" && currentAuction?.rtmResultMessage && soldElapsedMs < 2000);
+  const showSoldModal = Boolean(
+    currentAuction?.status === "SOLD"
+      && soldAtMs
+      && soldElapsedMs >= (currentAuction?.rtmResultMessage ? 2000 : 0)
+      && soldElapsedMs < (currentAuction?.rtmResultMessage ? 5000 : 3000),
+  );
+
+  useEffect(() => {
+    setRtmSubmissionLocked(false);
+  }, [pendingRtm?.status, pendingRtm?.playerId]);
 
   useEffect(() => {
     if (!pendingRtm?.status) {
@@ -595,7 +629,7 @@ const Auction = () => {
   }, [pendingRtm?.status, pendingRtm?.counterBid, pendingRtm?.finalBid, rtmOriginalTeam?.shortName, rtmWinningTeam?.shortName]);
 
   useEffect(() => {
-    if (!gameCode || !pendingRtm || !rtmControllerTeam?.isAI || !rtmControllerTeamId) return;
+    if (!isHost || !gameCode || !pendingRtm || !rtmControllerTeam?.isAI || !rtmControllerTeamId) return;
 
     const key = `${pendingRtm.playerId}-${pendingRtm.status}-${pendingRtm.finalBid}-${pendingRtm.counterBid}`;
     if (rtmAiDecisionKeyRef.current === key) return;
@@ -604,35 +638,113 @@ const Auction = () => {
     const timer = window.setTimeout(() => {
       (async () => {
       if (pendingRtm.status === "AWAIT_ORIGINAL") {
-        const pSnap = await getDoc(doc(db, "players", pendingRtm.playerId));
-        const rating = Number(pSnap.data()?.rating ?? pSnap.data()?.starRating ?? 0);
-        const tSnap = await getDoc(doc(db, "sessions", gameCode, "teams", pendingRtm.originalTeamId!));
-        const tPurse = Number(tSnap.data()?.purseRemaining || 0);
-
-        const shouldUse = rating >= 4 && tPurse >= Number(pendingRtm.finalBid || 0);
+        const shouldUse = aiEngine.aiUseRTM(
+          {
+            id: String(rtmPlayer?.id || pendingRtm.playerId),
+            role: String((rtmPlayer as any)?.role || ''),
+            rating: Number((rtmPlayer as any)?.rating ?? (rtmPlayer as any)?.starRating ?? 3),
+            starRating: Number((rtmPlayer as any)?.starRating ?? 3),
+            dynamicValue: Number((rtmPlayer as any)?.dynamicValue || (rtmPlayer as any)?.basePrice || 0),
+            basePrice: Number((rtmPlayer as any)?.basePrice || 0),
+          },
+          Number(pendingRtm.finalBid || 0),
+        ) && Number(rtmControllerTeam?.purseRemaining || 0) >= Number(pendingRtm.finalBid || 0);
         resolveRtmDecision(gameCode, { action: shouldUse ? "USE" : "DECLINE", actingTeamId: pendingRtm.originalTeamId! }).catch(() => undefined);
         return;
       }
 
       if (pendingRtm.status === "AWAIT_WINNER_COUNTER") {
-        const shouldCounter = Math.random() > 0.45;
+        const aiBid = aiEngine.getAIBid(
+          {
+            id: pendingRtm.winningTeamId!,
+            isAI: true,
+            squadSize: Number(rtmWinningTeam?.squadSize || 0),
+            purseRemaining: Number(rtmWinningTeam?.purseRemaining || 0),
+            overseasCount: Number(rtmWinningTeam?.overseasCount || 0),
+          },
+          {
+            id: String(rtmPlayer?.id || pendingRtm.playerId),
+            role: String((rtmPlayer as any)?.role || ''),
+            rating: Number((rtmPlayer as any)?.rating ?? (rtmPlayer as any)?.starRating ?? 3),
+            starRating: Number((rtmPlayer as any)?.starRating ?? 3),
+            dynamicValue: Number((rtmPlayer as any)?.dynamicValue || (rtmPlayer as any)?.basePrice || 0),
+            basePrice: Number((rtmPlayer as any)?.basePrice || 0),
+            overseas: Boolean((rtmPlayer as any)?.overseas ?? (rtmPlayer as any)?.isOverseas),
+          },
+          Number(pendingRtm.finalBid || 0),
+        );
         resolveRtmDecision(gameCode, {
-          action: shouldCounter ? "COUNTER" : "DECLINE",
+          action: aiBid && aiBid > Number(pendingRtm.finalBid || 0) ? "COUNTER" : "DECLINE",
           actingTeamId: pendingRtm.winningTeamId!,
-          counterBid: Number(pendingRtm.counterBid || pendingRtm.finalBid || 0),
+          counterBid: Number(aiBid || pendingRtm.counterBid || pendingRtm.finalBid || 0),
         }).catch(() => undefined);
         return;
       }
 
       if (pendingRtm.status === "AWAIT_ORIGINAL_MATCH") {
-        const shouldMatch = Math.random() > 0.5;
+        const shouldMatch = aiEngine.aiFinalRTMDecision(
+          {
+            id: String(rtmPlayer?.id || pendingRtm.playerId),
+            role: String((rtmPlayer as any)?.role || ''),
+            rating: Number((rtmPlayer as any)?.rating ?? (rtmPlayer as any)?.starRating ?? 3),
+            starRating: Number((rtmPlayer as any)?.starRating ?? 3),
+            dynamicValue: Number((rtmPlayer as any)?.dynamicValue || (rtmPlayer as any)?.basePrice || 0),
+            basePrice: Number((rtmPlayer as any)?.basePrice || 0),
+          },
+          Number(pendingRtm.finalBid || 0),
+        );
         resolveRtmDecision(gameCode, { action: shouldMatch ? "MATCH" : "DECLINE", actingTeamId: pendingRtm.originalTeamId! }).catch(() => undefined);
       }
       })().catch(() => undefined);
-    }, 1200 + Math.floor(Math.random() * 1200));
+    }, 5000 + Math.floor(Math.random() * 3000));
 
     return () => window.clearTimeout(timer);
-  }, [gameCode, pendingRtm, rtmControllerTeam?.isAI, rtmControllerTeamId]);
+  }, [isHost, gameCode, pendingRtm, rtmControllerTeam?.isAI, rtmControllerTeamId, aiEngine, rtmPlayer, rtmControllerTeam?.purseRemaining, rtmWinningTeam?.squadSize, rtmWinningTeam?.purseRemaining, rtmWinningTeam?.overseasCount]);
+
+  const rtmModalCopy = useMemo(() => {
+    if (!pendingRtm) return null;
+
+    if (pendingRtm.status === "AWAIT_ORIGINAL") {
+      return {
+        title: `Use RTM for ${rtmPlayer?.name || "this player"}?`,
+        description: `${rtmOriginalTeam?.name || "Original team"} can bring the player back at ${formatCrPrice(Number(pendingRtm.finalBid || 0))}.`,
+        amount: Number(pendingRtm.finalBid || 0),
+      };
+    }
+
+    if (pendingRtm.status === "AWAIT_ORIGINAL_MATCH") {
+      const amount = Number(pendingRtm.finalBid || pendingRtm.counterBid || 0);
+      return {
+        title: `Match ${formatCrPrice(amount)}?`,
+        description: `${rtmOriginalTeam?.name || "Original team"} must decide whether to match ${rtmWinningTeam?.name || "the highest bidder"}'s final price.`,
+        amount,
+      };
+    }
+
+    return null;
+  }, [pendingRtm, rtmPlayer?.name, rtmOriginalTeam?.name, rtmWinningTeam?.name]);
+
+  const submitRtmDecision = useCallback(async (action: "USE" | "DECLINE" | "MATCH", counterBid?: number) => {
+    if (!gameCode || !myTeamId || !pendingRtm || rtmSubmissionLocked) return;
+    setRtmSubmissionLocked(true);
+    try {
+      await resolveRtmDecision(gameCode, { action, actingTeamId: myTeamId, counterBid });
+    } finally {
+      setTimeout(() => setRtmSubmissionLocked(false), 400);
+    }
+  }, [gameCode, myTeamId, pendingRtm, rtmSubmissionLocked]);
+
+  const submitCounterBid = useCallback(async (amount: number) => {
+    if (!gameCode || !myTeamId || !pendingRtm || rtmSubmissionLocked) return;
+    const previousBid = Number(pendingRtm.finalBid || 0);
+    if (!Number.isFinite(amount) || amount <= previousBid) return;
+    setRtmSubmissionLocked(true);
+    try {
+      await resolveRtmDecision(gameCode, { action: "COUNTER", actingTeamId: myTeamId, counterBid: amount });
+    } finally {
+      setTimeout(() => setRtmSubmissionLocked(false), 400);
+    }
+  }, [gameCode, myTeamId, pendingRtm, rtmSubmissionLocked]);
 
   const recentPurchases = useMemo(() => {
     const purchases = (session?.recentPurchases || []) as Array<{ playerId: string; price: number; teamId: string }>;
@@ -683,10 +795,12 @@ const Auction = () => {
         gameCode={gameCode!}
         currentSetLabel={`${typeof setProgress.currentSetIndex === "number" && setProgress.currentSetIndex >= 0 ? `Set ${setProgress.currentSetIndex + 1}: ` : ""}${setProgress.activeSetLabel}`}
         onSkip={gameCode && isHost ? handleSkip : undefined}
+        onNextSet={gameCode && canNextSet ? () => loadNextPlayer(gameCode) : undefined}
         onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
         isPaused={currentAuction?.status === "PAUSED"}
         canControl={Boolean(isHost)}
         canSkip={!skipDisabled}
+        canNextSet={canNextSet}
         onMenuClick={() => setTeamDrawerOpen(true)}
         onLeaveGame={async () => {
           if (!gameCode) return;
@@ -740,12 +854,21 @@ const Auction = () => {
         </div>
       )}
 
-      {autoNextCountdown !== null && (
-        <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 px-6 py-3 rounded-xl bg-black/70 text-white text-center border border-white/20">
-          <p className="text-xs uppercase tracking-wide text-white/70">Next player in</p>
-          <p className="text-3xl font-display leading-none">{autoNextCountdown}</p>
+      {showRtmResultBanner && (
+        <div className="fixed top-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-emerald-400/30 bg-slate-950/90 px-6 py-3 text-sm font-semibold text-emerald-300 shadow-2xl backdrop-blur-xl">
+          {currentAuction?.rtmResultMessage}
         </div>
       )}
+
+      <SoldModal
+        open={showSoldModal}
+        player={currentPlayer as any}
+        teamId={soldTeam?.id || currentAuction?.soldToTeamId}
+        teamName={soldTeam?.name}
+        teamShortName={soldTeam?.shortName}
+        teamLogo={soldTeam?.logo}
+        price={Number(currentAuction?.soldPrice || currentAuction?.currentBid || 0)}
+      />
 
       {auctionEnded && showAcceleratedDecision && (
         <div className="p-6 mx-auto max-w-3xl w-full">
@@ -864,7 +987,7 @@ const Auction = () => {
 
                   {(!currentPlayer || !['RUNNING', 'PAUSED'].includes(currentAuction?.status)) && !['SOLD', 'UNSOLD'].includes(currentAuction?.status || '') && (
                     <div className="mt-8 text-center">
-                      {isHost ? <Button onClick={() => loadNextPlayer(gameCode!)}>Start Auction</Button> : <p className="text-muted-foreground">Waiting for host to start auction.</p>}
+                      {session?.phase === "RETENTION_REVIEW" && isHost ? <Button onClick={() => loadNextPlayer(gameCode!)}>Start Auction</Button> : <p className="text-muted-foreground">Waiting for next player.</p>}
                     </div>
                   )}
                 </div>
@@ -933,6 +1056,23 @@ const Auction = () => {
         </>
       )}
 
+      {!!pendingRtm && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center pointer-events-none px-4">
+          <div className="w-full max-w-xl rounded-3xl border border-emerald-400/20 bg-slate-950/80 p-5 text-white shadow-2xl backdrop-blur-xl animate-[rtmFade_0.3s_ease-out]">
+            <p className="text-xs tracking-[0.25em] text-emerald-300">RIGHT TO MATCH</p>
+            <h3 className="mt-2 text-xl md:text-2xl font-display">{rtmPlayer?.name || 'Player'}</h3>
+            <p className="mt-1 text-sm text-slate-300">Original team: {rtmOriginalTeam?.shortName || '—'} • Highest bidder: {rtmWinningTeam?.shortName || '—'}</p>
+            <div className="mt-4 space-y-2 text-sm md:text-base">
+              <p>Current price: <span className="font-semibold text-emerald-300">{formatCrPrice(Number(pendingRtm.finalBid || 0))}</span></p>
+              {pendingRtm.status === 'AWAIT_ORIGINAL' && <p>Waiting for {rtmOriginalTeam?.shortName || 'original team'} to decide whether to use RTM.</p>}
+              {pendingRtm.status === 'AWAIT_WINNER_COUNTER' && <p>{rtmOriginalTeam?.shortName || 'Original team'} used RTM. Waiting for {rtmWinningTeam?.shortName || 'highest bidder'} to enter a higher final bid.</p>}
+              {pendingRtm.status === 'AWAIT_ORIGINAL_MATCH' && <p>{rtmWinningTeam?.shortName || 'Highest bidder'} raised the bid. Waiting for {rtmOriginalTeam?.shortName || 'original team'} to match {formatCrPrice(Number(pendingRtm.finalBid || pendingRtm.counterBid || 0))}.</p>}
+              <p className="pt-2 text-xs uppercase tracking-[0.28em] text-slate-400">Auction locked • {rtmCountdownSeconds}s remaining</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <TeamDetailsPanel
         open={!!selectedTeamId}
         onOpenChange={(open) => !open && setSelectedTeamId(null)}
@@ -942,47 +1082,30 @@ const Auction = () => {
         playerPrices={selectedTeamId ? teams.find((t) => t.id === selectedTeamId)?.playerPurchasePrices || {} : {}}
       />
 
-      <RemainingPlayersPanel
-        open={showRemainingPlayers}
-        onOpenChange={setShowRemainingPlayers}
-        upcomingPlayers={upcomingPlayers}
-        unsoldPlayers={unsoldPlayersResolved}
-      />
-
-      {!!pendingRtm && isHost && (
+      {!!pendingRtm && pendingRtm.status !== "AWAIT_WINNER_COUNTER" && rtmNeedsMyDecision && canUseRtm && rtmModalCopy && (
         <RTMModal
           open={true}
-          stage={pendingRtm.status}
           player={rtmPlayer as any}
-          originalTeamName={rtmOriginalTeam?.name}
-          winningTeamName={rtmWinningTeam?.name}
-          finalBid={Number(pendingRtm.finalBid || 0)}
-          countdownSeconds={Math.max(0, Math.ceil(((pendingRtm?.expiresAt?.toMillis?.() || nowMs) - nowMs) / 1000))}
-          onPrimary={() => {
-            const actionByStage: Record<string, any> = {
-              AWAIT_ORIGINAL: "USE",
-              AWAIT_WINNER_COUNTER: "COUNTER",
-              AWAIT_ORIGINAL_MATCH: "MATCH",
-            };
-            if (pendingRtm.status === "AWAIT_WINNER_COUNTER") {
-              const defaultValue = Number(pendingRtm.counterBid || 0);
-              const input = window.prompt("Enter counter bid", String(defaultValue));
-              if (!input) return;
-              const parsed = Number(input);
-              if (!Number.isFinite(parsed) || parsed < defaultValue) return;
-              resolveRtmDecision(gameCode!, { action: actionByStage[pendingRtm.status], actingTeamId: myTeamId!, counterBid: parsed });
-              return;
-            }
-            resolveRtmDecision(gameCode!, { action: actionByStage[pendingRtm.status], actingTeamId: myTeamId! });
-          }}
-          onSecondary={() => {
-            const actionByStage: Record<string, any> = {
-              AWAIT_ORIGINAL: "DECLINE",
-              AWAIT_WINNER_COUNTER: "DECLINE",
-              AWAIT_ORIGINAL_MATCH: "DECLINE",
-            };
-            resolveRtmDecision(gameCode!, { action: actionByStage[pendingRtm.status], actingTeamId: myTeamId! });
-          }}
+          title={rtmModalCopy.title}
+          description={rtmModalCopy.description}
+          amount={rtmModalCopy.amount}
+          countdownSeconds={rtmCountdownSeconds}
+          disabled={rtmSubmissionLocked}
+          onPrimary={() => submitRtmDecision(pendingRtm.status === "AWAIT_ORIGINAL_MATCH" ? "MATCH" : "USE")}
+          onSecondary={() => submitRtmDecision("DECLINE")}
+        />
+      )}
+
+      {!!pendingRtm && pendingRtm.status === "AWAIT_WINNER_COUNTER" && rtmNeedsMyDecision && (
+        <BidInputModal
+          open={true}
+          player={rtmPlayer as any}
+          previousBid={Number(pendingRtm.finalBid || 0)}
+          minBid={Math.max(Number(pendingRtm.counterBid || 0), getNextBid(Number(pendingRtm.finalBid || 0)))}
+          countdownSeconds={rtmCountdownSeconds}
+          disabled={rtmSubmissionLocked}
+          onSubmit={submitCounterBid}
+          onCancel={() => submitRtmDecision("DECLINE")}
         />
       )}
     </div>
