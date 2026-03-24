@@ -3,7 +3,6 @@ import { getSmartIncrement } from '@/lib/playerValue';
 
 export interface EnginePlayer {
   id: string;
-  name?: string;
   role?: string;
   rating?: number;
   starRating?: number;
@@ -21,7 +20,6 @@ export interface EngineTeam {
   purseRemaining: number;
   overseasCount: number;
   roleNeeds?: Record<string, number>;
-  aggressionLevel?: number;
 }
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));

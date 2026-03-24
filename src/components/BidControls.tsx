@@ -10,6 +10,7 @@ interface RecentPurchase {
 
 interface BidControlsProps {
   currentBid: number;
+  purseRemaining?: number;
   canBid: boolean;
   onBid: (amount: number) => void;
   recentPurchases?: RecentPurchase[];
@@ -20,6 +21,7 @@ const BID_COOLDOWN_MS = 250;
 
 const BidControlsComponent = ({
   currentBid,
+  purseRemaining,
   canBid,
   onBid,
   recentPurchases = [],
