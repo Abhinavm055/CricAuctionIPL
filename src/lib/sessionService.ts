@@ -724,6 +724,29 @@ export const resolveRtmTimeout = async (gameCode: string) => {
   }
 };
 
+
+
+export const resolveRtmTimeout = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  const sessionSnap = await getDoc(sessionRef);
+  if (!sessionSnap.exists()) return;
+
+  const pending = sessionSnap.data().pendingRtm;
+  if (!pending) return;
+
+  if (pending.status === "AWAIT_ORIGINAL") {
+    await resolveRtmDecision(gameCode, "ORIGINAL_NO");
+    return;
+  }
+  if (pending.status === "AWAIT_WINNER_COUNTER") {
+    await resolveRtmDecision(gameCode, "WINNER_COUNTER_NO");
+    return;
+  }
+  if (pending.status === "AWAIT_ORIGINAL_MATCH") {
+    await resolveRtmDecision(gameCode, "ORIGINAL_MATCH_NO");
+  }
+};
+
 export const skipCurrentPlayer = async (gameCode: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
   await runTransaction(db, async (tx) => {

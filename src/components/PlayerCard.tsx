@@ -19,49 +19,68 @@ const normalizeRoleLabel = (role: string) => {
   return 'BATTER';
 };
 
-const paddleShape = 'polygon(30% 0%, 70% 0%, 100% 34%, 80% 76%, 50% 100%, 20% 76%, 0% 34%)';
+const renderStars = (rating: number) => {
+  const filled = Math.max(0, Math.min(5, Math.round(rating)));
+  return Array.from({ length: 5 }).map((_, idx) => (
+    <span key={idx} className={idx < filled ? 'text-yellow-400' : 'text-gray-500'}>★</span>
+  ));
+};
 
 export const PlayerCard = ({ player, currentBid, currentBidderId, currentBidderName }: PlayerCardProps) => {
   const playerImage = (player as any).image || player.imageUrl;
-  const [imageFailed, setImageFailed] = useState(false);
-
-  useEffect(() => {
-    setImageFailed(false);
-  }, [player.id, playerImage]);
+  const playerRating = Number((player as any).rating ?? player.starRating ?? 0);
+  const isOverseas = Boolean((player as any).overseas ?? player.isOverseas);
+  const previousTeamId = String((player as any).previousTeamId || '').toLowerCase() || null;
+  const nationality = String((player as any).nationality || player.nationality || 'Unknown');
 
   return (
-    <div className="w-full h-full rounded-2xl border border-yellow-500/40 text-white shadow-[0_0_28px_rgba(234,179,8,0.2)] overflow-hidden relative">
-      {playerImage && !imageFailed ? (
-        <img
-          src={playerImage}
-          alt={player.name}
-          className="absolute inset-0 w-full h-full object-cover"
-          onError={() => setImageFailed(true)}
-        />
-      ) : (
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0b234d] to-[#071a3a]" />
-      )}
-
-      <div className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/45 to-black/75" />
-
-      <div className="relative h-full flex flex-col items-center justify-center text-center px-4">
-        <p className="text-[10px] tracking-[0.28em] text-yellow-300">{normalizeRoleLabel(player.role)}</p>
-        <h2 className="text-2xl md:text-4xl font-display uppercase tracking-wide">{player.name}</h2>
-        <p className="text-sm md:text-base text-slate-100 mt-1">{player.role} / {String((player as any).nationality || player.nationality || 'Unknown')}</p>
-
-        <div className="mt-5">
-          <p className="text-[10px] tracking-[0.28em] text-yellow-200 uppercase">Current Bid</p>
-          <p key={currentBid} className="text-4xl md:text-5xl font-extrabold text-yellow-300 animate-pulse drop-shadow-[0_0_16px_rgba(250,204,21,0.9)]">
-            {formatPrice(currentBid)}
-          </p>
+    <div className="w-full h-full rounded-2xl border border-yellow-500/40 bg-[#071a3a] text-white shadow-[0_0_28px_rgba(234,179,8,0.2)] overflow-hidden">
+      <div className="h-full grid grid-rows-[auto_1fr_auto]">
+        <div className="flex items-center justify-between border-b border-yellow-500/30 px-5 py-3">
+          <span className="rounded-full bg-yellow-400 px-3 py-1 text-xs font-bold text-black">
+            {normalizeRoleLabel(player.role)}
+          </span>
+          <div className="flex items-center gap-2">
+            {isOverseas && <span className="text-yellow-400">✈</span>}
+            <TeamLogo teamId={previousTeamId} shortName={(player as any).previousTeam || 'PREV'} className="w-12 h-12 rounded-full" />
+          </div>
         </div>
 
-        <div className="mt-6 h-32 w-28 md:h-40 md:w-32 flex items-center justify-center border border-yellow-400/60 bg-[#0b2045]/90 shadow-[0_0_20px_rgba(250,204,21,0.45)]" style={{ clipPath: paddleShape }}>
-          <TeamLogo
-            teamId={currentBidderId || null}
-            shortName={currentBidderName || 'BID'}
-            className="w-16 h-16 md:w-20 md:h-20 rounded-full border-2 border-yellow-300/80 bg-[#06122b]"
-          />
+        <div className="grid grid-cols-[190px_1fr] gap-5 p-5 items-start min-h-0">
+          <div className="w-[180px] h-[220px] rounded-xl overflow-hidden border border-yellow-500/30 bg-slate-900 flex items-center justify-center">
+            {playerImage ? (
+              <img
+                src={playerImage}
+                alt={player.name}
+                className="w-[180px] h-[220px] object-cover"
+                onError={(event) => {
+                  event.currentTarget.src = 'https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=256';
+                }}
+              />
+            ) : (
+              <User className="w-14 h-14 text-slate-400" />
+            )}
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <h2 className="text-3xl font-display uppercase tracking-wide">{player.name}</h2>
+              <TeamLogo teamId={currentBidderId || null} shortName={currentBidderName || 'BID'} className="w-16 h-16 rounded-full border-2 border-yellow-400/70" />
+            </div>
+            <p className="text-xl leading-none">{renderStars(playerRating)}</p>
+            <p className="text-sm text-slate-200">{nationality}</p>
+            <p className="text-base font-semibold text-yellow-200">BASE PRICE: {formatPrice(player.basePrice)}</p>
+          </div>
+        </div>
+
+        <div className="border-t border-yellow-500/30 px-5 py-4">
+          <p className="text-xs text-slate-300 tracking-wide">CURRENT BID</p>
+          <div className="mt-2 flex items-center justify-between">
+            <p className="text-[32px] font-bold text-yellow-300 drop-shadow-[0_0_12px_rgba(250,204,21,0.75)] animate-pulse">
+              {formatPrice(currentBid)}
+            </p>
+            <TeamLogo teamId={currentBidderId || null} shortName={currentBidderName || 'BID'} className="w-[50px] h-[50px] rounded-full" />
+          </div>
         </div>
 
         <p className="text-xs mt-3 text-yellow-100/85">Base Price {formatPrice(player.basePrice)}</p>
