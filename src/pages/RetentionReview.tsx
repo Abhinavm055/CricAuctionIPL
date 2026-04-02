@@ -52,45 +52,23 @@ const RetentionReview = () => {
             const prices = teamDoc.playerPurchasePrices || {};
             const managerName = session?.managerNames?.[team.id] || (String(session?.selectedTeams?.[team.id] || '').startsWith('AI-') ? 'AI Manager' : 'Available');
 
-            return (
-              <div 
-                key={team.id} 
-                className="group relative h-[320px] rounded-xl cursor-pointer"
-                style={{ perspective: '1000px' }}
-                onClick={() => setExpandedTeamId(expandedTeamId === team.id ? null : team.id)}
-              >
-                <div 
-                  className={cn(
-                    "relative w-full h-full transition-all duration-500 rounded-xl",
-                    expandedTeamId === team.id ? "[transform:rotateY(180deg)]" : ""
-                  )}
-                  style={{ transformStyle: 'preserve-3d' }}
-                >
-                  
-                  {/* FRONT FACE */}
-                  <div 
-                    className="absolute inset-0 border border-white/10 bg-[#0f172a] rounded-xl p-4 flex flex-col justify-between hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] hover:border-yellow-400/70 overflow-hidden"
-                    style={{ backfaceVisibility: 'hidden' }}
-                  >
-                    <div className="relative z-10 transition-all duration-200 h-full group-hover:opacity-90">
-                      <div>
-                        <div className="flex items-center gap-3 mb-3">
-                          <TeamLogo teamId={team.id} logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
-                          <div>
-                            <h2 className="font-display text-lg leading-none">{team.shortName}</h2>
-                            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">{team.name}</p>
-                          </div>
-                        </div>
-
-                        <p className="text-sm mb-1 text-muted-foreground">Manager: <span className="text-foreground truncate block">{managerName}</span></p>
-                        <p className="text-sm mb-1">Retained: {retainedIds.length}/6</p>
-                        <p className="text-sm mb-1">RTM: {teamDoc.rtmCards ?? session?.retentions?.[team.id]?.rtm ?? 0}</p>
-                        <p className="text-sm mb-2">Purse: <span className="text-yellow-400">{formatPrice(teamDoc.purseRemaining ?? team.purse)}</span></p>
-                        <p className={(session?.retentions?.[team.id]?.locked || retainedIds.length) ? 'text-xs font-semibold text-emerald-400' : 'text-xs font-semibold text-yellow-300'}>
-                          {(session?.retentions?.[team.id]?.locked || retainedIds.length) ? '🟢 LOCKED' : '🟡 PENDING'}
-                        </p>
-                      </div>
+          return (
+            <div key={team.id} className="p-4 border rounded-xl bg-secondary/30">
+              <div className="flex items-center gap-3 mb-2">
+                <TeamLogo teamId={team.id} logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
+                <h2 className="font-display text-xl">{team.shortName}</h2>
+              </div>
+              <div className="flex gap-2 flex-wrap mb-3">
+                {retainedPlayers.map((p) => (
+                  <div key={p.id} className="text-center">
+                    <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center overflow-hidden mx-auto" title={p.name}>
+                      {(p.image || p.imageUrl) ? <img src={(p.image || p.imageUrl)} className="w-full h-full object-cover" /> : <User className="w-4 h-4" />}
                     </div>
+                    <p className="text-[10px] mt-1 w-16 truncate">{p.name}</p>
+                    {Number(p.rating || 0) >= 4 && <p className="text-[10px] text-yellow-400">{Array(Math.floor(Number(p.rating || 0))).fill('⭐').join(' ')}</p>}
+                    <p className="text-[10px] text-muted-foreground">{formatPrice(prices[p.id] || 0)}</p>
+                    <p className={`text-[9px] font-semibold ${p.isCapped ? 'text-emerald-500' : 'text-slate-400'}`}>{p.isCapped ? 'CAPPED' : 'UNCAPPED'}</p>
+                    {p.overseas && <p className="text-[10px] text-yellow-400">✈️</p>}
                   </div>
 
                   {/* BACK FACE */}

@@ -27,14 +27,6 @@ const normalizeRole = (role: string | undefined) => {
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-const hashToUnit = (input: string) => {
-  let hash = 0;
-  for (let i = 0; i < input.length; i += 1) {
-    hash = (hash * 31 + input.charCodeAt(i)) >>> 0;
-  }
-  return (hash % 1000) / 1000;
-};
-
 export const getRoleCounts = (players: DynamicPlayer[]) => {
   return players.reduce<Record<string, number>>((acc, player) => {
     const role = normalizeRole(player.role);
@@ -50,11 +42,12 @@ export const getRoleCounts = (players: DynamicPlayer[]) => {
 
 export const getPlayerFormFactor = (player: DynamicPlayer) => {
   if (typeof player.formFactor === 'number') return player.formFactor;
-  return 0.8 + hashToUnit(String(player.id || player.role || 'player')) * 0.4;
+  return 0.8 + Math.random() * 0.4;
 };
 
 export const calculatePlayerValue = (player: DynamicPlayer, roleCounts: Record<string, number>) => {
-  const rating = clamp(Number(player.rating ?? player.starRating ?? 3), 1, 5);
+  const rawRating = Number(player.rating ?? player.starRating ?? 0);
+  const rating = clamp(rawRating <= 5 ? rawRating * 20 : rawRating, 0, 100);
   const role = normalizeRole(player.role);
   const base = rating / 10;
   const scarcity = 1 + (1 / (Number(roleCounts[role] || 0) + 1));
@@ -82,8 +75,8 @@ export const enrichPlayersWithDynamicValue = <T extends DynamicPlayer>(players: 
 };
 
 export const getSmartIncrement = (currentBid: number) => {
-  if (currentBid < CR) return 500_000;
-  if (currentBid < 2 * CR) return 1_000_000;
-  if (currentBid < 5 * CR) return 2_000_000;
-  return 2_500_000;
+  if (currentBid < 5 * CR) return 500_000;
+  if (currentBid < 10 * CR) return 1_000_000;
+  if (currentBid < 20 * CR) return 2_000_000;
+  return 3_000_000;
 };

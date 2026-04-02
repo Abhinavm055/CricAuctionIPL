@@ -55,16 +55,16 @@ export const Header = ({
 
         <div className="flex items-center gap-1 md:gap-1.5 shrink-0">
           <button onClick={onSkip} disabled={!canControl || !onSkip || !canSkip} className={controlButtonClass}>
-            Skip Player
+            Skip
           </button>
           <button onClick={onNextSet} disabled={!canControl || !onNextSet || !canNextSet} className={controlButtonClass}>
             Next Set
           </button>
           <button onClick={onPauseToggle} disabled={!canControl || !onPauseToggle} className={controlButtonClass}>
-            {isPaused ? 'Resume Auction' : 'Pause Auction'}
+            {isPaused ? 'Resume' : 'Pause'}
           </button>
           <button onClick={onLeaveGame} className={`${controlButtonClass} text-red-400 hover:text-red-300`}>
-            Leave Auction
+            Leave
           </button>
           <button
             type="button"

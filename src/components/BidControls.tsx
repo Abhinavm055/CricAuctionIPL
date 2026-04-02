@@ -10,6 +10,7 @@ interface RecentPurchase {
 
 interface BidControlsProps {
   currentBid: number;
+  purseRemaining?: number;
   canBid: boolean;
   onBid: (amount: number) => void;
   recentPurchases?: RecentPurchase[];
@@ -20,6 +21,7 @@ const BID_COOLDOWN_MS = 250;
 
 const BidControlsComponent = ({
   currentBid,
+  purseRemaining,
   canBid,
   onBid,
   recentPurchases = [],
@@ -28,11 +30,14 @@ const BidControlsComponent = ({
   const [isBidPending, setIsBidPending] = useState(false);
   const [showUpcoming, setShowUpcoming] = useState(false);
   const lastClickRef = useRef(0);
+  const pendingTimeoutRef = useRef<number | null>(null);
   const nextBid = getNextBid(currentBid);
 
   useEffect(() => {
-    if (canBid) setIsBidPending(false);
-  }, [canBid, currentBid]);
+    return () => {
+      if (pendingTimeoutRef.current) window.clearTimeout(pendingTimeoutRef.current);
+    };
+  }, []);
 
   const handleBidClick = useCallback(() => {
     const now = Date.now();
@@ -40,6 +45,8 @@ const BidControlsComponent = ({
     lastClickRef.current = now;
     setIsBidPending(true);
     onBid(nextBid);
+    if (pendingTimeoutRef.current) window.clearTimeout(pendingTimeoutRef.current);
+    pendingTimeoutRef.current = window.setTimeout(() => setIsBidPending(false), 1500);
   }, [canBid, isBidPending, onBid, nextBid]);
 
   return (
@@ -51,9 +58,8 @@ const BidControlsComponent = ({
           onClick={handleBidClick}
           disabled={!canBid || isBidPending}
         >
-          {isBidPending ? 'Bidding...' : 'BID'}
+          {isBidPending ? 'Bidding...' : formatPrice(nextBid)}
         </Button>
-        <p className="mt-2 text-center text-xs text-[hsl(var(--muted-foreground))]">Next bid: {formatPrice(nextBid)}</p>
       </div>
 
       <div>

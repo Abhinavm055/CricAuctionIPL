@@ -30,7 +30,7 @@ import {
 } from "@/lib/constants";
 import { RetentionEngine } from "@/engine/retentionEngine";
 import { AuctionEngine } from "@/engine/auctionEngine";
-import { RtmEngine } from "@/engine/rtmEngine";
+import { RtmEngine, RtmStage } from "@/engine/rtmEngine";
 
 const OFFICIAL_POOL_ORDER = [
   "marquee",
@@ -656,7 +656,8 @@ export const resolveAuction = async (gameCode: string) => {
     const previousTeamSnap = previousTeamId ? await tx.get(doc(db, "sessions", gameCode, "teams", previousTeamId)) : null;
     const rtmCards = Number(previousTeamSnap?.data()?.rtmCards || 0);
 
-    if (previousTeamSnap?.exists() && rtmEngine.shouldTrigger({ previousTeamId, winningTeamId, playerRating, rtmCards })) {
+    const auctionTimerEnded = Number(auction?.timerEndsAt?.toMillis?.() || 0) <= Date.now();
+    if (auctionTimerEnded && previousTeamSnap?.exists() && rtmEngine.shouldTrigger({ previousTeamId, winningTeamId, playerRating, rtmCards })) {
       const rtmState = rtmEngine.createInitialState({
         playerId,
         playerName,
@@ -765,25 +766,26 @@ export const resolveRtmDecision = async (
     const playerName = String(playerSnap.data()?.name || pending.playerId);
     const originalTeamShortName = String(originalTeamSnap?.data()?.shortName || pending.originalTeamId || "Original Team").toUpperCase();
 
-    const stageMap: Record<string, "NONE" | "AVAILABLE" | "COUNTER_BID" | "FINAL"> = {
+    const currentStageMap: Record<string, RtmStage> = {
       AWAIT_ORIGINAL: "AVAILABLE",
       AWAIT_WINNER_COUNTER: "COUNTER_BID",
       AWAIT_ORIGINAL_MATCH: "FINAL",
     };
 
+    const stage = currentStageMap[pending.status] || "AVAILABLE";
     const transition = rtmEngine.transition({
-      stage: stageMap[pending.status] || "NONE",
+      stage,
       action: payload.action,
       actingTeamId: payload.actingTeamId,
       rtmTeamId: pending.originalTeamId,
       winningTeamId: pending.winningTeamId,
-      finalBid: Number(pending.finalBid),
-      counterBid: Number(payload.counterBid || pending.counterBid),
+      finalBid: Number(pending.finalBid || 0),
+      counterBid: Number(payload.counterBid || pending.counterBid || getNextBid(Number(pending.finalBid || 0))),
       playerName,
     });
 
-    if ((transition as any).done) {
-      const result = transition as any;
+    if (transition.done) {
+      const result = transition;
       const rtmResultMessage =
         payload.action === "USE" || payload.action === "MATCH" || (payload.action === "DECLINE" && pending.status === "AWAIT_WINNER_COUNTER")
           ? `${originalTeamShortName} used RTM`
@@ -814,10 +816,11 @@ export const resolveRtmDecision = async (
           soldAt: Timestamp.fromMillis(Date.now()),
           soldPlayerId: pending.playerId,
           lastEvent: {
-            type: "player-sold",
+            type: "rtm-result",
             playerId: pending.playerId,
             teamId: result.winnerTeamId,
             price: Number(result.finalBid),
+            rtmResultMessage,
             createdAt: Timestamp.fromMillis(Date.now()),
           },
         },
@@ -825,7 +828,7 @@ export const resolveRtmDecision = async (
       return;
     }
 
-    const next = transition as any;
+    const next = transition;
     const statusMap: Record<string, string> = {
       COUNTER_BID: "AWAIT_WINNER_COUNTER",
       FINAL: "AWAIT_ORIGINAL_MATCH",
@@ -887,13 +890,10 @@ export const resolveRtmTimeout = async (gameCode: string) => {
     AWAIT_ORIGINAL_MATCH: pending.originalTeamId,
   };
 
-  await resolveRtmDecision(gameCode, {
-    action: actionMap[pending.status],
-    actingTeamId: actingTeamMap[pending.status],
-  });
+  const actingTeamId = actingTeamMap[pending.status];
+  if (!actingTeamId) return;
+  await resolveRtmDecision(gameCode, { action: actionMap[pending.status], actingTeamId });
 };
-
-
 
 export const skipCurrentPlayer = async (gameCode: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
@@ -1009,7 +1009,7 @@ export const startAcceleratedRound = async (gameCode: string) => {
       unsoldPlayers: [],
       isAcceleratedRound: true,
       acceleratedRoundSkipped: false,
-      currentAuction: DEFAULT_AUCTION_STATE,
+      currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE" },
     });
   });
 };
@@ -1020,63 +1020,9 @@ export const skipAcceleratedRound = async (gameCode: string) => {
   await updateDoc(sessionRef, {
     phase: "AUCTION_COMPLETE",
     acceleratedRoundSkipped: true,
-    currentAuction: DEFAULT_AUCTION_STATE,
+    currentAuction: { activePlayerId: null, currentBid: 0, currentBidderId: null, timerEndsAt: null, status: "IDLE" },
   });
 };
-
-export const updateAuctionStats = async (
-  gameCode: string,
-  winnerTeamId: string,
-  selectedTeams: Record<string, string>,
-  managerNames: Record<string, string> = {}
-) => {
-  const updates = Object.entries(selectedTeams).filter(([, uid]) => !String(uid).startsWith('AI-'));
-  const winnerName = managerNames[winnerTeamId] || winnerTeamId.toUpperCase();
-
-  await Promise.all(
-    updates.map(async ([teamId, uid]) => {
-      const isWinner = teamId === winnerTeamId;
-      const managerName = managerNames[teamId] || String(uid).slice(0, 8);
-      const userRef = doc(db, 'users', uid);
-      const leaderboardRef = doc(db, 'leaderboard', uid);
-      const historyRecord = {
-        code: gameCode,
-        winner: winnerName,
-        teamId,
-        managerName,
-        result: isWinner ? 'WON' : 'PARTICIPATED',
-        createdAt: Timestamp.fromMillis(Date.now()),
-      };
-
-      await setDoc(
-        userRef,
-        {
-          uid,
-          name: managerName,
-          managerName,
-          auctionsPlayed: increment(1),
-          auctionsWon: increment(isWinner ? 1 : 0),
-          auctionHistory: arrayUnion(historyRecord),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
-
-      await setDoc(
-        leaderboardRef,
-        {
-          uid,
-          name: managerName,
-          auctionsPlayed: increment(1),
-          auctionsWon: increment(isWinner ? 1 : 0),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
-    }),
-  );
-};
-
 
 export const getPlayerMetaForAI = {
   getPlayerRating,
