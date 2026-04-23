@@ -350,37 +350,12 @@ const Auction = () => {
   };
 
   const isAIMode = String(session?.mode || "").toUpperCase() === "VS_AI";
-  const skipDisabled = useMemo(() => {
-    if (isAIMode) return false;
-    if (!currentPlayer || !currentAuction) return true;
-    return Number(currentAuction.currentBid || 0) > Number((currentPlayer as any).basePrice || 0);
-  }, [currentPlayer, currentAuction, isAIMode]);
   const canNextSet = useMemo(() => {
     if (isAIMode && isHost) return true;
     if (!isHost || !gameCode) return false;
     if (pendingRtm || currentAuction?.isAuctionLocked) return false;
     return !currentAuction?.activePlayerId || ["UNSOLD", "SOLD"].includes(String(currentAuction?.status || ""));
   }, [isAIMode, isHost, gameCode, pendingRtm, currentAuction?.isAuctionLocked, currentAuction?.activePlayerId, currentAuction?.status]);
-
-  const handleSkip = useCallback(async () => {
-    if (!gameCode || !isHost) return;
-
-    if (isAIMode && currentPlayer && currentAuction?.status === "RUNNING") {
-      const aiCandidates = teams
-        .filter((team) => team.id !== myTeamId && canTeamBid(team, currentPlayer, Number((currentPlayer as any).basePrice || 0)))
-        .sort((a, b) => Number(b.purseRemaining || 0) - Number(a.purseRemaining || 0));
-      const aiBuyer = aiCandidates[0];
-      const predefinedValue = Number((currentPlayer as any).basePrice || 0);
-
-      if (aiBuyer && predefinedValue > 0) {
-        await placeBid(gameCode, aiBuyer.id, predefinedValue);
-        await resolveAuction(gameCode);
-        return;
-      }
-    }
-
-    await skipCurrentPlayer(gameCode);
-  }, [gameCode, isHost, isAIMode, currentPlayer, currentAuction?.status, teams, aiEngine]);
 
   const handleSkipSet = useCallback(async () => {
     if (!gameCode || !isHost) return;
@@ -442,8 +417,6 @@ const Auction = () => {
     if (!aiDecision) return;
 
     setAiThinkingTeamId(aiDecision.teamId);
-    const thinkingTeam = teams.find((t) => t.id === aiDecision.teamId);
-    setCommentary((prev) => [`${thinkingTeam?.shortName || "AI"} is thinking...`, ...prev].slice(0, 14));
     const thinkingDelay = Math.max(1000, Math.min(2000, Number(aiDecision.delayMs || 1200)));
 
     const timer = setTimeout(() => {
@@ -478,12 +451,7 @@ const Auction = () => {
 
     if (currentAuction.currentBidderId && Number(currentAuction.currentBid || 0) !== prevBidRef.current) {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
-      const previousTeam = teams.find((t) => t.id === prevBidderRef.current);
       const amount = formatCrPrice(Number(currentAuction.currentBid || 0));
-
-      if (prevBidderRef.current && prevBidderRef.current !== currentAuction.currentBidderId) {
-        setCommentary((prev) => [`${previousTeam?.shortName || "Team"} backs out at ${amount}!`, ...prev].slice(0, 14));
-      }
 
       const line = prevBidderRef.current
         ? `${team?.shortName || "Team"} raises bid to ${amount}!`
@@ -502,7 +470,6 @@ const Auction = () => {
 
     if (currentAuction.status === "UNSOLD" && prevStatusRef.current !== "UNSOLD") {
       setBanner({ kind: 'UNSOLD' });
-      setCommentary((prev) => [`${currentPlayer?.name || "Player"} goes UNSOLD.`, ...prev].slice(0, 14));
       setTimeout(() => setBanner(null), 2000);
       playSound('hammer');
       playSound('ooh');
@@ -769,13 +736,11 @@ const Auction = () => {
       return `${pl?.name || p.playerId} SOLD to ${team?.shortName || p.teamId} for ${formatCrPrice(p.price)}`;
     });
 
-    const rtmLine = pendingRtm
-      ? `${rtmOriginalTeam?.shortName || 'Original Team'} uses RTM rights against ${rtmWinningTeam?.shortName || 'Bid Team'}!`
-      : '';
-
-    const lines = [...commentary, rtmLine, ...saleLines].filter(Boolean).slice(0, 14);
-    return lines.length ? lines.join(' • ') : 'Auction is live • Waiting for next bid •';
-  }, [recentPurchases, masterPlayerList, teams, commentary, pendingRtm, rtmOriginalTeam?.shortName, rtmWinningTeam?.shortName]);
+    const lines = [...commentary, ...saleLines]
+      .filter((line) => /(bids|SOLD)/i.test(String(line)))
+      .slice(0, 14);
+    return lines.join(' • ');
+  }, [recentPurchases, masterPlayerList, teams, commentary]);
 
   const showAcceleratedButton = useMemo(() => {
     if (!isHost) return false;
@@ -863,14 +828,12 @@ const Auction = () => {
       <Header
         gameCode={gameCode!}
         currentSetLabel={`${typeof setProgress.currentSetIndex === "number" && setProgress.currentSetIndex >= 0 ? `Set ${setProgress.currentSetIndex + 1}: ` : ""}${setProgress.activeSetLabel}`}
-        onSkip={gameCode && isHost ? handleSkip : undefined}
-        onNextSet={gameCode && canNextSet ? () => loadNextPlayer(gameCode) : undefined}
+        onNextSet={gameCode && isAIMode && isHost && canNextSet ? () => loadNextPlayer(gameCode) : undefined}
         onSkipSet={gameCode && isAIMode && isHost ? handleSkipSet : undefined}
         onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
         isPaused={currentAuction?.status === "PAUSED"}
         canControl={Boolean(isHost)}
-        canSkip={!skipDisabled}
-        canNextSet={canNextSet}
+        canNextSet={Boolean(isAIMode && canNextSet)}
         canSkipSet={Boolean(isAIMode && isHost)}
         onMenuClick={() => setTeamDrawerOpen(true)}
         onLeaveGame={async () => {
