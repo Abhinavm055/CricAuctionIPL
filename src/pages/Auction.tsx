@@ -917,7 +917,7 @@ const Auction = () => {
             <div className="absolute -top-14 left-1/2 -translate-x-1/2 text-4xl md:text-5xl animate-[hammerDrop_0.45s_ease-out]">🔨</div>
             <div className="absolute inset-0 rounded-2xl border-2 border-white/20 animate-[hammerImpact_0.45s_ease-out]" />
             <div
-              className={`min-w-[260px] rounded-2xl border px-7 py-5 text-center shadow-2xl animate-[resultPop_0.35s_ease-out] ${banner.kind === 'SOLD' ? 'border-green-500 text-green-400 bg-green-900/30 shadow-[0_0_30px_rgba(34,197,94,0.35)]' : 'border-red-500 text-red-400 bg-red-900/30 shadow-[0_0_30px_rgba(248,113,113,0.35)]'}`}
+              className={`status-fade min-w-[260px] rounded-2xl border px-7 py-5 text-center shadow-2xl animate-[resultPop_0.35s_ease-out] ${banner.kind === 'SOLD' ? 'border-[#FFD700] text-[#FFD700] bg-[#2f2500bb] shadow-[0_0_30px_rgba(255,215,0,0.42)]' : 'border-[#FF4D4D] text-[#FF4D4D] bg-[#2e0808bb] shadow-[0_0_30px_rgba(255,77,77,0.35)]'}`}
             >
               <p className="text-3xl md:text-4xl font-display">{banner.kind}</p>
               {banner.kind === 'SOLD' ? (
@@ -1011,22 +1011,22 @@ const Auction = () => {
       {!auctionEnded && (
         <>
           <div className="relative">
-            <div className="border-y border-yellow-500/40 bg-[#061734] overflow-hidden py-1.5">
+            <div className="border-y border-[#00CFFF66] bg-[#061734cc] backdrop-blur-md overflow-hidden py-1.5">
               <div className="whitespace-nowrap animate-[marquee_28s_linear_infinite] text-xs md:text-sm text-yellow-100 px-4">
                 {commentaryTicker} &nbsp; • &nbsp; {commentaryTicker}
               </div>
             </div>
 
             <div className="pointer-events-none absolute left-1/2 -top-10 -translate-x-1/2 z-20">
-              <div className="relative h-[110px] w-[110px] md:h-[140px] md:w-[140px] rounded-full bg-[#020617] border-2 border-yellow-400/40 grid place-items-center shadow-[0_0_30px_rgba(251,191,36,0.45)]">
+              <div className="relative h-[110px] w-[110px] md:h-[140px] md:w-[140px] rounded-full bg-[#020617] border-2 border-[#00CFFF66] grid place-items-center shadow-[0_0_35px_rgba(0,207,255,0.38)]">
                 <svg viewBox="0 0 120 120" className="absolute inset-0 -rotate-90">
-                  <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(251,191,36,0.22)" strokeWidth="8" />
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(0,207,255,0.22)" strokeWidth="8" />
                   <circle
                     cx="60"
                     cy="60"
                     r="50"
                     fill="none"
-                    stroke="rgba(251,191,36,0.95)"
+                    stroke={timerSeconds <= 10 ? "#FF4D4D" : "#00CFFF"}
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={2 * Math.PI * 50}
@@ -1034,7 +1034,7 @@ const Auction = () => {
                     className="transition-[stroke-dashoffset] duration-500"
                   />
                 </svg>
-                <span className="font-display text-3xl md:text-5xl leading-none text-yellow-200">{Math.max(0, Math.floor(timerSeconds))}</span>
+                <span className={`font-display text-3xl md:text-5xl leading-none ${timerSeconds <= 10 ? 'timer-urgent text-[#FF4D4D]' : 'text-[#d7f8ff]'}`}>{Math.max(0, Math.floor(timerSeconds))}</span>
               </div>
             </div>
           </div>
