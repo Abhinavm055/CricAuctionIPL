@@ -2,8 +2,9 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { generateGameCode } from '@/lib/constants';
-import { Bot, Users, Volume2, VolumeX, Menu } from 'lucide-react';
+import { Bot, Users, Volume2, VolumeX, Menu, Trophy, PlayCircle, Swords, ListChecks, Gavel } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { createSession } from '@/lib/sessionService';
 import { auth, db } from '@/lib/firebase';
 import {
@@ -32,6 +33,8 @@ const Landing = () => {
   const [isMuted, setIsMuted] = useState(false);
   const [counts, setCounts] = useState({ liveAuctions: 0, playersOnline: 0 });
   const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [rulesModalOpen, setRulesModalOpen] = useState(false);
+  const [rulesMode, setRulesMode] = useState<'multiplayer' | 'ai' | 'create' | 'start' | 'squad'>('multiplayer');
 
   const [user, setUser] = useState<User | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -188,6 +191,19 @@ const Landing = () => {
     navigate(`/lobby/${code}?host=true&ai=true`);
   };
 
+  const openRules = (mode: 'multiplayer' | 'ai' | 'create' | 'start' | 'squad') => {
+    setRulesMode(mode);
+    setRulesModalOpen(true);
+  };
+
+  const actionButtons = [
+    { key: 'multiplayer' as const, label: 'Play Multiplayer', icon: Users, onClick: () => openRules('multiplayer') },
+    { key: 'ai' as const, label: 'VS AI', icon: Bot, onClick: () => openRules('ai') },
+    { key: 'create' as const, label: 'Create Lobby', icon: ListChecks, onClick: () => openRules('create') },
+    { key: 'start' as const, label: 'Start Auction', icon: Gavel, onClick: () => openRules('start') },
+    { key: 'squad' as const, label: 'Build Squad', icon: Trophy, onClick: () => openRules('squad') },
+  ];
+
   return (
     <div className="landing-page min-h-screen relative flex flex-col overflow-hidden">
       <div className="absolute inset-0 bg-[#020617]/60 backdrop-blur-[1.2px]" />
@@ -273,16 +289,16 @@ const Landing = () => {
         )}
 
         <section className="text-center mb-12 slide-up">
-          <h2 className="font-display text-6xl md:text-8xl text-foreground mb-4 tracking-wide">
+          <h2 className="font-display text-6xl md:text-8xl text-[#FFD700] mb-4 tracking-wide">
             IPL AUCTION
-            <span className="block text-primary text-shadow-glow glow-title">SIMULATOR</span>
+            <span className="block text-[#FFD700] text-shadow-glow glow-title">SIMULATOR</span>
           </h2>
         </section>
 
         <section className="grid md:grid-cols-2 gap-6 w-full max-w-5xl slide-up" style={{ animationDelay: '0.15s' }}>
           <article className="group p-6 rounded-2xl border border-primary/25 bg-[#0f172a]/90 transition-all duration-300 hover:-translate-y-2 hover:scale-105 hover:border-primary/80 hover:shadow-[0_0_30px_rgba(251,191,36,0.6)]">
             <Users className="w-10 h-10 text-primary mb-3 transition-transform duration-300 group-hover:scale-110" />
-            <h3 className="font-display text-2xl mb-2">VS Multiplayer Auction</h3>
+            <h3 className="font-display text-2xl mb-2 text-[#FFD700]">VS Multiplayer Auction</h3>
             <p className="text-sm text-muted-foreground mb-4">Host or join a live IPL auction with friends.</p>
             <Button
               variant="gold"
@@ -296,7 +312,7 @@ const Landing = () => {
 
           <article className="group p-6 rounded-2xl border border-primary/25 bg-[#0f172a]/90 transition-all duration-300 hover:-translate-y-2 hover:scale-105 hover:border-primary/80 hover:shadow-[0_0_30px_rgba(251,191,36,0.6)]">
             <Bot className="w-10 h-10 text-primary mb-3 transition-transform duration-300 group-hover:scale-110" />
-            <h3 className="font-display text-2xl mb-2">VS AI Auction</h3>
+            <h3 className="font-display text-2xl mb-2 text-[#FFD700]">VS AI Auction</h3>
             <p className="text-sm text-muted-foreground mb-4">1 human team vs 9 AI teams with personality-driven bidding.</p>
             <Button
               variant="broadcast"
@@ -309,26 +325,58 @@ const Landing = () => {
           </article>
         </section>
 
-        <section className="flex justify-center gap-6 md:gap-10 mt-12 text-yellow-400 text-base md:text-lg fade-in" style={{ animationDelay: '0.35s' }}>
+        <section className="flex justify-center gap-6 md:gap-10 mt-12 text-[#FFD700] text-base md:text-lg fade-in" style={{ animationDelay: '0.35s' }}>
           <div className="flex items-center gap-2">🔥 <span>Live Auctions: {counts.liveAuctions}</span></div>
           <div className="flex items-center gap-2">👥 <span>Players Online: {counts.playersOnline}</span></div>
         </section>
 
-        <section ref={howItWorksRef} className={`grid md:grid-cols-3 gap-6 md:gap-10 mt-16 text-center w-full max-w-5xl ${showHowItWorks ? 'fade-in' : 'opacity-0'}`}>
-          <div className="rounded-xl border border-border/70 bg-[#0f172a]/85 p-5">
-            <h3 className="font-display text-2xl text-primary mb-1">🎮 Create Lobby</h3>
-            <p className="text-sm text-muted-foreground">Invite friends or start multiplayer auction</p>
-          </div>
-          <div className="rounded-xl border border-border/70 bg-[#0f172a]/85 p-5">
-            <h3 className="font-display text-2xl text-primary mb-1">⚡ Start Auction</h3>
-            <p className="text-sm text-muted-foreground">Teams bid live for players</p>
-          </div>
-          <div className="rounded-xl border border-border/70 bg-[#0f172a]/85 p-5">
-            <h3 className="font-display text-2xl text-primary mb-1">🏆 Build Squad</h3>
-            <p className="text-sm text-muted-foreground">Create the strongest IPL team</p>
-          </div>
+        <section ref={howItWorksRef} className={`grid md:grid-cols-5 gap-4 md:gap-5 mt-16 text-center w-full max-w-6xl ${showHowItWorks ? 'fade-in' : 'opacity-0'}`}>
+          {actionButtons.map(({ key, label, icon: Icon, onClick }) => (
+            <Button
+              key={key}
+              variant="broadcast"
+              onClick={onClick}
+              className="h-auto min-h-24 w-full flex-col gap-2 rounded-xl border border-[#FFD70044] bg-[#0f172acc] text-[#FFD700] hover:border-[#FFD700aa] hover:bg-[#182848] transition-all duration-300 hover:scale-105"
+            >
+              <Icon className="h-5 w-5" />
+              <span className="text-sm font-semibold">{label}</span>
+            </Button>
+          ))}
         </section>
       </main>
+
+      <Dialog open={rulesModalOpen} onOpenChange={setRulesModalOpen}>
+        <DialogContent className="max-w-2xl border border-[#FFD70055] bg-[#061328f2] text-white backdrop-blur-xl">
+          <DialogHeader>
+            <DialogTitle className="font-display text-3xl text-[#FFD700]">
+              {rulesMode === 'multiplayer' && 'Play Multiplayer'}
+              {rulesMode === 'ai' && 'VS AI'}
+              {rulesMode === 'create' && 'Create Lobby'}
+              {rulesMode === 'start' && 'Start Auction'}
+              {rulesMode === 'squad' && 'Build Squad'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 text-sm leading-relaxed">
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <h4 className="mb-1 text-base font-semibold text-[#FFD700]">Rules</h4>
+              <p>Select a franchise, respect purse limits, and build a valid squad while competing in live bidding rounds.</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <h4 className="mb-1 text-base font-semibold text-[#FFD700]">RTM Rules</h4>
+              <p>Each team gets limited RTM cards. RTM can only be used on eligible former players after a winning bid is confirmed.</p>
+            </div>
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <h4 className="mb-1 text-base font-semibold text-[#FFD700]">Squad Rules</h4>
+              <p>Maintain squad-size and overseas constraints. Balanced roles improve long-term auction performance.</p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              {rulesMode === 'multiplayer' && <Button variant="gold" onClick={handlePlayMultiplayer}><PlayCircle className="h-4 w-4" /> Continue</Button>}
+              {rulesMode === 'ai' && <Button variant="gold" onClick={handlePlayWithAI}><Swords className="h-4 w-4" /> Continue</Button>}
+              {rulesMode !== 'multiplayer' && rulesMode !== 'ai' && <Button variant="gold" onClick={() => setRulesModalOpen(false)}>Got it</Button>}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {showAuthModal && (
         <div className="fixed inset-0 z-40 grid place-items-center bg-black/60 px-4">

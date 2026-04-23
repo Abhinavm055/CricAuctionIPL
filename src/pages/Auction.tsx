@@ -356,39 +356,24 @@ const Auction = () => {
     return Number(currentAuction.currentBid || 0) > Number((currentPlayer as any).basePrice || 0);
   }, [currentPlayer, currentAuction, isAIMode]);
   const canNextSet = useMemo(() => {
+    if (isAIMode && isHost) return true;
     if (!isHost || !gameCode) return false;
     if (pendingRtm || currentAuction?.isAuctionLocked) return false;
     return !currentAuction?.activePlayerId || ["UNSOLD", "SOLD"].includes(String(currentAuction?.status || ""));
-  }, [isHost, gameCode, pendingRtm, currentAuction?.isAuctionLocked, currentAuction?.activePlayerId, currentAuction?.status]);
+  }, [isAIMode, isHost, gameCode, pendingRtm, currentAuction?.isAuctionLocked, currentAuction?.activePlayerId, currentAuction?.status]);
 
   const handleSkip = useCallback(async () => {
     if (!gameCode || !isHost) return;
 
     if (isAIMode && currentPlayer && currentAuction?.status === "RUNNING") {
-      const result = aiEngine.simulateSkipOutcome(
-        {
-          id: (currentPlayer as any).id,
-          name: (currentPlayer as any).name,
-          role: (currentPlayer as any).role,
-          rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 3),
-          starRating: Number((currentPlayer as any).starRating ?? 3),
-          basePrice: Number((currentPlayer as any).basePrice || 0),
-          overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
-          demandLevel: (currentPlayer as any).demandLevel,
-          interestedTeams: (currentPlayer as any).interestedTeams || [],
-          dynamicValue: Number((currentPlayer as any).dynamicValue || (currentPlayer as any).basePrice || 0),
-        },
-        teams.map((team) => ({
-          id: team.id,
-          isAI: Boolean(team.isAI),
-          squadSize: Number(team.squadSize || 0),
-          purseRemaining: Number(team.purseRemaining || 0),
-          overseasCount: Number(team.overseasCount || 0),
-        })),
-      );
+      const aiCandidates = teams
+        .filter((team) => team.id !== myTeamId && canTeamBid(team, currentPlayer, Number((currentPlayer as any).basePrice || 0)))
+        .sort((a, b) => Number(b.purseRemaining || 0) - Number(a.purseRemaining || 0));
+      const aiBuyer = aiCandidates[0];
+      const predefinedValue = Number((currentPlayer as any).basePrice || 0);
 
-      if (result.sold && result.teamId && Number.isFinite(result.price)) {
-        await placeBid(gameCode, result.teamId, result.price);
+      if (aiBuyer && predefinedValue > 0) {
+        await placeBid(gameCode, aiBuyer.id, predefinedValue);
         await resolveAuction(gameCode);
         return;
       }
@@ -396,6 +381,11 @@ const Auction = () => {
 
     await skipCurrentPlayer(gameCode);
   }, [gameCode, isHost, isAIMode, currentPlayer, currentAuction?.status, teams, aiEngine]);
+
+  const handleSkipSet = useCallback(async () => {
+    if (!gameCode || !isHost) return;
+    await skipCurrentPlayer(gameCode);
+  }, [gameCode, isHost]);
 
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
@@ -875,11 +865,13 @@ const Auction = () => {
         currentSetLabel={`${typeof setProgress.currentSetIndex === "number" && setProgress.currentSetIndex >= 0 ? `Set ${setProgress.currentSetIndex + 1}: ` : ""}${setProgress.activeSetLabel}`}
         onSkip={gameCode && isHost ? handleSkip : undefined}
         onNextSet={gameCode && canNextSet ? () => loadNextPlayer(gameCode) : undefined}
+        onSkipSet={gameCode && isAIMode && isHost ? handleSkipSet : undefined}
         onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
         isPaused={currentAuction?.status === "PAUSED"}
         canControl={Boolean(isHost)}
         canSkip={!skipDisabled}
         canNextSet={canNextSet}
+        canSkipSet={Boolean(isAIMode && isHost)}
         onMenuClick={() => setTeamDrawerOpen(true)}
         onLeaveGame={async () => {
           if (!gameCode) return;

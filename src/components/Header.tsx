@@ -1,4 +1,4 @@
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, SkipForward, FastForward, ChevronRight, PauseCircle, PlayCircle } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
 interface HeaderProps {
@@ -6,27 +6,31 @@ interface HeaderProps {
   currentSetLabel?: string;
   onSkip?: () => void;
   onNextSet?: () => void;
+  onSkipSet?: () => void;
   onPauseToggle?: () => void;
   isPaused?: boolean;
   canControl?: boolean;
   canSkip?: boolean;
   canNextSet?: boolean;
+  canSkipSet?: boolean;
   onLeaveGame?: () => void;
   onMenuClick?: () => void;
 }
 
-const controlButtonClass = 'rounded-md px-2 py-1 text-[11px] font-medium text-[hsl(var(--foreground))]/80 hover:text-[hsl(var(--foreground))] hover:underline underline-offset-4 disabled:cursor-not-allowed disabled:opacity-40';
+const controlButtonClass = 'inline-flex h-8 w-8 items-center justify-center rounded-md border border-[hsl(var(--border))] bg-[hsl(var(--card))]/70 text-[hsl(var(--foreground))]/85 transition-all duration-200 hover:-translate-y-0.5 hover:scale-105 hover:bg-[hsl(var(--accent))]/20 disabled:cursor-not-allowed disabled:opacity-40';
 
 export const Header = ({
   gameCode,
   currentSetLabel,
   onSkip,
   onNextSet,
+  onSkipSet,
   onPauseToggle,
   isPaused,
   canControl,
   canSkip = true,
   canNextSet = false,
+  canSkipSet = false,
   onLeaveGame,
   onMenuClick,
 }: HeaderProps) => {
@@ -54,14 +58,17 @@ export const Header = ({
         </div>
 
         <div className="flex items-center gap-1 md:gap-1.5 shrink-0">
-          <button onClick={onSkip} disabled={!canControl || !onSkip || !canSkip} className={controlButtonClass}>
-            Skip Player
+          <button title="Skip Player" onClick={onSkip} disabled={!canControl || !onSkip || !canSkip} className={controlButtonClass}>
+            <SkipForward className="h-4 w-4" />
           </button>
-          <button onClick={onNextSet} disabled={!canControl || !onNextSet || !canNextSet} className={controlButtonClass}>
-            Next Set
+          <button title="Next Player" onClick={onNextSet} disabled={!canControl || !onNextSet || !canNextSet} className={controlButtonClass}>
+            <ChevronRight className="h-4 w-4" />
           </button>
-          <button onClick={onPauseToggle} disabled={!canControl || !onPauseToggle} className={controlButtonClass}>
-            {isPaused ? 'Resume Auction' : 'Pause Auction'}
+          <button title="Skip Set" onClick={onSkipSet} disabled={!canControl || !onSkipSet || !canSkipSet} className={controlButtonClass}>
+            <FastForward className="h-4 w-4" />
+          </button>
+          <button title={isPaused ? 'Resume Auction' : 'Pause Auction'} onClick={onPauseToggle} disabled={!canControl || !onPauseToggle} className={controlButtonClass}>
+            {isPaused ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
           </button>
           <button onClick={onLeaveGame} className={`${controlButtonClass} text-red-400 hover:text-red-300`}>
             Leave Auction

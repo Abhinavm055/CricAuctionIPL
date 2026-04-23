@@ -8,6 +8,19 @@ import { User } from 'lucide-react';
 import { TeamLogo } from '@/components/TeamLogo';
 import { cn } from '@/lib/utils';
 
+const TEAM_OWNERS: Record<string, string> = {
+  pbks: 'Preity Zinta',
+  mi: 'Mukesh Ambani',
+  csk: 'N. Srinivasan',
+  rcb: 'United Spirits',
+  kkr: 'Shah Rukh Khan',
+  dc: 'GMR Group',
+  rr: 'Manoj Badale',
+  srh: 'Kalanithi Maran',
+  gt: 'CVC Capital Partners',
+  lsg: 'Sanjiv Goenka',
+};
+
 const RetentionReview = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
   const navigate = useNavigate();
@@ -50,7 +63,7 @@ const RetentionReview = () => {
             const retainedIds = (teamDoc.retainedPlayers || session?.retentions?.[team.id]?.players || []) as string[];
             const retainedPlayers = retainedIds.map((id) => playerById.get(id)).filter(Boolean) as any[];
             const prices = teamDoc.playerPurchasePrices || {};
-            const managerName = session?.managerNames?.[team.id] || (String(session?.selectedTeams?.[team.id] || '').startsWith('AI-') ? 'AI Manager' : 'Available');
+            const managerName = session?.managerNames?.[team.id] || (String(session?.selectedTeams?.[team.id] || '').startsWith('AI-') ? TEAM_OWNERS[team.id] || 'AI Manager' : TEAM_OWNERS[team.id] || 'Available');
 
             return (
               <div 
