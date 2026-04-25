@@ -4,12 +4,12 @@ import { useTheme } from 'next-themes';
 interface HeaderProps {
   gameCode: string;
   currentSetLabel?: string;
-  onNextSet?: () => void;
+  onAdvancePlayer?: () => void;
   onSkipSet?: () => void;
   onPauseToggle?: () => void;
   isPaused?: boolean;
   canControl?: boolean;
-  canNextSet?: boolean;
+  canAdvancePlayer?: boolean;
   canSkipSet?: boolean;
   onLeaveGame?: () => void;
   onMenuClick?: () => void;
@@ -20,12 +20,12 @@ const controlButtonClass = 'inline-flex h-8 w-8 items-center justify-center roun
 export const Header = ({
   gameCode,
   currentSetLabel,
-  onNextSet,
+  onAdvancePlayer,
   onSkipSet,
   onPauseToggle,
   isPaused,
   canControl,
-  canNextSet = false,
+  canAdvancePlayer = false,
   canSkipSet = false,
   onLeaveGame,
   onMenuClick,
@@ -54,8 +54,8 @@ export const Header = ({
         </div>
 
         <div className="flex items-center gap-1 md:gap-1.5 shrink-0">
-          {onNextSet && (
-            <button title="Next Player" onClick={onNextSet} disabled={!canControl || !canNextSet} className={controlButtonClass}>
+          {onAdvancePlayer && (
+            <button title="Skip / Next Player" onClick={onAdvancePlayer} disabled={!canControl || !canAdvancePlayer} className={controlButtonClass}>
               <ChevronRight className="h-4 w-4" />
             </button>
           )}

@@ -64,9 +64,74 @@ const shuffleArray = <T,>(arr: T[]) => {
 };
 
 const buildAuctionQueue = (players: Array<Record<string, any>>) => {
-  const grouped: Record<string, string[]> = OFFICIAL_POOL_ORDER.reduce((acc, key) => ({ ...acc, [key]: [] }), {} as Record<string, string[]>);
-  players.forEach((p) => grouped[normalizePool(p.pool)].push(p.id));
-  return OFFICIAL_POOL_ORDER.flatMap((pool) => shuffleArray(grouped[pool] || []));
+  const roleOrder = ["batsman", "wicket-keeper", "all-rounder", "bowler"];
+  const normalizeRole = (role: string | undefined) => {
+    const key = String(role || "").toLowerCase();
+    if (key.includes("wicket")) return "wicket-keeper";
+    if (key.includes("all")) return "all-rounder";
+    if (key.includes("bowl")) return "bowler";
+    return "batsman";
+  };
+  const ratingOf = (p: Record<string, any>) => Number(p.starRating ?? p.rating ?? 0);
+  const byRatingDesc = (a: Record<string, any>, b: Record<string, any>) => ratingOf(b) - ratingOf(a);
+
+  const balancedChunk = (source: Array<Record<string, any>>, used: Set<string>, size = 15) => {
+    const buckets: Record<string, Array<Record<string, any>>> = roleOrder.reduce((acc, key) => ({ ...acc, [key]: [] }), {} as Record<string, Array<Record<string, any>>>);
+    source.forEach((p) => {
+      if (!used.has(p.id)) buckets[normalizeRole(p.role)].push(p);
+    });
+    roleOrder.forEach((role) => buckets[role].sort(byRatingDesc));
+
+    const targetByRole: Record<string, number> = {
+      "batsman": 4,
+      "wicket-keeper": 4,
+      "all-rounder": 4,
+      "bowler": 3,
+    };
+
+    const chunk: string[] = [];
+    roleOrder.forEach((role) => {
+      let count = 0;
+      while (buckets[role].length && count < targetByRole[role] && chunk.length < size) {
+        const player = buckets[role].shift()!;
+        if (used.has(player.id)) continue;
+        used.add(player.id);
+        chunk.push(player.id);
+        count += 1;
+      }
+    });
+
+    const leftovers = roleOrder.flatMap((role) => buckets[role]).sort(byRatingDesc);
+    for (const player of leftovers) {
+      if (chunk.length >= size) break;
+      if (used.has(player.id)) continue;
+      used.add(player.id);
+      chunk.push(player.id);
+    }
+    return chunk;
+  };
+
+  const used = new Set<string>();
+  const queue: string[] = [];
+  const themedPools = [
+    players.filter((p) => Boolean(p.overseas ?? p.isOverseas)),
+    players.filter((p) => !Boolean(p.isCapped)),
+    players.filter((p) => Number(p.starRating ?? p.rating ?? 0) >= 4),
+    players.filter((p) => Boolean(p.isCapped)),
+  ];
+
+  themedPools.forEach((pool) => {
+    const chunk = balancedChunk(pool, used, 15);
+    queue.push(...chunk);
+  });
+
+  while (used.size < players.length) {
+    const chunk = balancedChunk(players, used, 15);
+    if (!chunk.length) break;
+    queue.push(...chunk);
+  }
+
+  return queue;
 };
 
 const getPlayerOverseasFlag = (playerData: any) => Boolean(playerData?.overseas ?? playerData?.isOverseas);

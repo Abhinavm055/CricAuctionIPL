@@ -32,6 +32,16 @@ import { Header } from "@/components/Header";
 import { TeamGrid } from "@/components/TeamGrid";
 import { BidControls } from "@/components/BidControls";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { enrichPlayersWithDynamicValue } from "@/lib/playerValue";
 
 export interface TeamState {
@@ -152,6 +162,8 @@ const Auction = () => {
   const [aiThinkingTeamId, setAiThinkingTeamId] = useState<string | null>(null);
   const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
   const [rtmSubmissionLocked, setRtmSubmissionLocked] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const suppressSoldBannerRef = useRef(false);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -350,17 +362,76 @@ const Auction = () => {
   };
 
   const isAIMode = String(session?.mode || "").toUpperCase() === "VS_AI";
-  const canNextSet = useMemo(() => {
-    if (isAIMode && isHost) return true;
-    if (!isHost || !gameCode) return false;
+  const hasBidActivity = useMemo(() => {
+    if (!currentAuction || !currentPlayer) return false;
+    const base = Number((currentPlayer as any).basePrice || 0);
+    return Boolean(currentAuction.currentBidderId) || Number(currentAuction.currentBid || 0) > base;
+  }, [currentAuction, currentPlayer]);
+
+  const canAdvancePlayer = useMemo(() => {
+    if (!isHost || !gameCode || !currentAuction?.activePlayerId) return false;
     if (pendingRtm || currentAuction?.isAuctionLocked) return false;
-    return !currentAuction?.activePlayerId || ["UNSOLD", "SOLD"].includes(String(currentAuction?.status || ""));
-  }, [isAIMode, isHost, gameCode, pendingRtm, currentAuction?.isAuctionLocked, currentAuction?.activePlayerId, currentAuction?.status]);
+    if (isAIMode) return true;
+    return !hasBidActivity;
+  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.isAuctionLocked, pendingRtm, isAIMode, hasBidActivity]);
+
+  const canSkipSet = useMemo(() => {
+    if (!isHost || !gameCode || !currentAuction?.activePlayerId) return false;
+    if (pendingRtm || currentAuction?.isAuctionLocked) return false;
+    if (isAIMode) return true;
+    return !hasBidActivity;
+  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.isAuctionLocked, pendingRtm, isAIMode, hasBidActivity]);
+
+  const handleAdvancePlayer = useCallback(async () => {
+    if (!gameCode || !isHost || !currentPlayer || !currentAuction?.activePlayerId) return;
+
+    if (!isAIMode) {
+      if (hasBidActivity) return;
+      await skipCurrentPlayer(gameCode);
+      return;
+    }
+
+    const preferredTeamId = String((currentPlayer as any).previousTeamId || (currentPlayer as any).previousTeam || "").toLowerCase();
+    const fallbackAI = teams.find((team) => team.id !== myTeamId);
+    const preferredAI = teams.find((team) => team.id === preferredTeamId && team.id !== myTeamId);
+    const aiTeam = preferredAI || fallbackAI;
+    const sellAmount = Number((currentPlayer as any).basePrice || currentAuction.currentBid || 0);
+    if (!aiTeam || sellAmount <= 0) {
+      await skipCurrentPlayer(gameCode);
+      return;
+    }
+
+    await placeBid(gameCode, aiTeam.id, sellAmount);
+    await resolveAuction(gameCode);
+    await loadNextPlayer(gameCode);
+  }, [gameCode, isHost, currentPlayer, currentAuction?.activePlayerId, currentAuction?.currentBid, isAIMode, hasBidActivity, teams, myTeamId]);
 
   const handleSkipSet = useCallback(async () => {
-    if (!gameCode || !isHost) return;
-    await skipCurrentPlayer(gameCode);
-  }, [gameCode, isHost]);
+    if (!gameCode || !isHost || !session?.auctionQueue || !currentAuction?.activePlayerId) return;
+    const currentPool = normalizePoolKey(String((currentPlayer as any)?.pool || ""));
+    const currentQueueIndex = Number(session?.queueIndex ?? -1);
+    if (currentQueueIndex < 0) return;
+
+    const queue = (session.auctionQueue || []) as string[];
+    const idsInPool = queue.slice(currentQueueIndex).filter((id) => {
+      const player = playerById.get(id);
+      return normalizePoolKey(String((player as any)?.pool || "")) === currentPool;
+    });
+
+    suppressSoldBannerRef.current = true;
+    try {
+      for (let i = 0; i < idsInPool.length; i += 1) {
+        try {
+          await skipCurrentPlayer(gameCode);
+        } catch {
+          await resolveAuction(gameCode).catch(() => undefined);
+        }
+        await loadNextPlayer(gameCode);
+      }
+    } finally {
+      suppressSoldBannerRef.current = false;
+    }
+  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, currentPlayer, playerById]);
 
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
@@ -463,6 +534,10 @@ const Auction = () => {
     if (currentAuction.status === "SOLD" && prevStatusRef.current !== "SOLD") {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
       setCommentary((prev) => [`${currentPlayer?.name || 'Player'} SOLD to ${team?.shortName || 'TEAM'} for ${formatCrPrice(Number(currentAuction.currentBid || 0))}!`, ...prev].slice(0, 14));
+      if (!suppressSoldBannerRef.current) {
+        setBanner({ kind: 'SOLD', price: Number(currentAuction.currentBid || 0), team: team?.shortName || 'TEAM' });
+        setTimeout(() => setBanner(null), 2000);
+      }
       playSound('hammer');
       playSound('cheer');
       speakLine(`Sold to ${team?.shortName || 'Team'}`);
@@ -828,20 +903,37 @@ const Auction = () => {
       <Header
         gameCode={gameCode!}
         currentSetLabel={`${typeof setProgress.currentSetIndex === "number" && setProgress.currentSetIndex >= 0 ? `Set ${setProgress.currentSetIndex + 1}: ` : ""}${setProgress.activeSetLabel}`}
-        onNextSet={gameCode && isAIMode && isHost && canNextSet ? () => loadNextPlayer(gameCode) : undefined}
-        onSkipSet={gameCode && isAIMode && isHost ? handleSkipSet : undefined}
+        onAdvancePlayer={gameCode && isHost ? handleAdvancePlayer : undefined}
+        onSkipSet={gameCode && isHost ? handleSkipSet : undefined}
         onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
         isPaused={currentAuction?.status === "PAUSED"}
         canControl={Boolean(isHost)}
-        canNextSet={Boolean(isAIMode && canNextSet)}
-        canSkipSet={Boolean(isAIMode && isHost)}
+        canAdvancePlayer={canAdvancePlayer}
+        canSkipSet={canSkipSet}
         onMenuClick={() => setTeamDrawerOpen(true)}
-        onLeaveGame={async () => {
-          if (!gameCode) return;
-          await leaveGame(gameCode, userId);
-          navigate(`/`);
-        }}
+        onLeaveGame={() => setLeaveConfirmOpen(true)}
       />
+
+      <AlertDialog open={leaveConfirmOpen} onOpenChange={setLeaveConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave Auction?</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to leave the auction?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!gameCode) return;
+                await leaveGame(gameCode, userId);
+                navigate(`/`);
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Sheet open={teamDrawerOpen} onOpenChange={setTeamDrawerOpen}>
         <SheetContent side="left" className="w-[88vw] max-w-sm bg-[#071a3a] border-yellow-500/40 p-3">
