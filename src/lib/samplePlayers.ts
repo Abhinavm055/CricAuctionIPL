@@ -8,6 +8,10 @@ export interface Player {
   basePrice: number;
   previousTeam: string | null;
   pool: 'Marquee' | 'Batsmen' | 'Bowlers' | 'All-Rounders' | 'Wicket-Keepers';
+  category?: 'marquee' | 'batters' | 'bowlers' | 'wicketkeepers' | 'all-rounders';
+  set?: number;
+  setNumber?: number;
+  marqueeSet?: number;
   starRating: 1 | 2 | 3 | 4 | 5;
   imageUrl?: string;
   rating?: number;

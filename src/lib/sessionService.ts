@@ -32,106 +32,61 @@ import { RetentionEngine } from "@/engine/retentionEngine";
 import { AuctionEngine } from "@/engine/auctionEngine";
 import { RtmEngine } from "@/engine/rtmEngine";
 
-const OFFICIAL_POOL_ORDER = [
-  "marquee",
-  "batters",
-  "all-rounders",
-  "wicketkeepers",
-  "bowlers",
-  "uncapped",
-  "accelerated",
+const SET_SEQUENCE = [
+  "marquee-1",
+  "marquee-2",
+  "batters-1",
+  "batters-2",
+  "batters-3",
+  "batters-4",
+  "bowlers-1",
+  "bowlers-2",
+  "bowlers-3",
+  "bowlers-4",
+  "wicketkeepers-1",
+  "wicketkeepers-2",
+  "wicketkeepers-3",
+  "wicketkeepers-4",
+  "all-rounders-1",
+  "all-rounders-2",
+  "all-rounders-3",
+  "all-rounders-4",
 ];
 
-const normalizePool = (pool: string | undefined) => {
-  const key = String(pool || "").toLowerCase().replace(/\s+/g, "").replace("wicket-keepers", "wicketkeepers");
-  if (["marquee"].includes(key)) return "marquee";
-  if (["batters", "batsmen", "batter"].includes(key)) return "batters";
-  if (["allrounders", "all-rounders", "all-rounder"].includes(key)) return "all-rounders";
-  if (["wicketkeepers", "wicketkeeper", "wicket-keeper"].includes(key)) return "wicketkeepers";
-  if (["bowlers", "bowler"].includes(key)) return "bowlers";
-  if (["uncapped"].includes(key)) return "uncapped";
-  if (["accelerated", "acceleratedround"].includes(key)) return "accelerated";
-  return "accelerated";
+const normalizeCategory = (playerData: any) => {
+  const raw = String(playerData?.category || playerData?.pool || playerData?.role || "").toLowerCase().replace(/\s+/g, "").replace("wicket-keepers", "wicketkeepers");
+  if (raw.includes("marquee")) return "marquee";
+  if (["batters", "batsmen", "batter", "batsman"].some((v) => raw.includes(v))) return "batters";
+  if (["allrounders", "all-rounders", "all-rounder"].some((v) => raw.includes(v))) return "all-rounders";
+  if (["wicketkeepers", "wicketkeeper", "wicket-keeper"].some((v) => raw.includes(v))) return "wicketkeepers";
+  if (["bowlers", "bowler"].some((v) => raw.includes(v))) return "bowlers";
+  return "batters";
 };
 
-const shuffleArray = <T,>(arr: T[]) => {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
+const resolveSetNumber = (playerData: any, category: string) => {
+  const explicit = Number(playerData?.setNumber ?? playerData?.set ?? playerData?.setNo);
+  const marquee = Number(playerData?.marqueeSet);
+  if (category === "marquee") {
+    const n = Number.isFinite(marquee) && marquee > 0 ? marquee : (Number.isFinite(explicit) && explicit > 0 ? explicit : 1);
+    return Math.max(1, Math.min(2, Math.floor(n)));
   }
-  return copy;
+  const n = Number.isFinite(explicit) && explicit > 0 ? explicit : 1;
+  return Math.max(1, Math.min(4, Math.floor(n)));
 };
 
 const buildAuctionQueue = (players: Array<Record<string, any>>) => {
-  const roleOrder = ["batsman", "wicket-keeper", "all-rounder", "bowler"];
-  const normalizeRole = (role: string | undefined) => {
-    const key = String(role || "").toLowerCase();
-    if (key.includes("wicket")) return "wicket-keeper";
-    if (key.includes("all")) return "all-rounder";
-    if (key.includes("bowl")) return "bowler";
-    return "batsman";
-  };
-  const ratingOf = (p: Record<string, any>) => Number(p.starRating ?? p.rating ?? 0);
-  const byRatingDesc = (a: Record<string, any>, b: Record<string, any>) => ratingOf(b) - ratingOf(a);
-
-  const balancedChunk = (source: Array<Record<string, any>>, used: Set<string>, size = 15) => {
-    const buckets: Record<string, Array<Record<string, any>>> = roleOrder.reduce((acc, key) => ({ ...acc, [key]: [] }), {} as Record<string, Array<Record<string, any>>>);
-    source.forEach((p) => {
-      if (!used.has(p.id)) buckets[normalizeRole(p.role)].push(p);
-    });
-    roleOrder.forEach((role) => buckets[role].sort(byRatingDesc));
-
-    const targetByRole: Record<string, number> = {
-      "batsman": 4,
-      "wicket-keeper": 4,
-      "all-rounder": 4,
-      "bowler": 3,
-    };
-
-    const chunk: string[] = [];
-    roleOrder.forEach((role) => {
-      let count = 0;
-      while (buckets[role].length && count < targetByRole[role] && chunk.length < size) {
-        const player = buckets[role].shift()!;
-        if (used.has(player.id)) continue;
-        used.add(player.id);
-        chunk.push(player.id);
-        count += 1;
-      }
-    });
-
-    const leftovers = roleOrder.flatMap((role) => buckets[role]).sort(byRatingDesc);
-    for (const player of leftovers) {
-      if (chunk.length >= size) break;
-      if (used.has(player.id)) continue;
-      used.add(player.id);
-      chunk.push(player.id);
-    }
-    return chunk;
-  };
-
-  const used = new Set<string>();
-  const queue: string[] = [];
-  const themedPools = [
-    players.filter((p) => Boolean(p.overseas ?? p.isOverseas)),
-    players.filter((p) => !Boolean(p.isCapped)),
-    players.filter((p) => Number(p.starRating ?? p.rating ?? 0) >= 4),
-    players.filter((p) => Boolean(p.isCapped)),
-  ];
-
-  themedPools.forEach((pool) => {
-    const chunk = balancedChunk(pool, used, 15);
-    queue.push(...chunk);
+  const grouped = SET_SEQUENCE.reduce((acc, key) => ({ ...acc, [key]: [] as Array<Record<string, any>> }), {} as Record<string, Array<Record<string, any>>>);
+  players.forEach((player) => {
+    const category = normalizeCategory(player);
+    const setNo = resolveSetNumber(player, category);
+    const key = `${category}-${setNo}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(player);
   });
 
-  while (used.size < players.length) {
-    const chunk = balancedChunk(players, used, 15);
-    if (!chunk.length) break;
-    queue.push(...chunk);
-  }
+  const byRatingDesc = (a: Record<string, any>, b: Record<string, any>) => Number(b.starRating ?? b.rating ?? 0) - Number(a.starRating ?? a.rating ?? 0);
 
-  return queue;
+  return SET_SEQUENCE.flatMap((key) => (grouped[key] || []).sort(byRatingDesc).map((player) => player.id));
 };
 
 const getPlayerOverseasFlag = (playerData: any) => Boolean(playerData?.overseas ?? playerData?.isOverseas);

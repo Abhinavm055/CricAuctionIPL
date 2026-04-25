@@ -93,28 +93,57 @@ const STRATEGY_AGGRESSION: Record<string, number> = {
   roleFocused: 1.05,
 };
 
+const SET_ORDER = [
+  'marquee-1', 'marquee-2',
+  'batters-1', 'batters-2', 'batters-3', 'batters-4',
+  'bowlers-1', 'bowlers-2', 'bowlers-3', 'bowlers-4',
+  'wicketkeepers-1', 'wicketkeepers-2', 'wicketkeepers-3', 'wicketkeepers-4',
+  'all-rounders-1', 'all-rounders-2', 'all-rounders-3', 'all-rounders-4',
+];
+
 const SET_LABELS: Record<string, string> = {
-  batters: 'Batters',
-  bowlers: 'Bowlers',
-  'all-rounders': 'All-Rounders',
-  wicketkeepers: 'Wicketkeepers',
-  marquee: 'Marquee',
-  uncapped: 'Uncapped',
-  accelerated: 'Accelerated',
+  'marquee-1': 'Marquee Set 1',
+  'marquee-2': 'Marquee Set 2',
+  'batters-1': 'Batsmen - Set 1',
+  'batters-2': 'Batsmen - Set 2',
+  'batters-3': 'Batsmen - Set 3',
+  'batters-4': 'Batsmen - Set 4',
+  'bowlers-1': 'Bowlers - Set 1',
+  'bowlers-2': 'Bowlers - Set 2',
+  'bowlers-3': 'Bowlers - Set 3',
+  'bowlers-4': 'Bowlers - Set 4',
+  'wicketkeepers-1': 'Wicket Keepers - Set 1',
+  'wicketkeepers-2': 'Wicket Keepers - Set 2',
+  'wicketkeepers-3': 'Wicket Keepers - Set 3',
+  'wicketkeepers-4': 'Wicket Keepers - Set 4',
+  'all-rounders-1': 'All-Rounders - Set 1',
+  'all-rounders-2': 'All-Rounders - Set 2',
+  'all-rounders-3': 'All-Rounders - Set 3',
+  'all-rounders-4': 'All-Rounders - Set 4',
 };
 
-const SET_ORDER = ['marquee', 'batters', 'all-rounders', 'wicketkeepers', 'bowlers', 'uncapped', 'accelerated'];
+const normalizeCategoryKey = (raw: string | undefined) => {
+  const key = String(raw || '').toLowerCase().replace(/\s+/g, '').replace('wicket-keepers', 'wicketkeepers');
+  if (key.includes('marquee')) return 'marquee';
+  if (['batters', 'batsmen', 'batter', 'batsman'].some((v) => key.includes(v))) return 'batters';
+  if (['allrounders', 'all-rounders', 'all-rounder'].some((v) => key.includes(v))) return 'all-rounders';
+  if (['wicketkeepers', 'wicketkeeper', 'wicket-keeper'].some((v) => key.includes(v))) return 'wicketkeepers';
+  if (['bowlers', 'bowler'].some((v) => key.includes(v))) return 'bowlers';
+  return 'batters';
+};
 
-const normalizePoolKey = (pool: string | undefined) => {
-  const key = String(pool || '').toLowerCase().replace(/\s+/g, '').replace('wicket-keepers', 'wicketkeepers');
-  if (['marquee'].includes(key)) return 'marquee';
-  if (['batters', 'batsmen', 'batter'].includes(key)) return 'batters';
-  if (['allrounders', 'all-rounders', 'all-rounder'].includes(key)) return 'all-rounders';
-  if (['wicketkeepers', 'wicketkeeper', 'wicket-keeper'].includes(key)) return 'wicketkeepers';
-  if (['bowlers', 'bowler'].includes(key)) return 'bowlers';
-  if (['uncapped'].includes(key)) return 'uncapped';
-  if (['accelerated', 'acceleratedround'].includes(key)) return 'accelerated';
-  return 'uncapped';
+const resolveSetKey = (player: any) => {
+  const category = normalizeCategoryKey(String(player?.category || player?.pool || player?.role || ''));
+  const rawSet = Number(player?.setNumber ?? player?.set ?? player?.setNo);
+  const rawMarqueeSet = Number(player?.marqueeSet);
+  if (category === 'marquee') {
+    const setNo = Number.isFinite(rawMarqueeSet) && rawMarqueeSet > 0
+      ? rawMarqueeSet
+      : (Number.isFinite(rawSet) && rawSet > 0 ? rawSet : 1);
+    return `marquee-${Math.max(1, Math.min(2, Math.floor(setNo)))}`;
+  }
+  const setNo = Number.isFinite(rawSet) && rawSet > 0 ? rawSet : 1;
+  return `${category}-${Math.max(1, Math.min(4, Math.floor(setNo)))}`;
 };
 
 const buildLeaderboard = (teams: TeamState[], resolved: Record<string, { retained: Player[]; bought: Player[] }>) => {
@@ -408,14 +437,14 @@ const Auction = () => {
 
   const handleSkipSet = useCallback(async () => {
     if (!gameCode || !isHost || !session?.auctionQueue || !currentAuction?.activePlayerId) return;
-    const currentPool = normalizePoolKey(String((currentPlayer as any)?.pool || ""));
+    const currentPool = resolveSetKey(currentPlayer);
     const currentQueueIndex = Number(session?.queueIndex ?? -1);
     if (currentQueueIndex < 0) return;
 
     const queue = (session.auctionQueue || []) as string[];
     const idsInPool = queue.slice(currentQueueIndex).filter((id) => {
       const player = playerById.get(id);
-      return normalizePoolKey(String((player as any)?.pool || "")) === currentPool;
+      return resolveSetKey(player) === currentPool;
     });
 
     suppressSoldBannerRef.current = true;
@@ -835,7 +864,7 @@ const Auction = () => {
   const setProgress = useMemo(() => {
     const queue = (session?.auctionQueue || []) as string[];
     const queueIndex = Number(session?.queueIndex ?? -1);
-    const currentPool = normalizePoolKey(String((currentPlayer as any)?.pool || ''));
+    const currentPool = resolveSetKey(currentPlayer);
     const activeSetLabel = SET_LABELS[currentPool] || 'General';
     const currentSetIndex = SET_ORDER.indexOf(currentPool);
 
@@ -845,7 +874,7 @@ const Auction = () => {
     const remainingIds = queue.slice(startIndex);
     const remainingInSet = remainingIds.filter((id) => {
       const player = playerById.get(id);
-      return normalizePoolKey(String((player as any)?.pool || '')) === currentPool;
+      return resolveSetKey(player) === currentPool;
     }).length;
 
     return { activeSetLabel, playersRemainingInSet: Math.max(0, remainingInSet), currentSetIndex };
@@ -854,12 +883,12 @@ const Auction = () => {
   const remainingSetPlayers = useMemo(() => {
     const queue = (session?.auctionQueue || []) as string[];
     const queueIndex = Number(session?.queueIndex ?? -1);
-    const currentPool = normalizePoolKey(String((currentPlayer as any)?.pool || ''));
+    const currentPool = resolveSetKey(currentPlayer);
     const startIndex = Math.max(0, queueIndex);
 
     return queue
       .slice(startIndex)
-      .filter((id) => normalizePoolKey(String((playerById.get(id) as any)?.pool || '')) === currentPool)
+      .filter((id) => resolveSetKey(playerById.get(id)) === currentPool)
       .map((id) => String((playerById.get(id) as any)?.name || id))
       .slice(0, 25);
   }, [session?.auctionQueue, session?.queueIndex, currentPlayer, playerById]);
