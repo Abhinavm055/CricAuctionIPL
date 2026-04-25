@@ -727,9 +727,9 @@ const Auction = () => {
           Number(pendingRtm.finalBid || 0),
         );
         resolveRtmDecision(gameCode, {
-          action: aiBid && aiBid > Number(pendingRtm.finalBid || 0) ? "COUNTER" : "DECLINE",
+          action: "COUNTER",
           actingTeamId: pendingRtm.winningTeamId!,
-          counterBid: Number(aiBid || pendingRtm.counterBid || pendingRtm.finalBid || 0),
+          counterBid: Number((aiBid && aiBid > Number(pendingRtm.finalBid || 0) ? aiBid : Number(pendingRtm.finalBid || 0) + 1)),
         }).catch(() => undefined);
         return;
       }
@@ -907,7 +907,7 @@ const Auction = () => {
         onSkipSet={gameCode && isHost ? handleSkipSet : undefined}
         onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
         isPaused={currentAuction?.status === "PAUSED"}
-        canControl={Boolean(isHost)}
+        canControl={Boolean(isHost && !pendingRtm)}
         canAdvancePlayer={canAdvancePlayer}
         canSkipSet={canSkipSet}
         onMenuClick={() => setTeamDrawerOpen(true)}
@@ -1202,7 +1202,7 @@ const Auction = () => {
             <div className="mt-4 space-y-2 text-sm md:text-base">
               <p>Current price: <span className="font-semibold text-emerald-300">{formatCrPrice(Number(pendingRtm.finalBid || 0))}</span></p>
               {pendingRtm.status === 'AWAIT_ORIGINAL' && <p>Waiting for {rtmOriginalTeam?.shortName || 'original team'} to decide whether to use RTM.</p>}
-              {pendingRtm.status === 'AWAIT_WINNER_COUNTER' && <p>{rtmOriginalTeam?.shortName || 'Original team'} used RTM. Waiting for {rtmWinningTeam?.shortName || 'highest bidder'} to enter a higher final bid.</p>}
+              {pendingRtm.status === 'AWAIT_WINNER_COUNTER' && <p>{rtmOriginalTeam?.shortName || 'Original team'} used RTM. Waiting for {rtmWinningTeam?.shortName || 'highest bidder'} to enter a new final bid.</p>}
               {pendingRtm.status === 'AWAIT_ORIGINAL_MATCH' && <p>{rtmWinningTeam?.shortName || 'Highest bidder'} raised the bid. Waiting for {rtmOriginalTeam?.shortName || 'original team'} to match {formatCrPrice(Number(pendingRtm.finalBid || pendingRtm.counterBid || 0))}.</p>}
               <p className="pt-2 text-xs uppercase tracking-[0.28em] text-slate-400">Auction locked • {rtmCountdownSeconds}s remaining</p>
             </div>
@@ -1238,11 +1238,12 @@ const Auction = () => {
           open={true}
           player={rtmPlayer as any}
           previousBid={Number(pendingRtm.finalBid || 0)}
-          minBid={Math.max(Number(pendingRtm.counterBid || 0), getNextBid(Number(pendingRtm.finalBid || 0)))}
+          minBid={Math.max(Number(pendingRtm.counterBid || 0), Number(pendingRtm.finalBid || 0) + 1)}
           countdownSeconds={rtmCountdownSeconds}
           disabled={rtmSubmissionLocked}
           onSubmit={submitCounterBid}
-          onCancel={() => submitRtmDecision("DECLINE")}
+          onCancel={() => submitCounterBid(Math.max(Number(pendingRtm.counterBid || 0), Number(pendingRtm.finalBid || 0) + 1))}
+          cancelLabel="Use Min Raise"
         />
       )}
     </div>

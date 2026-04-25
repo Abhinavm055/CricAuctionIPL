@@ -739,7 +739,7 @@ export const resolveAuction = async (gameCode: string) => {
           originalTeamId: previousTeamId,
           finalBid,
           status: "AWAIT_ORIGINAL",
-          counterBid: getNextBid(finalBid),
+          counterBid: Number(finalBid) + 1,
           expiresAt: Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
           lastDecision: null,
         },
@@ -942,7 +942,7 @@ export const resolveRtmTimeout = async (gameCode: string) => {
 
   const actionMap: Record<string, "USE" | "DECLINE" | "COUNTER" | "MATCH"> = {
     AWAIT_ORIGINAL: "DECLINE",
-    AWAIT_WINNER_COUNTER: "DECLINE",
+    AWAIT_WINNER_COUNTER: "COUNTER",
     AWAIT_ORIGINAL_MATCH: "DECLINE",
   };
 
@@ -955,6 +955,7 @@ export const resolveRtmTimeout = async (gameCode: string) => {
   await resolveRtmDecision(gameCode, {
     action: actionMap[pending.status],
     actingTeamId: actingTeamMap[pending.status],
+    counterBid: pending.status === "AWAIT_WINNER_COUNTER" ? Number(pending.finalBid || 0) + 1 : undefined,
   });
 };
 

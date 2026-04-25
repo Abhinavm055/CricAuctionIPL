@@ -58,7 +58,7 @@ export class RtmEngine {
 
   timeoutAction(stage: RtmStage): RtmAction {
     if (stage === "AVAILABLE") return "DECLINE";
-    if (stage === "COUNTER_BID") return "DECLINE";
+    if (stage === "COUNTER_BID") return "COUNTER";
     return "DECLINE";
   }
 
@@ -78,13 +78,12 @@ export class RtmEngine {
 
     if (input.stage === "COUNTER_BID") {
       if (input.actingTeamId !== input.winningTeamId) throw new Error("Only provisional winner can counter bid");
-      if (input.action === "DECLINE") return { done: true, winnerTeamId: input.rtmTeamId, finalBid: input.finalBid, rtmUsed: true, commentary: [] as string[] };
       if (input.action !== "COUNTER") throw new Error("Invalid RTM action at counter stage");
       return {
         done: false,
         nextStage: "FINAL" as RtmStage,
         finalBid: input.counterBid,
-        counterBid: getNextBid(input.counterBid),
+        counterBid: Number(input.counterBid) + 1,
         commentary: [`Counter bid set for ${input.playerName}`],
       };
     }
