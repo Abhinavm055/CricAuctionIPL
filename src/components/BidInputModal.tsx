@@ -14,6 +14,7 @@ interface BidInputModalProps {
   disabled?: boolean;
   onSubmit: (amount: number) => void;
   onCancel: () => void;
+  cancelLabel?: string;
 }
 
 export const BidInputModal = ({
@@ -25,6 +26,7 @@ export const BidInputModal = ({
   disabled = false,
   onSubmit,
   onCancel,
+  cancelLabel = "Cancel",
 }: BidInputModalProps) => {
   const [value, setValue] = useState<string>(String(minBid || ""));
   const [error, setError] = useState<string>("");
@@ -67,7 +69,7 @@ export const BidInputModal = ({
             <Input
               type="number"
               min={minBid}
-              step={500000}
+              step={1}
               value={value}
               disabled={disabled}
               onChange={(event) => {
@@ -88,7 +90,7 @@ export const BidInputModal = ({
 
           <div className="grid grid-cols-2 gap-3">
             <Button type="button" variant="outline" disabled={disabled} className="border-white/15 bg-white/5 text-white hover:bg-white/10" onClick={onCancel}>
-              Cancel
+              {cancelLabel}
             </Button>
             <Button type="submit" disabled={disabled} className="bg-amber-400 text-slate-950 hover:bg-amber-300">
               Confirm

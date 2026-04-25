@@ -32,6 +32,16 @@ import { Header } from "@/components/Header";
 import { TeamGrid } from "@/components/TeamGrid";
 import { BidControls } from "@/components/BidControls";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { enrichPlayersWithDynamicValue } from "@/lib/playerValue";
 
 export interface TeamState {
@@ -83,28 +93,57 @@ const STRATEGY_AGGRESSION: Record<string, number> = {
   roleFocused: 1.05,
 };
 
+const SET_ORDER = [
+  'marquee-1', 'marquee-2',
+  'batters-1', 'batters-2', 'batters-3', 'batters-4',
+  'bowlers-1', 'bowlers-2', 'bowlers-3', 'bowlers-4',
+  'wicketkeepers-1', 'wicketkeepers-2', 'wicketkeepers-3', 'wicketkeepers-4',
+  'all-rounders-1', 'all-rounders-2', 'all-rounders-3', 'all-rounders-4',
+];
+
 const SET_LABELS: Record<string, string> = {
-  batters: 'Batters',
-  bowlers: 'Bowlers',
-  'all-rounders': 'All-Rounders',
-  wicketkeepers: 'Wicketkeepers',
-  marquee: 'Marquee',
-  uncapped: 'Uncapped',
-  accelerated: 'Accelerated',
+  'marquee-1': 'Marquee Set 1',
+  'marquee-2': 'Marquee Set 2',
+  'batters-1': 'Batsmen - Set 1',
+  'batters-2': 'Batsmen - Set 2',
+  'batters-3': 'Batsmen - Set 3',
+  'batters-4': 'Batsmen - Set 4',
+  'bowlers-1': 'Bowlers - Set 1',
+  'bowlers-2': 'Bowlers - Set 2',
+  'bowlers-3': 'Bowlers - Set 3',
+  'bowlers-4': 'Bowlers - Set 4',
+  'wicketkeepers-1': 'Wicket Keepers - Set 1',
+  'wicketkeepers-2': 'Wicket Keepers - Set 2',
+  'wicketkeepers-3': 'Wicket Keepers - Set 3',
+  'wicketkeepers-4': 'Wicket Keepers - Set 4',
+  'all-rounders-1': 'All-Rounders - Set 1',
+  'all-rounders-2': 'All-Rounders - Set 2',
+  'all-rounders-3': 'All-Rounders - Set 3',
+  'all-rounders-4': 'All-Rounders - Set 4',
 };
 
-const SET_ORDER = ['marquee', 'batters', 'all-rounders', 'wicketkeepers', 'bowlers', 'uncapped', 'accelerated'];
+const normalizeCategoryKey = (raw: string | undefined) => {
+  const key = String(raw || '').toLowerCase().replace(/\s+/g, '').replace('wicket-keepers', 'wicketkeepers');
+  if (key.includes('marquee')) return 'marquee';
+  if (['batters', 'batsmen', 'batter', 'batsman'].some((v) => key.includes(v))) return 'batters';
+  if (['allrounders', 'all-rounders', 'all-rounder'].some((v) => key.includes(v))) return 'all-rounders';
+  if (['wicketkeepers', 'wicketkeeper', 'wicket-keeper'].some((v) => key.includes(v))) return 'wicketkeepers';
+  if (['bowlers', 'bowler'].some((v) => key.includes(v))) return 'bowlers';
+  return 'batters';
+};
 
-const normalizePoolKey = (pool: string | undefined) => {
-  const key = String(pool || '').toLowerCase().replace(/\s+/g, '').replace('wicket-keepers', 'wicketkeepers');
-  if (['marquee'].includes(key)) return 'marquee';
-  if (['batters', 'batsmen', 'batter'].includes(key)) return 'batters';
-  if (['allrounders', 'all-rounders', 'all-rounder'].includes(key)) return 'all-rounders';
-  if (['wicketkeepers', 'wicketkeeper', 'wicket-keeper'].includes(key)) return 'wicketkeepers';
-  if (['bowlers', 'bowler'].includes(key)) return 'bowlers';
-  if (['uncapped'].includes(key)) return 'uncapped';
-  if (['accelerated', 'acceleratedround'].includes(key)) return 'accelerated';
-  return 'uncapped';
+const resolveSetKey = (player: any) => {
+  const category = normalizeCategoryKey(String(player?.category || player?.pool || player?.role || ''));
+  const rawSet = Number(player?.setNumber ?? player?.set ?? player?.setNo);
+  const rawMarqueeSet = Number(player?.marqueeSet);
+  if (category === 'marquee') {
+    const setNo = Number.isFinite(rawMarqueeSet) && rawMarqueeSet > 0
+      ? rawMarqueeSet
+      : (Number.isFinite(rawSet) && rawSet > 0 ? rawSet : 1);
+    return `marquee-${Math.max(1, Math.min(2, Math.floor(setNo)))}`;
+  }
+  const setNo = Number.isFinite(rawSet) && rawSet > 0 ? rawSet : 1;
+  return `${category}-${Math.max(1, Math.min(4, Math.floor(setNo)))}`;
 };
 
 const buildLeaderboard = (teams: TeamState[], resolved: Record<string, { retained: Player[]; bought: Player[] }>) => {
@@ -152,6 +191,8 @@ const Auction = () => {
   const [aiThinkingTeamId, setAiThinkingTeamId] = useState<string | null>(null);
   const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
   const [rtmSubmissionLocked, setRtmSubmissionLocked] = useState(false);
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const suppressSoldBannerRef = useRef(false);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -350,52 +391,76 @@ const Auction = () => {
   };
 
   const isAIMode = String(session?.mode || "").toUpperCase() === "VS_AI";
-  const skipDisabled = useMemo(() => {
-    if (isAIMode) return false;
-    if (!currentPlayer || !currentAuction) return true;
-    return Number(currentAuction.currentBid || 0) > Number((currentPlayer as any).basePrice || 0);
-  }, [currentPlayer, currentAuction, isAIMode]);
-  const canNextSet = useMemo(() => {
-    if (!isHost || !gameCode) return false;
+  const hasBidActivity = useMemo(() => {
+    if (!currentAuction || !currentPlayer) return false;
+    const base = Number((currentPlayer as any).basePrice || 0);
+    return Boolean(currentAuction.currentBidderId) || Number(currentAuction.currentBid || 0) > base;
+  }, [currentAuction, currentPlayer]);
+
+  const canAdvancePlayer = useMemo(() => {
+    if (!isHost || !gameCode || !currentAuction?.activePlayerId) return false;
     if (pendingRtm || currentAuction?.isAuctionLocked) return false;
-    return !currentAuction?.activePlayerId || ["UNSOLD", "SOLD"].includes(String(currentAuction?.status || ""));
-  }, [isHost, gameCode, pendingRtm, currentAuction?.isAuctionLocked, currentAuction?.activePlayerId, currentAuction?.status]);
+    if (isAIMode) return true;
+    return !hasBidActivity;
+  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.isAuctionLocked, pendingRtm, isAIMode, hasBidActivity]);
 
-  const handleSkip = useCallback(async () => {
-    if (!gameCode || !isHost) return;
+  const canSkipSet = useMemo(() => {
+    if (!isHost || !gameCode || !currentAuction?.activePlayerId) return false;
+    if (pendingRtm || currentAuction?.isAuctionLocked) return false;
+    if (isAIMode) return true;
+    return !hasBidActivity;
+  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.isAuctionLocked, pendingRtm, isAIMode, hasBidActivity]);
 
-    if (isAIMode && currentPlayer && currentAuction?.status === "RUNNING") {
-      const result = aiEngine.simulateSkipOutcome(
-        {
-          id: (currentPlayer as any).id,
-          name: (currentPlayer as any).name,
-          role: (currentPlayer as any).role,
-          rating: Number((currentPlayer as any).rating ?? (currentPlayer as any).starRating ?? 3),
-          starRating: Number((currentPlayer as any).starRating ?? 3),
-          basePrice: Number((currentPlayer as any).basePrice || 0),
-          overseas: Boolean((currentPlayer as any).overseas ?? (currentPlayer as any).isOverseas),
-          demandLevel: (currentPlayer as any).demandLevel,
-          interestedTeams: (currentPlayer as any).interestedTeams || [],
-          dynamicValue: Number((currentPlayer as any).dynamicValue || (currentPlayer as any).basePrice || 0),
-        },
-        teams.map((team) => ({
-          id: team.id,
-          isAI: Boolean(team.isAI),
-          squadSize: Number(team.squadSize || 0),
-          purseRemaining: Number(team.purseRemaining || 0),
-          overseasCount: Number(team.overseasCount || 0),
-        })),
-      );
+  const handleAdvancePlayer = useCallback(async () => {
+    if (!gameCode || !isHost || !currentPlayer || !currentAuction?.activePlayerId) return;
 
-      if (result.sold && result.teamId && Number.isFinite(result.price)) {
-        await placeBid(gameCode, result.teamId, result.price);
-        await resolveAuction(gameCode);
-        return;
-      }
+    if (!isAIMode) {
+      if (hasBidActivity) return;
+      await skipCurrentPlayer(gameCode);
+      return;
     }
 
-    await skipCurrentPlayer(gameCode);
-  }, [gameCode, isHost, isAIMode, currentPlayer, currentAuction?.status, teams, aiEngine]);
+    const preferredTeamId = String((currentPlayer as any).previousTeamId || (currentPlayer as any).previousTeam || "").toLowerCase();
+    const fallbackAI = teams.find((team) => team.id !== myTeamId);
+    const preferredAI = teams.find((team) => team.id === preferredTeamId && team.id !== myTeamId);
+    const aiTeam = preferredAI || fallbackAI;
+    const sellAmount = Number((currentPlayer as any).basePrice || currentAuction.currentBid || 0);
+    if (!aiTeam || sellAmount <= 0) {
+      await skipCurrentPlayer(gameCode);
+      return;
+    }
+
+    await placeBid(gameCode, aiTeam.id, sellAmount);
+    await resolveAuction(gameCode);
+    await loadNextPlayer(gameCode);
+  }, [gameCode, isHost, currentPlayer, currentAuction?.activePlayerId, currentAuction?.currentBid, isAIMode, hasBidActivity, teams, myTeamId]);
+
+  const handleSkipSet = useCallback(async () => {
+    if (!gameCode || !isHost || !session?.auctionQueue || !currentAuction?.activePlayerId) return;
+    const currentPool = resolveSetKey(currentPlayer);
+    const currentQueueIndex = Number(session?.queueIndex ?? -1);
+    if (currentQueueIndex < 0) return;
+
+    const queue = (session.auctionQueue || []) as string[];
+    const idsInPool = queue.slice(currentQueueIndex).filter((id) => {
+      const player = playerById.get(id);
+      return resolveSetKey(player) === currentPool;
+    });
+
+    suppressSoldBannerRef.current = true;
+    try {
+      for (let i = 0; i < idsInPool.length; i += 1) {
+        try {
+          await skipCurrentPlayer(gameCode);
+        } catch {
+          await resolveAuction(gameCode).catch(() => undefined);
+        }
+        await loadNextPlayer(gameCode);
+      }
+    } finally {
+      suppressSoldBannerRef.current = false;
+    }
+  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, currentPlayer, playerById]);
 
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
@@ -452,8 +517,6 @@ const Auction = () => {
     if (!aiDecision) return;
 
     setAiThinkingTeamId(aiDecision.teamId);
-    const thinkingTeam = teams.find((t) => t.id === aiDecision.teamId);
-    setCommentary((prev) => [`${thinkingTeam?.shortName || "AI"} is thinking...`, ...prev].slice(0, 14));
     const thinkingDelay = Math.max(1000, Math.min(2000, Number(aiDecision.delayMs || 1200)));
 
     const timer = setTimeout(() => {
@@ -488,12 +551,7 @@ const Auction = () => {
 
     if (currentAuction.currentBidderId && Number(currentAuction.currentBid || 0) !== prevBidRef.current) {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
-      const previousTeam = teams.find((t) => t.id === prevBidderRef.current);
       const amount = formatCrPrice(Number(currentAuction.currentBid || 0));
-
-      if (prevBidderRef.current && prevBidderRef.current !== currentAuction.currentBidderId) {
-        setCommentary((prev) => [`${previousTeam?.shortName || "Team"} backs out at ${amount}!`, ...prev].slice(0, 14));
-      }
 
       const line = prevBidderRef.current
         ? `${team?.shortName || "Team"} raises bid to ${amount}!`
@@ -505,6 +563,10 @@ const Auction = () => {
     if (currentAuction.status === "SOLD" && prevStatusRef.current !== "SOLD") {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
       setCommentary((prev) => [`${currentPlayer?.name || 'Player'} SOLD to ${team?.shortName || 'TEAM'} for ${formatCrPrice(Number(currentAuction.currentBid || 0))}!`, ...prev].slice(0, 14));
+      if (!suppressSoldBannerRef.current) {
+        setBanner({ kind: 'SOLD', price: Number(currentAuction.currentBid || 0), team: team?.shortName || 'TEAM' });
+        setTimeout(() => setBanner(null), 2000);
+      }
       playSound('hammer');
       playSound('cheer');
       speakLine(`Sold to ${team?.shortName || 'Team'}`);
@@ -512,7 +574,6 @@ const Auction = () => {
 
     if (currentAuction.status === "UNSOLD" && prevStatusRef.current !== "UNSOLD") {
       setBanner({ kind: 'UNSOLD' });
-      setCommentary((prev) => [`${currentPlayer?.name || "Player"} goes UNSOLD.`, ...prev].slice(0, 14));
       setTimeout(() => setBanner(null), 2000);
       playSound('hammer');
       playSound('ooh');
@@ -695,9 +756,9 @@ const Auction = () => {
           Number(pendingRtm.finalBid || 0),
         );
         resolveRtmDecision(gameCode, {
-          action: aiBid && aiBid > Number(pendingRtm.finalBid || 0) ? "COUNTER" : "DECLINE",
+          action: "COUNTER",
           actingTeamId: pendingRtm.winningTeamId!,
-          counterBid: Number(aiBid || pendingRtm.counterBid || pendingRtm.finalBid || 0),
+          counterBid: Number((aiBid && aiBid > Number(pendingRtm.finalBid || 0) ? aiBid : Number(pendingRtm.finalBid || 0) + 1)),
         }).catch(() => undefined);
         return;
       }
@@ -779,13 +840,11 @@ const Auction = () => {
       return `${pl?.name || p.playerId} SOLD to ${team?.shortName || p.teamId} for ${formatCrPrice(p.price)}`;
     });
 
-    const rtmLine = pendingRtm
-      ? `${rtmOriginalTeam?.shortName || 'Original Team'} uses RTM rights against ${rtmWinningTeam?.shortName || 'Bid Team'}!`
-      : '';
-
-    const lines = [...commentary, rtmLine, ...saleLines].filter(Boolean).slice(0, 14);
-    return lines.length ? lines.join(' • ') : 'Auction is live • Waiting for next bid •';
-  }, [recentPurchases, masterPlayerList, teams, commentary, pendingRtm, rtmOriginalTeam?.shortName, rtmWinningTeam?.shortName]);
+    const lines = [...commentary, ...saleLines]
+      .filter((line) => /(bids|SOLD)/i.test(String(line)))
+      .slice(0, 14);
+    return lines.join(' • ');
+  }, [recentPurchases, masterPlayerList, teams, commentary]);
 
   const showAcceleratedButton = useMemo(() => {
     if (!isHost) return false;
@@ -805,7 +864,7 @@ const Auction = () => {
   const setProgress = useMemo(() => {
     const queue = (session?.auctionQueue || []) as string[];
     const queueIndex = Number(session?.queueIndex ?? -1);
-    const currentPool = normalizePoolKey(String((currentPlayer as any)?.pool || ''));
+    const currentPool = resolveSetKey(currentPlayer);
     const activeSetLabel = SET_LABELS[currentPool] || 'General';
     const currentSetIndex = SET_ORDER.indexOf(currentPool);
 
@@ -815,7 +874,7 @@ const Auction = () => {
     const remainingIds = queue.slice(startIndex);
     const remainingInSet = remainingIds.filter((id) => {
       const player = playerById.get(id);
-      return normalizePoolKey(String((player as any)?.pool || '')) === currentPool;
+      return resolveSetKey(player) === currentPool;
     }).length;
 
     return { activeSetLabel, playersRemainingInSet: Math.max(0, remainingInSet), currentSetIndex };
@@ -824,12 +883,12 @@ const Auction = () => {
   const remainingSetPlayers = useMemo(() => {
     const queue = (session?.auctionQueue || []) as string[];
     const queueIndex = Number(session?.queueIndex ?? -1);
-    const currentPool = normalizePoolKey(String((currentPlayer as any)?.pool || ''));
+    const currentPool = resolveSetKey(currentPlayer);
     const startIndex = Math.max(0, queueIndex);
 
     return queue
       .slice(startIndex)
-      .filter((id) => normalizePoolKey(String((playerById.get(id) as any)?.pool || '')) === currentPool)
+      .filter((id) => resolveSetKey(playerById.get(id)) === currentPool)
       .map((id) => String((playerById.get(id) as any)?.name || id))
       .slice(0, 25);
   }, [session?.auctionQueue, session?.queueIndex, currentPlayer, playerById]);
@@ -873,20 +932,37 @@ const Auction = () => {
       <Header
         gameCode={gameCode!}
         currentSetLabel={`${typeof setProgress.currentSetIndex === "number" && setProgress.currentSetIndex >= 0 ? `Set ${setProgress.currentSetIndex + 1}: ` : ""}${setProgress.activeSetLabel}`}
-        onSkip={gameCode && isHost ? handleSkip : undefined}
-        onNextSet={gameCode && canNextSet ? () => loadNextPlayer(gameCode) : undefined}
+        onAdvancePlayer={gameCode && isHost ? handleAdvancePlayer : undefined}
+        onSkipSet={gameCode && isHost ? handleSkipSet : undefined}
         onPauseToggle={gameCode && isHost ? () => togglePauseAuction(gameCode) : undefined}
         isPaused={currentAuction?.status === "PAUSED"}
-        canControl={Boolean(isHost)}
-        canSkip={!skipDisabled}
-        canNextSet={canNextSet}
+        canControl={Boolean(isHost && !pendingRtm)}
+        canAdvancePlayer={canAdvancePlayer}
+        canSkipSet={canSkipSet}
         onMenuClick={() => setTeamDrawerOpen(true)}
-        onLeaveGame={async () => {
-          if (!gameCode) return;
-          await leaveGame(gameCode, userId);
-          navigate(`/`);
-        }}
+        onLeaveGame={() => setLeaveConfirmOpen(true)}
       />
+
+      <AlertDialog open={leaveConfirmOpen} onOpenChange={setLeaveConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Leave Auction?</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to leave the auction?</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={async () => {
+                if (!gameCode) return;
+                await leaveGame(gameCode, userId);
+                navigate(`/`);
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Sheet open={teamDrawerOpen} onOpenChange={setTeamDrawerOpen}>
         <SheetContent side="left" className="w-[88vw] max-w-sm bg-[#071a3a] border-yellow-500/40 p-3">
@@ -917,7 +993,7 @@ const Auction = () => {
             <div className="absolute -top-14 left-1/2 -translate-x-1/2 text-4xl md:text-5xl animate-[hammerDrop_0.45s_ease-out]">🔨</div>
             <div className="absolute inset-0 rounded-2xl border-2 border-white/20 animate-[hammerImpact_0.45s_ease-out]" />
             <div
-              className={`min-w-[260px] rounded-2xl border px-7 py-5 text-center shadow-2xl animate-[resultPop_0.35s_ease-out] ${banner.kind === 'SOLD' ? 'border-green-500 text-green-400 bg-green-900/30 shadow-[0_0_30px_rgba(34,197,94,0.35)]' : 'border-red-500 text-red-400 bg-red-900/30 shadow-[0_0_30px_rgba(248,113,113,0.35)]'}`}
+              className={`status-fade min-w-[260px] rounded-2xl border px-7 py-5 text-center shadow-2xl animate-[resultPop_0.35s_ease-out] ${banner.kind === 'SOLD' ? 'border-[#FFD700] text-[#FFD700] bg-[#2f2500bb] shadow-[0_0_30px_rgba(255,215,0,0.42)]' : 'border-[#FF4D4D] text-[#FF4D4D] bg-[#2e0808bb] shadow-[0_0_30px_rgba(255,77,77,0.35)]'}`}
             >
               <p className="text-3xl md:text-4xl font-display">{banner.kind}</p>
               {banner.kind === 'SOLD' ? (
@@ -1011,22 +1087,22 @@ const Auction = () => {
       {!auctionEnded && (
         <>
           <div className="relative">
-            <div className="border-y border-yellow-500/40 bg-[#061734] overflow-hidden py-1.5">
+            <div className="border-y border-[#00CFFF66] bg-[#061734cc] backdrop-blur-md overflow-hidden py-1.5">
               <div className="whitespace-nowrap animate-[marquee_28s_linear_infinite] text-xs md:text-sm text-yellow-100 px-4">
                 {commentaryTicker} &nbsp; • &nbsp; {commentaryTicker}
               </div>
             </div>
 
             <div className="pointer-events-none absolute left-1/2 -top-10 -translate-x-1/2 z-20">
-              <div className="relative h-[110px] w-[110px] md:h-[140px] md:w-[140px] rounded-full bg-[#020617] border-2 border-yellow-400/40 grid place-items-center shadow-[0_0_30px_rgba(251,191,36,0.45)]">
+              <div className="relative h-[110px] w-[110px] md:h-[140px] md:w-[140px] rounded-full bg-[#020617] border-2 border-[#00CFFF66] grid place-items-center shadow-[0_0_35px_rgba(0,207,255,0.38)]">
                 <svg viewBox="0 0 120 120" className="absolute inset-0 -rotate-90">
-                  <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(251,191,36,0.22)" strokeWidth="8" />
+                  <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(0,207,255,0.22)" strokeWidth="8" />
                   <circle
                     cx="60"
                     cy="60"
                     r="50"
                     fill="none"
-                    stroke="rgba(251,191,36,0.95)"
+                    stroke={timerSeconds <= 10 ? "#FF4D4D" : "#00CFFF"}
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={2 * Math.PI * 50}
@@ -1034,7 +1110,7 @@ const Auction = () => {
                     className="transition-[stroke-dashoffset] duration-500"
                   />
                 </svg>
-                <span className="font-display text-3xl md:text-5xl leading-none text-yellow-200">{Math.max(0, Math.floor(timerSeconds))}</span>
+                <span className={`font-display text-3xl md:text-5xl leading-none ${timerSeconds <= 10 ? 'timer-urgent text-[#FF4D4D]' : 'text-[#d7f8ff]'}`}>{Math.max(0, Math.floor(timerSeconds))}</span>
               </div>
             </div>
           </div>
@@ -1155,7 +1231,7 @@ const Auction = () => {
             <div className="mt-4 space-y-2 text-sm md:text-base">
               <p>Current price: <span className="font-semibold text-emerald-300">{formatCrPrice(Number(pendingRtm.finalBid || 0))}</span></p>
               {pendingRtm.status === 'AWAIT_ORIGINAL' && <p>Waiting for {rtmOriginalTeam?.shortName || 'original team'} to decide whether to use RTM.</p>}
-              {pendingRtm.status === 'AWAIT_WINNER_COUNTER' && <p>{rtmOriginalTeam?.shortName || 'Original team'} used RTM. Waiting for {rtmWinningTeam?.shortName || 'highest bidder'} to enter a higher final bid.</p>}
+              {pendingRtm.status === 'AWAIT_WINNER_COUNTER' && <p>{rtmOriginalTeam?.shortName || 'Original team'} used RTM. Waiting for {rtmWinningTeam?.shortName || 'highest bidder'} to enter a new final bid.</p>}
               {pendingRtm.status === 'AWAIT_ORIGINAL_MATCH' && <p>{rtmWinningTeam?.shortName || 'Highest bidder'} raised the bid. Waiting for {rtmOriginalTeam?.shortName || 'original team'} to match {formatCrPrice(Number(pendingRtm.finalBid || pendingRtm.counterBid || 0))}.</p>}
               <p className="pt-2 text-xs uppercase tracking-[0.28em] text-slate-400">Auction locked • {rtmCountdownSeconds}s remaining</p>
             </div>
@@ -1191,11 +1267,12 @@ const Auction = () => {
           open={true}
           player={rtmPlayer as any}
           previousBid={Number(pendingRtm.finalBid || 0)}
-          minBid={Math.max(Number(pendingRtm.counterBid || 0), getNextBid(Number(pendingRtm.finalBid || 0)))}
+          minBid={Math.max(Number(pendingRtm.counterBid || 0), Number(pendingRtm.finalBid || 0) + 1)}
           countdownSeconds={rtmCountdownSeconds}
           disabled={rtmSubmissionLocked}
           onSubmit={submitCounterBid}
-          onCancel={() => submitRtmDecision("DECLINE")}
+          onCancel={() => submitCounterBid(Math.max(Number(pendingRtm.counterBid || 0), Number(pendingRtm.finalBid || 0) + 1))}
+          cancelLabel="Use Min Raise"
         />
       )}
     </div>

@@ -67,8 +67,9 @@ export const PlayerCard = ({ player, currentBid, currentBidderId, currentBidderN
             <div className="rounded-xl bg-black/35 px-3 py-2 backdrop-blur-sm">
               <span className="text-white/70">Base Price:</span> <span className="font-semibold text-white">{formatPrice(player.basePrice)}</span>
             </div>
-            <div className="rounded-xl bg-[hsl(var(--primary))]/18 px-3 py-2 backdrop-blur-sm">
-              <span className="text-white/70">Current Bid:</span> <span className="font-semibold text-white">{formatPrice(currentBid)}</span>
+            <div className="rounded-xl border border-[#FFD70055] bg-[#261d05aa] px-3 py-2 backdrop-blur-sm">
+              <span className="text-white/70">Current Bid:</span>{" "}
+              <span className="bid-value-pulse text-lg font-bold text-[#FFD700] md:text-xl">{formatPrice(currentBid)}</span>
             </div>
             <div className="flex items-center justify-center gap-2 rounded-xl bg-black/35 px-3 py-2 backdrop-blur-sm">
               <span className="text-white/70">Leading:</span>

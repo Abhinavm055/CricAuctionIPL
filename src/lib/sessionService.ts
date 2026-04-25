@@ -32,41 +32,61 @@ import { RetentionEngine } from "@/engine/retentionEngine";
 import { AuctionEngine } from "@/engine/auctionEngine";
 import { RtmEngine } from "@/engine/rtmEngine";
 
-const OFFICIAL_POOL_ORDER = [
-  "marquee",
-  "batters",
-  "all-rounders",
-  "wicketkeepers",
-  "bowlers",
-  "uncapped",
-  "accelerated",
+const SET_SEQUENCE = [
+  "marquee-1",
+  "marquee-2",
+  "batters-1",
+  "batters-2",
+  "batters-3",
+  "batters-4",
+  "bowlers-1",
+  "bowlers-2",
+  "bowlers-3",
+  "bowlers-4",
+  "wicketkeepers-1",
+  "wicketkeepers-2",
+  "wicketkeepers-3",
+  "wicketkeepers-4",
+  "all-rounders-1",
+  "all-rounders-2",
+  "all-rounders-3",
+  "all-rounders-4",
 ];
 
-const normalizePool = (pool: string | undefined) => {
-  const key = String(pool || "").toLowerCase().replace(/\s+/g, "").replace("wicket-keepers", "wicketkeepers");
-  if (["marquee"].includes(key)) return "marquee";
-  if (["batters", "batsmen", "batter"].includes(key)) return "batters";
-  if (["allrounders", "all-rounders", "all-rounder"].includes(key)) return "all-rounders";
-  if (["wicketkeepers", "wicketkeeper", "wicket-keeper"].includes(key)) return "wicketkeepers";
-  if (["bowlers", "bowler"].includes(key)) return "bowlers";
-  if (["uncapped"].includes(key)) return "uncapped";
-  if (["accelerated", "acceleratedround"].includes(key)) return "accelerated";
-  return "accelerated";
+const normalizeCategory = (playerData: any) => {
+  const raw = String(playerData?.category || playerData?.pool || playerData?.role || "").toLowerCase().replace(/\s+/g, "").replace("wicket-keepers", "wicketkeepers");
+  if (raw.includes("marquee")) return "marquee";
+  if (["batters", "batsmen", "batter", "batsman"].some((v) => raw.includes(v))) return "batters";
+  if (["allrounders", "all-rounders", "all-rounder"].some((v) => raw.includes(v))) return "all-rounders";
+  if (["wicketkeepers", "wicketkeeper", "wicket-keeper"].some((v) => raw.includes(v))) return "wicketkeepers";
+  if (["bowlers", "bowler"].some((v) => raw.includes(v))) return "bowlers";
+  return "batters";
 };
 
-const shuffleArray = <T,>(arr: T[]) => {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
+const resolveSetNumber = (playerData: any, category: string) => {
+  const explicit = Number(playerData?.setNumber ?? playerData?.set ?? playerData?.setNo);
+  const marquee = Number(playerData?.marqueeSet);
+  if (category === "marquee") {
+    const n = Number.isFinite(marquee) && marquee > 0 ? marquee : (Number.isFinite(explicit) && explicit > 0 ? explicit : 1);
+    return Math.max(1, Math.min(2, Math.floor(n)));
   }
-  return copy;
+  const n = Number.isFinite(explicit) && explicit > 0 ? explicit : 1;
+  return Math.max(1, Math.min(4, Math.floor(n)));
 };
 
 const buildAuctionQueue = (players: Array<Record<string, any>>) => {
-  const grouped: Record<string, string[]> = OFFICIAL_POOL_ORDER.reduce((acc, key) => ({ ...acc, [key]: [] }), {} as Record<string, string[]>);
-  players.forEach((p) => grouped[normalizePool(p.pool)].push(p.id));
-  return OFFICIAL_POOL_ORDER.flatMap((pool) => shuffleArray(grouped[pool] || []));
+  const grouped = SET_SEQUENCE.reduce((acc, key) => ({ ...acc, [key]: [] as Array<Record<string, any>> }), {} as Record<string, Array<Record<string, any>>>);
+  players.forEach((player) => {
+    const category = normalizeCategory(player);
+    const setNo = resolveSetNumber(player, category);
+    const key = `${category}-${setNo}`;
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(player);
+  });
+
+  const byRatingDesc = (a: Record<string, any>, b: Record<string, any>) => Number(b.starRating ?? b.rating ?? 0) - Number(a.starRating ?? a.rating ?? 0);
+
+  return SET_SEQUENCE.flatMap((key) => (grouped[key] || []).sort(byRatingDesc).map((player) => player.id));
 };
 
 const getPlayerOverseasFlag = (playerData: any) => Boolean(playerData?.overseas ?? playerData?.isOverseas);
@@ -674,7 +694,7 @@ export const resolveAuction = async (gameCode: string) => {
           originalTeamId: previousTeamId,
           finalBid,
           status: "AWAIT_ORIGINAL",
-          counterBid: getNextBid(finalBid),
+          counterBid: Number(finalBid) + 1,
           expiresAt: Timestamp.fromMillis(Date.now() + RTM_TIMER * 1000),
           lastDecision: null,
         },
@@ -877,7 +897,7 @@ export const resolveRtmTimeout = async (gameCode: string) => {
 
   const actionMap: Record<string, "USE" | "DECLINE" | "COUNTER" | "MATCH"> = {
     AWAIT_ORIGINAL: "DECLINE",
-    AWAIT_WINNER_COUNTER: "DECLINE",
+    AWAIT_WINNER_COUNTER: "COUNTER",
     AWAIT_ORIGINAL_MATCH: "DECLINE",
   };
 
@@ -890,6 +910,7 @@ export const resolveRtmTimeout = async (gameCode: string) => {
   await resolveRtmDecision(gameCode, {
     action: actionMap[pending.status],
     actingTeamId: actingTeamMap[pending.status],
+    counterBid: pending.status === "AWAIT_WINNER_COUNTER" ? Number(pending.finalBid || 0) + 1 : undefined,
   });
 };
 

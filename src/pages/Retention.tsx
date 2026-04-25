@@ -193,9 +193,6 @@ const Retention = () => {
           >
             FINALIZE RETENTIONS
           </Button>
-          <Button variant="outline" size="xl" onClick={() => setSelected([])}>
-            SKIP ALL RETENTIONS
-          </Button>
         </section>
       </div>
     </div>

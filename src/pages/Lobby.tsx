@@ -34,6 +34,19 @@ const AI_MANAGERS = [
   'Arjun Kapoor',
 ];
 
+const TEAM_OWNERS: Record<string, string> = {
+  pbks: 'Preity Zinta',
+  mi: 'Mukesh Ambani',
+  csk: 'N. Srinivasan',
+  rcb: 'United Spirits',
+  kkr: 'Shah Rukh Khan',
+  dc: 'GMR Group',
+  rr: 'Manoj Badale',
+  srh: 'Kalanithi Maran',
+  gt: 'CVC Capital Partners',
+  lsg: 'Sanjiv Goenka',
+};
+
 const getAiManagerName = (teamId: string) => {
   const hash = teamId.split('').reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
   return AI_MANAGERS[hash % AI_MANAGERS.length];
@@ -121,7 +134,7 @@ const Lobby = () => {
       ? (managerName || 'YOU')
       : isTaken
         ? (String(takenBy).startsWith('AI-') ? getAiManagerName(team.id) : managerNames[team.id] || 'Reserved')
-        : (isVsAI ? getAiManagerName(team.id) : 'Available');
+        : (isVsAI ? TEAM_OWNERS[team.id] || getAiManagerName(team.id) : TEAM_OWNERS[team.id] || 'Available');
 
     return (
       <button
@@ -243,7 +256,7 @@ const Lobby = () => {
                 const uid = selectedTeams[team.id];
                 const manager = uid
                   ? (String(uid).startsWith('AI-') ? getAiManagerName(team.id) : managerNames[team.id] || String(uid).slice(0, 6))
-                  : 'Available';
+                  : TEAM_OWNERS[team.id] || 'Available';
                 return <div key={team.id} className="px-1 py-1"><span className="text-yellow-400 font-semibold">{team.shortName}</span> — <span className="text-muted-foreground">{manager}</span></div>;
               })}
             </div>
@@ -255,11 +268,13 @@ const Lobby = () => {
         </div>
 
         <div className="flex flex-col items-center gap-5 py-8 border-t border-white/5">
-          {!myConfirmedTeam && draftTeam && (
-            <Button variant="gold" size="xl" className="px-12" onClick={handleConfirmTeam} disabled={isSubmitting}>{isSubmitting ? 'Locking...' : `Confirm ${draftTeam.toUpperCase()}`}</Button>
-          )}
-          {isHost && (
-            <Button variant="gold" size="xl" disabled={!canStartRetention} onClick={() => startRetention(gameCode!)} className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-semibold hover:scale-105 hover:shadow-[0_0_20px_rgba(251,191,36,0.8)] transition-all">⚡ START RETENTION ROUND</Button>
+          <div className={cn("transition-opacity duration-300", !myConfirmedTeam && draftTeam ? "opacity-100" : "opacity-0 pointer-events-none h-0 overflow-hidden")}>
+            <Button variant="gold" size="xl" className="px-12" onClick={handleConfirmTeam} disabled={isSubmitting}>{isSubmitting ? 'Locking...' : `Confirm Team`}</Button>
+          </div>
+          {isHost && myConfirmedTeam && (
+            <div className="fade-in">
+              <Button variant="gold" size="xl" disabled={!canStartRetention} onClick={() => startRetention(gameCode!)} className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-semibold hover:scale-105 hover:shadow-[0_0_20px_rgba(251,191,36,0.8)] transition-all">Retention Round</Button>
+            </div>
           )}
           {!isHost && <p className="text-muted-foreground animate-pulse">Host is preparing the auction...</p>}
         </div>
