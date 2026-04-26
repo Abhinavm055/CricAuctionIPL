@@ -94,32 +94,33 @@ const STRATEGY_AGGRESSION: Record<string, number> = {
 };
 
 const SET_ORDER = [
-  'marquee-1', 'marquee-2',
-  'batters-1', 'batters-2', 'batters-3', 'batters-4',
-  'bowlers-1', 'bowlers-2', 'bowlers-3', 'bowlers-4',
-  'wicketkeepers-1', 'wicketkeepers-2', 'wicketkeepers-3', 'wicketkeepers-4',
-  'all-rounders-1', 'all-rounders-2', 'all-rounders-3', 'all-rounders-4',
+  'marquee-1',
+  'batters-1', 'bowlers-1', 'wicketkeepers-1', 'all-rounders-1',
+  'marquee-2',
+  'batters-2', 'bowlers-2', 'wicketkeepers-2', 'all-rounders-2',
+  'batters-3', 'bowlers-3', 'wicketkeepers-3', 'all-rounders-3',
+  'batters-4', 'bowlers-4', 'wicketkeepers-4', 'all-rounders-4',
 ];
 
 const SET_LABELS: Record<string, string> = {
   'marquee-1': 'Marquee Set 1',
   'marquee-2': 'Marquee Set 2',
-  'batters-1': 'Batsmen - Set 1',
-  'batters-2': 'Batsmen - Set 2',
-  'batters-3': 'Batsmen - Set 3',
-  'batters-4': 'Batsmen - Set 4',
-  'bowlers-1': 'Bowlers - Set 1',
-  'bowlers-2': 'Bowlers - Set 2',
-  'bowlers-3': 'Bowlers - Set 3',
-  'bowlers-4': 'Bowlers - Set 4',
-  'wicketkeepers-1': 'Wicket Keepers - Set 1',
-  'wicketkeepers-2': 'Wicket Keepers - Set 2',
-  'wicketkeepers-3': 'Wicket Keepers - Set 3',
-  'wicketkeepers-4': 'Wicket Keepers - Set 4',
-  'all-rounders-1': 'All-Rounders - Set 1',
-  'all-rounders-2': 'All-Rounders - Set 2',
-  'all-rounders-3': 'All-Rounders - Set 3',
-  'all-rounders-4': 'All-Rounders - Set 4',
+  'batters-1': 'Batsmen Set 1',
+  'batters-2': 'Batsmen Set 2',
+  'batters-3': 'Batsmen Set 3',
+  'batters-4': 'Batsmen Set 4',
+  'bowlers-1': 'Bowlers Set 1',
+  'bowlers-2': 'Bowlers Set 2',
+  'bowlers-3': 'Bowlers Set 3',
+  'bowlers-4': 'Bowlers Set 4',
+  'wicketkeepers-1': 'Wicketkeepers Set 1',
+  'wicketkeepers-2': 'Wicketkeepers Set 2',
+  'wicketkeepers-3': 'Wicketkeepers Set 3',
+  'wicketkeepers-4': 'Wicketkeepers Set 4',
+  'all-rounders-1': 'All-Rounders Set 1',
+  'all-rounders-2': 'All-Rounders Set 2',
+  'all-rounders-3': 'All-Rounders Set 3',
+  'all-rounders-4': 'All-Rounders Set 4',
 };
 
 const normalizeCategoryKey = (raw: string | undefined) => {
@@ -198,6 +199,7 @@ const Auction = () => {
   const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
   const [rtmSubmissionLocked, setRtmSubmissionLocked] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [setOverlayLabel, setSetOverlayLabel] = useState<string | null>(null);
   const suppressSoldBannerRef = useRef(false);
 
   const userId = localStorage.getItem("uid") || "";
@@ -214,6 +216,8 @@ const Auction = () => {
   const prevTimerEndsAtRef = useRef<number>(0);
   const prevPendingRtmStatusRef = useRef<string | null>(null);
   const autoStartKeyRef = useRef<string | null>(null);
+  const setOverlayTimeoutRef = useRef<number | null>(null);
+  const shownSetOverlaysRef = useRef<Set<string>>(new Set());
 
   const hasSyncedStatsRef = useRef(false);
 
@@ -290,6 +294,12 @@ const Auction = () => {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (setOverlayTimeoutRef.current) window.clearTimeout(setOverlayTimeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!gameCode) return;
     const unsub = listenSession(gameCode, setSession);
     return () => unsub();
@@ -325,17 +335,6 @@ const Auction = () => {
   const currentAuction = session?.currentAuction;
 
   useEffect(() => {
-    if (!isHost || !gameCode || session?.phase !== "AUCTION") return;
-    if (currentAuction?.activePlayerId || ["RUNNING", "PAUSED", "RTM", "SOLD", "UNSOLD"].includes(String(currentAuction?.status || ""))) return;
-
-    const key = `${session?.phase}-${session?.queueIndex ?? -1}`;
-    if (autoStartKeyRef.current === key) return;
-    autoStartKeyRef.current = key;
-
-    loadNextPlayer(gameCode).catch(() => undefined);
-  }, [isHost, gameCode, session?.phase, session?.queueIndex, currentAuction?.activePlayerId, currentAuction?.status]);
-
-  useEffect(() => {
     const serverBid = Number(currentAuction?.currentBid || 0);
     const serverBidder = currentAuction?.currentBidderId || null;
 
@@ -355,6 +354,40 @@ const Auction = () => {
   const displayedCurrentBid = optimisticBid ?? Number(currentAuction?.currentBid || 0);
   const displayedCurrentBidderId = optimisticBidderId ?? (currentAuction?.currentBidderId || null);
   const currentBidderTeam = teams.find((team) => team.id === displayedCurrentBidderId);
+
+  const getSetKeyByQueueIndex = useCallback((index: number) => {
+    const queue = (session?.auctionQueue || []) as string[];
+    if (index < 0 || index >= queue.length) return null;
+    return resolveSetKey(playerById.get(queue[index]));
+  }, [session?.auctionQueue, playerById]);
+
+  useEffect(() => {
+    if (!isHost || !gameCode || session?.phase !== "AUCTION") return;
+    if (currentAuction?.activePlayerId || ["RUNNING", "PAUSED", "RTM", "SOLD", "UNSOLD"].includes(String(currentAuction?.status || ""))) return;
+
+    const key = `${session?.phase}-${session?.queueIndex ?? -1}`;
+    if (autoStartKeyRef.current === key) return;
+    autoStartKeyRef.current = key;
+
+    const currentQueueIndex = Number(session?.queueIndex ?? -1);
+    const currentSetKey = getSetKeyByQueueIndex(currentQueueIndex);
+    const nextSetKey = getSetKeyByQueueIndex(currentQueueIndex + 1);
+    const shouldShowOverlay = Boolean(nextSetKey && nextSetKey !== currentSetKey && !shownSetOverlaysRef.current.has(String(nextSetKey)));
+
+    if (!shouldShowOverlay) {
+      loadNextPlayer(gameCode).catch(() => undefined);
+      return;
+    }
+
+    const setLabel = SET_LABELS[String(nextSetKey)] || "Next Set";
+    shownSetOverlaysRef.current.add(String(nextSetKey));
+    setSetOverlayLabel(`${setLabel} Starting`);
+    if (setOverlayTimeoutRef.current) window.clearTimeout(setOverlayTimeoutRef.current);
+    setOverlayTimeoutRef.current = window.setTimeout(() => {
+      setSetOverlayLabel(null);
+      loadNextPlayer(gameCode).catch(() => undefined);
+    }, 2500);
+  }, [isHost, gameCode, session?.phase, session?.queueIndex, currentAuction?.activePlayerId, currentAuction?.status, getSetKeyByQueueIndex]);
 
   const nextBid = getNextBid(displayedCurrentBid || 0);
   const timerEndsAtMs = currentAuction?.timerEndsAt?.toMillis?.() || 0;
@@ -1018,6 +1051,12 @@ const Auction = () => {
       {showRtmResultBanner && (
         <div className="fixed top-24 left-1/2 z-50 -translate-x-1/2 rounded-full border border-emerald-400/30 bg-slate-950/90 px-6 py-3 text-sm font-semibold text-emerald-300 shadow-2xl backdrop-blur-xl">
           {currentAuction?.rtmResultMessage}
+        </div>
+      )}
+
+      {setOverlayLabel && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 transition-opacity duration-300">
+          <p className="px-6 text-center text-3xl font-display text-white md:text-5xl">{setOverlayLabel}</p>
         </div>
       )}
 
