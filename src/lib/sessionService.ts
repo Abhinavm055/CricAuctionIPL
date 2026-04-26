@@ -34,24 +34,26 @@ import { RtmEngine } from "@/engine/rtmEngine";
 
 const SET_SEQUENCE = [
   "marquee-1",
-  "marquee-2",
   "batters-1",
-  "batters-2",
-  "batters-3",
-  "batters-4",
   "bowlers-1",
-  "bowlers-2",
-  "bowlers-3",
-  "bowlers-4",
   "wicketkeepers-1",
-  "wicketkeepers-2",
-  "wicketkeepers-3",
-  "wicketkeepers-4",
   "all-rounders-1",
+  "marquee-2",
+  "batters-2",
+  "bowlers-2",
+  "wicketkeepers-2",
   "all-rounders-2",
+  "batters-3",
+  "bowlers-3",
+  "wicketkeepers-3",
   "all-rounders-3",
+  "batters-4",
+  "bowlers-4",
+  "wicketkeepers-4",
   "all-rounders-4",
 ];
+
+const SET_SIZE = 15;
 
 const normalizeCategory = (playerData: any) => {
   const raw = String(playerData?.category || playerData?.pool || playerData?.role || "").toLowerCase().replace(/\s+/g, "").replace("wicket-keepers", "wicketkeepers");
@@ -63,35 +65,152 @@ const normalizeCategory = (playerData: any) => {
   return "batters";
 };
 
-const resolveSetNumber = (playerData: any, category: string) => {
-  const explicit = Number(playerData?.setNumber ?? playerData?.set ?? playerData?.setNo);
-  const marquee = Number(playerData?.marqueeSet);
-  if (category === "marquee") {
-    const n = Number.isFinite(marquee) && marquee > 0 ? marquee : (Number.isFinite(explicit) && explicit > 0 ? explicit : 1);
-    return Math.max(1, Math.min(2, Math.floor(n)));
+const getPlayerRating = (playerData: any) => Number(playerData?.rating ?? playerData?.starRating ?? 0);
+
+const getPlayerExperienceValue = (playerData: any) => {
+  const explicit = playerData?.experience;
+  if (typeof explicit === "number" && Number.isFinite(explicit)) return explicit;
+  if (typeof explicit === "boolean") return explicit ? 1 : 0;
+  const matches = Number(playerData?.matches ?? playerData?.matchesPlayed ?? playerData?.iplMatches ?? 0);
+  if (Number.isFinite(matches) && matches > 0) return matches;
+  return playerData?.isCapped === false ? 0 : 1;
+};
+
+const isExperienced = (playerData: any) => {
+  const value = getPlayerExperienceValue(playerData);
+  return value >= 1;
+};
+
+const isIndianPlayer = (playerData: any) => {
+  const nationality = String(playerData?.nationality || "").toLowerCase();
+  const overseasFlag = Boolean(playerData?.overseas ?? playerData?.isOverseas);
+  if (nationality.includes("ind")) return true;
+  if (nationality.includes("over")) return false;
+  return !overseasFlag;
+};
+
+const isUncappedPlayer = (playerData: any) => Boolean(playerData?.isUncapped ?? playerData?.isCapped === false);
+
+const byPriorityDesc = (a: Record<string, any>, b: Record<string, any>) => {
+  const ratingDiff = getPlayerRating(b) - getPlayerRating(a);
+  if (ratingDiff !== 0) return ratingDiff;
+  const experienceDiff = getPlayerExperienceValue(b) - getPlayerExperienceValue(a);
+  if (experienceDiff !== 0) return experienceDiff;
+  return String(a?.id || "").localeCompare(String(b?.id || ""));
+};
+
+const pickPlayers = (
+  sortedPlayers: Array<Record<string, any>>,
+  assignedIds: Set<string>,
+  count: number,
+  predicate: (player: Record<string, any>) => boolean
+) => {
+  const selected: Array<Record<string, any>> = [];
+  for (const player of sortedPlayers) {
+    const playerId = String(player?.id || "");
+    if (!playerId || assignedIds.has(playerId)) continue;
+    if (!predicate(player)) continue;
+    assignedIds.add(playerId);
+    selected.push(player);
+    if (selected.length >= count) break;
   }
-  const n = Number.isFinite(explicit) && explicit > 0 ? explicit : 1;
-  return Math.max(1, Math.min(4, Math.floor(n)));
+  return selected;
+};
+
+const fillSet = (
+  sortedPlayers: Array<Record<string, any>>,
+  assignedIds: Set<string>,
+  predicates: Array<(player: Record<string, any>) => boolean>
+) => {
+  const setPlayers: Array<Record<string, any>> = [];
+  predicates.forEach((predicate) => {
+    if (setPlayers.length >= SET_SIZE) return;
+    const picks = pickPlayers(sortedPlayers, assignedIds, SET_SIZE - setPlayers.length, predicate);
+    setPlayers.push(...picks);
+  });
+  return setPlayers;
+};
+
+const buildPlayerPools = (players: Array<Record<string, any>>) => {
+  const assignedIds = new Set<string>();
+  const sortedAll = [...players].sort(byPriorityDesc);
+
+  const marqueeSet1 = fillSet(sortedAll, assignedIds, [
+    (p) => isIndianPlayer(p) && isExperienced(p) && getPlayerRating(p) >= 4,
+    (p) => isIndianPlayer(p) && getPlayerRating(p) >= 4,
+    (p) => isExperienced(p) && getPlayerRating(p) >= 4,
+    () => true,
+  ]);
+
+  const marqueeSet2 = fillSet(sortedAll, assignedIds, [
+    (p) => !isIndianPlayer(p) && isExperienced(p) && getPlayerRating(p) >= 4,
+    (p) => !isIndianPlayer(p) && getPlayerRating(p) >= 4,
+    (p) => getPlayerRating(p) >= 4,
+    () => true,
+  ]);
+
+  const buildRoleSets = (category: "batters" | "bowlers" | "all-rounders" | "wicketkeepers") => {
+    const rolePlayers = sortedAll.filter((player) => normalizeCategory(player) === category && !assignedIds.has(String(player?.id || "")));
+    return {
+      set1: fillSet(rolePlayers, assignedIds, [
+        (p) => isIndianPlayer(p) && isExperienced(p) && getPlayerRating(p) >= 4,
+        (p) => isExperienced(p) && getPlayerRating(p) >= 4,
+        () => true,
+      ]),
+      set2: fillSet(rolePlayers, assignedIds, [
+        (p) => !isUncappedPlayer(p) && getPlayerRating(p) >= 3.8,
+        (p) => getPlayerRating(p) >= 3.5,
+        () => true,
+      ]),
+      set3: fillSet(rolePlayers, assignedIds, [
+        (p) => getPlayerRating(p) >= 3 && getPlayerRating(p) < 4,
+        (p) => getPlayerRating(p) >= 2.5,
+        () => true,
+      ]),
+      set4: fillSet(rolePlayers, assignedIds, [
+        (p) => isUncappedPlayer(p) || !isExperienced(p) || getPlayerRating(p) <= 3,
+        () => true,
+      ]),
+    };
+  };
+
+  return {
+    marquee: { set1: marqueeSet1, set2: marqueeSet2 },
+    batters: buildRoleSets("batters"),
+    bowlers: buildRoleSets("bowlers"),
+    allRounders: buildRoleSets("all-rounders"),
+    wicketkeepers: buildRoleSets("wicketkeepers"),
+  };
 };
 
 const buildAuctionQueue = (players: Array<Record<string, any>>) => {
-  const grouped = SET_SEQUENCE.reduce((acc, key) => ({ ...acc, [key]: [] as Array<Record<string, any>> }), {} as Record<string, Array<Record<string, any>>>);
-  players.forEach((player) => {
-    const category = normalizeCategory(player);
-    const setNo = resolveSetNumber(player, category);
-    const key = `${category}-${setNo}`;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(player);
-  });
+  const pools = buildPlayerPools(players);
+  const grouped: Record<string, Array<Record<string, any>>> = {
+    "marquee-1": pools.marquee.set1,
+    "marquee-2": pools.marquee.set2,
+    "batters-1": pools.batters.set1,
+    "batters-2": pools.batters.set2,
+    "batters-3": pools.batters.set3,
+    "batters-4": pools.batters.set4,
+    "bowlers-1": pools.bowlers.set1,
+    "bowlers-2": pools.bowlers.set2,
+    "bowlers-3": pools.bowlers.set3,
+    "bowlers-4": pools.bowlers.set4,
+    "wicketkeepers-1": pools.wicketkeepers.set1,
+    "wicketkeepers-2": pools.wicketkeepers.set2,
+    "wicketkeepers-3": pools.wicketkeepers.set3,
+    "wicketkeepers-4": pools.wicketkeepers.set4,
+    "all-rounders-1": pools.allRounders.set1,
+    "all-rounders-2": pools.allRounders.set2,
+    "all-rounders-3": pools.allRounders.set3,
+    "all-rounders-4": pools.allRounders.set4,
+  };
 
-  const byRatingDesc = (a: Record<string, any>, b: Record<string, any>) => Number(b.starRating ?? b.rating ?? 0) - Number(a.starRating ?? a.rating ?? 0);
-
-  return SET_SEQUENCE.flatMap((key) => (grouped[key] || []).sort(byRatingDesc).map((player) => player.id));
+  return SET_SEQUENCE.flatMap((key) => (grouped[key] || []).map((player) => player.id));
 };
 
 const getPlayerOverseasFlag = (playerData: any) => Boolean(playerData?.overseas ?? playerData?.isOverseas);
 const getPlayerPreviousTeamId = (playerData: any) => String(playerData?.previousTeamId ?? playerData?.previousTeam ?? "").toLowerCase();
-const getPlayerRating = (playerData: any) => Number(playerData?.rating ?? playerData?.starRating ?? 0);
 
 const buildRecentPurchases = (existing: Array<{ playerId: string; price: number; teamId: string }>, purchase: { playerId: string; price: number; teamId: string }) => {
   return [purchase, ...(existing || [])];
