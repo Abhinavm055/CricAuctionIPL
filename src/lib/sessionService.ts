@@ -66,11 +66,19 @@ const normalizeCategory = (playerData: any) => {
 const resolveSetNumber = (playerData: any, category: string) => {
   const explicit = Number(playerData?.setNumber ?? playerData?.set ?? playerData?.setNo);
   const marquee = Number(playerData?.marqueeSet);
+  const poolSetMatch = String(playerData?.pool || playerData?.category || "").match(/set\s*(\d+)/i);
+  const parsedPoolSet = poolSetMatch ? Number(poolSetMatch[1]) : NaN;
   if (category === "marquee") {
-    const n = Number.isFinite(marquee) && marquee > 0 ? marquee : (Number.isFinite(explicit) && explicit > 0 ? explicit : 1);
+    const n = Number.isFinite(marquee) && marquee > 0
+      ? marquee
+      : (Number.isFinite(explicit) && explicit > 0
+        ? explicit
+        : (Number.isFinite(parsedPoolSet) && parsedPoolSet > 0 ? parsedPoolSet : 1));
     return Math.max(1, Math.min(2, Math.floor(n)));
   }
-  const n = Number.isFinite(explicit) && explicit > 0 ? explicit : 1;
+  const n = Number.isFinite(explicit) && explicit > 0
+    ? explicit
+    : (Number.isFinite(parsedPoolSet) && parsedPoolSet > 0 ? parsedPoolSet : 1);
   return Math.max(1, Math.min(4, Math.floor(n)));
 };
 

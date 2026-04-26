@@ -41,7 +41,26 @@ export const IPL_TEAMS = [
 
 export const PLAYER_ROLES = ['Batsman', 'Bowler', 'All-Rounder', 'Wicket-Keeper'] as const;
 
-export const AUCTION_POOLS = ['Marquee', 'Batters', 'All-Rounders', 'Wicketkeepers', 'Bowlers', 'Uncapped', 'Accelerated'] as const;
+export const AUCTION_POOLS = [
+  'Marquee Set 1',
+  'Marquee Set 2',
+  'Batsmen Set 1',
+  'Batsmen Set 2',
+  'Batsmen Set 3',
+  'Batsmen Set 4',
+  'All-Rounders Set 1',
+  'All-Rounders Set 2',
+  'All-Rounders Set 3',
+  'All-Rounders Set 4',
+  'Wicketkeepers Set 1',
+  'Wicketkeepers Set 2',
+  'Wicketkeepers Set 3',
+  'Wicketkeepers Set 4',
+  'Bowlers Set 1',
+  'Bowlers Set 2',
+  'Bowlers Set 3',
+  'Bowlers Set 4',
+] as const;
 
 // Official IPL bid increments
 export const PRICE_INCREMENTS = [

@@ -136,13 +136,19 @@ const resolveSetKey = (player: any) => {
   const category = normalizeCategoryKey(String(player?.category || player?.pool || player?.role || ''));
   const rawSet = Number(player?.setNumber ?? player?.set ?? player?.setNo);
   const rawMarqueeSet = Number(player?.marqueeSet);
+  const poolSetMatch = String(player?.pool || player?.category || '').match(/set\s*(\d+)/i);
+  const parsedPoolSet = poolSetMatch ? Number(poolSetMatch[1]) : NaN;
   if (category === 'marquee') {
     const setNo = Number.isFinite(rawMarqueeSet) && rawMarqueeSet > 0
       ? rawMarqueeSet
-      : (Number.isFinite(rawSet) && rawSet > 0 ? rawSet : 1);
+      : (Number.isFinite(rawSet) && rawSet > 0
+        ? rawSet
+        : (Number.isFinite(parsedPoolSet) && parsedPoolSet > 0 ? parsedPoolSet : 1));
     return `marquee-${Math.max(1, Math.min(2, Math.floor(setNo)))}`;
   }
-  const setNo = Number.isFinite(rawSet) && rawSet > 0 ? rawSet : 1;
+  const setNo = Number.isFinite(rawSet) && rawSet > 0
+    ? rawSet
+    : (Number.isFinite(parsedPoolSet) && parsedPoolSet > 0 ? parsedPoolSet : 1);
   return `${category}-${Math.max(1, Math.min(4, Math.floor(setNo)))}`;
 };
 
