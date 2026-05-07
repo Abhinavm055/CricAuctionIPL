@@ -137,19 +137,13 @@ const resolveSetKey = (player: any) => {
   const category = normalizeCategoryKey(String(player?.category || player?.pool || player?.role || ''));
   const rawSet = Number(player?.setNumber ?? player?.set ?? player?.setNo);
   const rawMarqueeSet = Number(player?.marqueeSet);
-  const poolSetMatch = String(player?.pool || player?.category || '').match(/set\s*(\d+)/i);
-  const parsedPoolSet = poolSetMatch ? Number(poolSetMatch[1]) : NaN;
   if (category === 'marquee') {
     const setNo = Number.isFinite(rawMarqueeSet) && rawMarqueeSet > 0
       ? rawMarqueeSet
-      : (Number.isFinite(rawSet) && rawSet > 0
-        ? rawSet
-        : (Number.isFinite(parsedPoolSet) && parsedPoolSet > 0 ? parsedPoolSet : 1));
+      : (Number.isFinite(rawSet) && rawSet > 0 ? rawSet : 1);
     return `marquee-${Math.max(1, Math.min(2, Math.floor(setNo)))}`;
   }
-  const setNo = Number.isFinite(rawSet) && rawSet > 0
-    ? rawSet
-    : (Number.isFinite(parsedPoolSet) && parsedPoolSet > 0 ? parsedPoolSet : 1);
+  const setNo = Number.isFinite(rawSet) && rawSet > 0 ? rawSet : 1;
   return `${category}-${Math.max(1, Math.min(4, Math.floor(setNo)))}`;
 };
 
@@ -202,6 +196,7 @@ const Auction = () => {
   const suppressSoldBannerRef = useRef(false);
   const shownSetTransitionKeysRef = useRef<Set<string>>(new Set());
   const [transitionSet, setTransitionSet] = useState<{ key: string; label: string; setNumber: number; playersInPool: number } | null>(null);
+  const [showSetTransition, setShowSetTransition] = useState(false);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -458,7 +453,12 @@ const Auction = () => {
       setNumber: Math.max(1, setNumber),
       playersInPool: activeLockedSet.playerIds.length,
     });
+    setShowSetTransition(true);
   }, [activeLockedSet, lockedAuctionSets, session?.isAcceleratedRound, currentAuction?.status]);
+
+  const handleSetTransitionComplete = useCallback(() => {
+    setShowSetTransition(false);
+  }, []);
 
   const setProgress = useMemo(() => {
     const queue = (session?.auctionQueue || []) as string[];
@@ -988,13 +988,13 @@ const Auction = () => {
         onLeaveGame={() => setLeaveConfirmOpen(true)}
       />
 
-      {transitionSet && (
+      {showSetTransition && transitionSet && (
         <PoolTransition
           key={transitionSet.key}
           poolName={transitionSet.label}
           playersInPool={transitionSet.playersInPool}
           setNumber={transitionSet.setNumber}
-          onComplete={() => setTransitionSet(null)}
+          onComplete={handleSetTransitionComplete}
         />
       )}
 
