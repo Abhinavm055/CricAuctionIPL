@@ -108,27 +108,33 @@ const RetentionReview = () => {
 
                   {/* BACK FACE */}
                   <div 
-                    className="absolute inset-0 border border-yellow-500/50 bg-[#0B1C3D] rounded-xl p-4 overflow-y-auto custom-scrollbar"
+                    className="absolute inset-0 border border-yellow-500/50 bg-[#0B1C3D] rounded-xl p-4 overflow-hidden"
                     style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
                   >
                     <h3 className="text-yellow-400 font-display text-lg mb-3 border-b border-white/10 pb-1 sticky top-0 bg-[#0B1C3D] z-10">
                       Retained Players
                     </h3>
-                    {retainedPlayers.length === 0 ? (
-                      <p className="text-sm text-muted-foreground mt-4 text-center">No players retained</p>
-                    ) : (
-                      <div className="grid grid-cols-2 gap-2">
-                        {retainedPlayers.map((p) => (
-                          <div key={p.id} className="rounded-lg border border-white/10 bg-[#111c34] p-2 flex flex-col items-center text-center">
-                            <div className="w-16 h-16 rounded-full bg-[#06122b] flex items-center justify-center overflow-hidden mb-2 border border-white/5">
-                              {(p.image || p.imageUrl) ? <img src={p.image || p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <User className="w-6 h-6 text-muted-foreground" />}
+                    <div
+                      className="retained-player-list h-[238px] overflow-y-auto overscroll-contain pr-1 scroll-smooth custom-scrollbar"
+                      onWheel={(event) => event.stopPropagation()}
+                      onTouchMove={(event) => event.stopPropagation()}
+                    >
+                      {retainedPlayers.length === 0 ? (
+                        <p className="text-sm text-muted-foreground mt-4 text-center">No players retained</p>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-2 pb-1">
+                          {retainedPlayers.map((p) => (
+                            <div key={p.id} className="rounded-lg border border-white/10 bg-[#111c34] p-2 flex flex-col items-center text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-yellow-400/40 hover:bg-[#16213c]">
+                              <div className="w-16 h-16 rounded-full bg-[#06122b] flex items-center justify-center overflow-hidden mb-2 border border-white/5">
+                                {(p.image || p.imageUrl) ? <img src={p.image || p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <User className="w-6 h-6 text-muted-foreground" />}
+                              </div>
+                              <p className="text-xs font-semibold truncate w-full">{p.name}</p>
+                              <p className="text-[11px] text-yellow-400">{formatPrice(prices[p.id] || 0)}</p>
                             </div>
-                            <p className="text-xs font-semibold truncate w-full">{p.name}</p>
-                            <p className="text-[11px] text-yellow-400">{formatPrice(prices[p.id] || 0)}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                 </div>

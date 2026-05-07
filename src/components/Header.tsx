@@ -4,6 +4,7 @@ import { useTheme } from 'next-themes';
 interface HeaderProps {
   gameCode: string;
   currentSetLabel?: string;
+  hideGameCode?: boolean;
   onAdvancePlayer?: () => void;
   onSkipSet?: () => void;
   onPauseToggle?: () => void;
@@ -20,6 +21,7 @@ const controlButtonClass = 'inline-flex h-8 w-8 items-center justify-center roun
 export const Header = ({
   gameCode,
   currentSetLabel,
+  hideGameCode = false,
   onAdvancePlayer,
   onSkipSet,
   onPauseToggle,
@@ -47,8 +49,12 @@ export const Header = ({
             </button>
           )}
           <p className="font-display whitespace-nowrap text-xs text-[hsl(var(--foreground))] md:text-sm normal-case">CricAuctionIPL</p>
-          <span className="text-[hsl(var(--foreground))]/35">|</span>
-          <span className="rounded-full bg-[hsl(var(--primary))]/12 px-2 py-0.5 font-bold text-[hsl(var(--primary))] whitespace-nowrap normal-case">{gameCode}</span>
+          {!hideGameCode && (
+            <>
+              <span className="text-[hsl(var(--foreground))]/35">|</span>
+              <span className="rounded-full bg-[hsl(var(--primary))]/12 px-2 py-0.5 font-bold text-[hsl(var(--primary))] whitespace-nowrap normal-case">{gameCode}</span>
+            </>
+          )}
           <span className="text-[hsl(var(--foreground))]/35">|</span>
           <span className="truncate normal-case">{currentSetLabel || 'General Set'}</span>
         </div>
