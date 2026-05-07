@@ -423,3 +423,27 @@ html {
 ::-webkit-scrollbar-thumb:hover {
   box-shadow: 0 0 10px rgba(0, 207, 255, 0.7);
 }
+
+.retained-player-list {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(250, 204, 21, 0.65) rgba(15, 23, 42, 0.35);
+}
+
+.retained-player-list::-webkit-scrollbar {
+  width: 5px;
+}
+
+.retained-player-list::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.35);
+  border-radius: 999px;
+}
+
+.retained-player-list::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(250, 204, 21, 0.9), rgba(0, 207, 255, 0.55));
+  border: 1px solid rgba(250, 204, 21, 0.25);
+  border-radius: 999px;
+}
+
+.retained-player-list::-webkit-scrollbar-thumb:hover {
+  box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+}

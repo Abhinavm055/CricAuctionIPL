@@ -53,13 +53,37 @@ const SET_SEQUENCE = [
   "all-rounders-4",
 ];
 
+const SET_LABELS: Record<string, string> = {
+  "marquee-1": "Marquee Set 1",
+  "marquee-2": "Marquee Set 2",
+  "batters-1": "Batsmen - Set 1",
+  "batters-2": "Batsmen - Set 2",
+  "batters-3": "Batsmen - Set 3",
+  "batters-4": "Batsmen - Set 4",
+  "bowlers-1": "Bowlers - Set 1",
+  "bowlers-2": "Bowlers - Set 2",
+  "bowlers-3": "Bowlers - Set 3",
+  "bowlers-4": "Bowlers - Set 4",
+  "wicketkeepers-1": "Wicket Keepers - Set 1",
+  "wicketkeepers-2": "Wicket Keepers - Set 2",
+  "wicketkeepers-3": "Wicket Keepers - Set 3",
+  "wicketkeepers-4": "Wicket Keepers - Set 4",
+  "all-rounders-1": "All-Rounders - Set 1",
+  "all-rounders-2": "All-Rounders - Set 2",
+  "all-rounders-3": "All-Rounders - Set 3",
+  "all-rounders-4": "All-Rounders - Set 4",
+};
+
 const normalizeCategory = (playerData: any) => {
-  const raw = String(playerData?.category || playerData?.pool || playerData?.role || "").toLowerCase().replace(/\s+/g, "").replace("wicket-keepers", "wicketkeepers");
-  if (raw.includes("marquee")) return "marquee";
+  const categoryText = String(playerData?.category || playerData?.pool || "").toLowerCase().replace(/[\s_-]+/g, "");
+  const roleText = String(playerData?.role || "").toLowerCase().replace(/[\s_-]+/g, "");
+  const raw = `${categoryText} ${roleText}`;
+
+  if (categoryText.includes("marquee")) return "marquee";
+  if (roleText.includes("wicket") || categoryText.includes("wicketkeeper")) return "wicketkeepers";
+  if (roleText.includes("allround") || categoryText.includes("allround")) return "all-rounders";
+  if (roleText.includes("bowl") || categoryText.includes("bowler")) return "bowlers";
   if (["batters", "batsmen", "batter", "batsman"].some((v) => raw.includes(v))) return "batters";
-  if (["allrounders", "all-rounders", "all-rounder"].some((v) => raw.includes(v))) return "all-rounders";
-  if (["wicketkeepers", "wicketkeeper", "wicket-keeper"].some((v) => raw.includes(v))) return "wicketkeepers";
-  if (["bowlers", "bowler"].some((v) => raw.includes(v))) return "bowlers";
   return "batters";
 };
 
@@ -74,8 +98,18 @@ const resolveSetNumber = (playerData: any, category: string) => {
   return Math.max(1, Math.min(4, Math.floor(n)));
 };
 
-const buildAuctionQueue = (players: Array<Record<string, any>>) => {
+const shuffleArray = <T,>(items: T[]) => {
+  const shuffled = [...items];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
+const buildAuctionSets = (players: Array<Record<string, any>>) => {
   const grouped = SET_SEQUENCE.reduce((acc, key) => ({ ...acc, [key]: [] as Array<Record<string, any>> }), {} as Record<string, Array<Record<string, any>>>);
+
   players.forEach((player) => {
     const category = normalizeCategory(player);
     const setNo = resolveSetNumber(player, category);
@@ -84,9 +118,23 @@ const buildAuctionQueue = (players: Array<Record<string, any>>) => {
     grouped[key].push(player);
   });
 
-  const byRatingDesc = (a: Record<string, any>, b: Record<string, any>) => Number(b.starRating ?? b.rating ?? 0) - Number(a.starRating ?? a.rating ?? 0);
+  return shuffleArray(
+    SET_SEQUENCE
+      .filter((key) => grouped[key]?.length)
+      .map((key) => ({
+        key,
+        label: SET_LABELS[key] || key,
+        playerIds: shuffleArray(grouped[key]).map((player) => player.id),
+      })),
+  );
+};
 
-  return SET_SEQUENCE.flatMap((key) => (grouped[key] || []).sort(byRatingDesc).map((player) => player.id));
+const buildAuctionQueue = (players: Array<Record<string, any>>) => {
+  const auctionSets = buildAuctionSets(players);
+  return {
+    auctionSets,
+    queue: auctionSets.flatMap((set) => set.playerIds),
+  };
 };
 
 const getPlayerOverseasFlag = (playerData: any) => Boolean(playerData?.overseas ?? playerData?.isOverseas);
@@ -453,8 +501,18 @@ export const startAuction = async (gameCode: string) => {
   const sessionSnap = await getDoc(sessionRef);
   if (!sessionSnap.exists()) throw new Error("Session not found");
 
+  const sessionData = sessionSnap.data() as any;
+  if (sessionData.auctionShuffleLocked && Array.isArray(sessionData.auctionQueue) && sessionData.auctionQueue.length) {
+    await updateDoc(sessionRef, {
+      phase: "AUCTION",
+      pendingRtm: null,
+      currentAuction: sessionData.currentAuction || { ...DEFAULT_AUCTION_STATE, timerMode: "AUCTION" },
+    });
+    return;
+  }
+
   const retainedIds = new Set<string>();
-  const retentions = (sessionSnap.data().retentions || {}) as Record<string, any>;
+  const retentions = (sessionData.retentions || {}) as Record<string, any>;
   Object.values(retentions).forEach((ret: any) => {
     (ret?.players || []).forEach((pid: string) => retainedIds.add(pid));
   });
@@ -463,12 +521,15 @@ export const startAuction = async (gameCode: string) => {
   const players = playersSnapshot.docs
     .map((d) => ({ id: d.id, ...d.data() }))
     .filter((p: any) => !retainedIds.has(p.id));
-  const queue = buildAuctionQueue(players);
+  const { queue, auctionSets } = buildAuctionQueue(players);
 
   await updateDoc(sessionRef, {
     phase: "AUCTION",
     auctionStartedAt: serverTimestamp(),
     auctionQueue: queue,
+    auctionSets,
+    auctionSetOrder: auctionSets.map((set) => set.key),
+    auctionShuffleLocked: true,
     queueIndex: -1,
     unsoldPlayers: [],
     recentPurchases: [],

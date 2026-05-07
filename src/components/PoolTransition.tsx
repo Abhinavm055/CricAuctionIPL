@@ -1,14 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface PoolTransitionProps {
   poolName: string;
   playersInPool: number;
   onComplete: () => void;
+  setNumber?: number;
 }
 
-export const PoolTransition = ({ poolName, playersInPool, onComplete }: PoolTransitionProps) => {
+export const PoolTransition = ({ poolName, playersInPool, onComplete, setNumber }: PoolTransitionProps) => {
   const [phase, setPhase] = useState<'enter' | 'display' | 'exit'>('enter');
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   useEffect(() => {
     // Enter phase
@@ -16,17 +22,17 @@ export const PoolTransition = ({ poolName, playersInPool, onComplete }: PoolTran
     // Display phase
     const displayTimer = setTimeout(() => setPhase('exit'), 2500);
     // Exit and complete
-    const exitTimer = setTimeout(onComplete, 3000);
+    const exitTimer = setTimeout(() => onCompleteRef.current(), 3000);
 
     return () => {
       clearTimeout(enterTimer);
       clearTimeout(displayTimer);
       clearTimeout(exitTimer);
     };
-  }, [onComplete]);
+  }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-md">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[#020617]/96 backdrop-blur-md">
       <div 
         className={cn(
           "text-center transition-all duration-500",
@@ -46,14 +52,13 @@ export const PoolTransition = ({ poolName, playersInPool, onComplete }: PoolTran
         </div>
 
         {/* Pool name */}
-        <h1 className="font-display text-7xl text-foreground mb-4 tracking-wider text-shadow-glow">
+        <p className="mb-3 font-display text-5xl text-primary tracking-[0.2em] text-shadow-glow md:text-7xl">
+          SET {setNumber || getPoolNumber(poolName)}
+        </p>
+
+        <h1 className="font-display text-3xl text-foreground mb-4 tracking-wider text-shadow-glow md:text-6xl">
           {poolName}
         </h1>
-        
-        {/* Subtitle */}
-        <p className="text-2xl text-primary font-semibold mb-2">
-          SET {getPoolNumber(poolName)}
-        </p>
         
         {/* Player count */}
         <p className="text-lg text-muted-foreground">
