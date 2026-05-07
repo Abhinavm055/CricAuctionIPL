@@ -29,6 +29,7 @@ import { BidInputModal } from "@/components/BidInputModal";
 import { SoldModal } from "@/components/SoldModal";
 import { TeamLogo } from "@/components/TeamLogo";
 import { Header } from "@/components/Header";
+import { PoolTransition } from "@/components/PoolTransition";
 import { TeamGrid } from "@/components/TeamGrid";
 import { BidControls } from "@/components/BidControls";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
@@ -199,6 +200,8 @@ const Auction = () => {
   const [rtmSubmissionLocked, setRtmSubmissionLocked] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const suppressSoldBannerRef = useRef(false);
+  const shownSetTransitionKeysRef = useRef<Set<string>>(new Set());
+  const [transitionSet, setTransitionSet] = useState<{ key: string; label: string; setNumber: number; playersInPool: number } | null>(null);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -417,6 +420,74 @@ const Auction = () => {
     return !hasBidActivity;
   }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.isAuctionLocked, pendingRtm, isAIMode, hasBidActivity]);
 
+  const lockedAuctionSets = useMemo(() => {
+    const storedSets = (session?.auctionSets || []) as Array<{ key: string; label?: string; playerIds?: string[] }>;
+    if (storedSets.length) {
+      return storedSets.map((set) => ({
+        key: set.key,
+        label: set.label || SET_LABELS[set.key] || set.key,
+        playerIds: (set.playerIds || []) as string[],
+      }));
+    }
+
+    const queue = (session?.auctionQueue || []) as string[];
+    return SET_ORDER
+      .map((key) => ({
+        key,
+        label: SET_LABELS[key] || key,
+        playerIds: queue.filter((id) => resolveSetKey(playerById.get(id)) === key),
+      }))
+      .filter((set) => set.playerIds.length);
+  }, [session?.auctionSets, session?.auctionQueue, playerById]);
+
+  const activeLockedSet = useMemo(() => {
+    const activePlayerId = currentAuction?.activePlayerId;
+    if (!activePlayerId) return null;
+    return lockedAuctionSets.find((set) => set.playerIds.includes(activePlayerId)) || null;
+  }, [lockedAuctionSets, currentAuction?.activePlayerId]);
+
+  useEffect(() => {
+    if (!activeLockedSet || session?.isAcceleratedRound || currentAuction?.status !== 'RUNNING') return;
+    const transitionKey = `${activeLockedSet.key}-${activeLockedSet.playerIds[0] || ''}`;
+    if (shownSetTransitionKeysRef.current.has(transitionKey)) return;
+    shownSetTransitionKeysRef.current.add(transitionKey);
+    const setNumber = lockedAuctionSets.findIndex((set) => set.key === activeLockedSet.key) + 1;
+    setTransitionSet({
+      key: transitionKey,
+      label: activeLockedSet.label,
+      setNumber: Math.max(1, setNumber),
+      playersInPool: activeLockedSet.playerIds.length,
+    });
+  }, [activeLockedSet, lockedAuctionSets, session?.isAcceleratedRound, currentAuction?.status]);
+
+  const setProgress = useMemo(() => {
+    const queue = (session?.auctionQueue || []) as string[];
+    const queueIndex = Number(session?.queueIndex ?? -1);
+    const activeSetLabel = activeLockedSet?.label || SET_LABELS[resolveSetKey(currentPlayer)] || 'General';
+    const currentSetIndex = activeLockedSet ? lockedAuctionSets.findIndex((set) => set.key === activeLockedSet.key) : SET_ORDER.indexOf(resolveSetKey(currentPlayer));
+
+    if (!queue.length || !activeLockedSet) return { activeSetLabel, playersRemainingInSet: 0, currentSetIndex };
+
+    const startIndex = Math.max(0, queueIndex);
+    const remainingQueueIds = new Set(queue.slice(startIndex));
+    const remainingInSet = activeLockedSet.playerIds.filter((id) => remainingQueueIds.has(id)).length;
+
+    return { activeSetLabel, playersRemainingInSet: Math.max(0, remainingInSet), currentSetIndex };
+  }, [session?.auctionQueue, session?.queueIndex, currentPlayer, activeLockedSet, lockedAuctionSets]);
+
+  const remainingSetPlayers = useMemo(() => {
+    const queue = (session?.auctionQueue || []) as string[];
+    const queueIndex = Number(session?.queueIndex ?? -1);
+    const startIndex = Math.max(0, queueIndex);
+    const remainingQueueIds = new Set(queue.slice(startIndex));
+    const setIds = activeLockedSet?.playerIds || [];
+
+    return setIds
+      .filter((id) => remainingQueueIds.has(id))
+      .map((id) => String((playerById.get(id) as any)?.name || id))
+      .slice(0, 25);
+  }, [session?.auctionQueue, session?.queueIndex, activeLockedSet, playerById]);
+
   const handleAdvancePlayer = useCallback(async () => {
     if (!gameCode || !isHost || !currentPlayer || !currentAuction?.activePlayerId) return;
 
@@ -443,15 +514,12 @@ const Auction = () => {
 
   const handleSkipSet = useCallback(async () => {
     if (!gameCode || !isHost || !session?.auctionQueue || !currentAuction?.activePlayerId) return;
-    const currentPool = resolveSetKey(currentPlayer);
     const currentQueueIndex = Number(session?.queueIndex ?? -1);
     if (currentQueueIndex < 0) return;
 
     const queue = (session.auctionQueue || []) as string[];
-    const idsInPool = queue.slice(currentQueueIndex).filter((id) => {
-      const player = playerById.get(id);
-      return resolveSetKey(player) === currentPool;
-    });
+    const remainingQueueIds = new Set(queue.slice(currentQueueIndex));
+    const idsInPool = (activeLockedSet?.playerIds || []).filter((id) => remainingQueueIds.has(id));
 
     suppressSoldBannerRef.current = true;
     try {
@@ -466,7 +534,7 @@ const Auction = () => {
     } finally {
       suppressSoldBannerRef.current = false;
     }
-  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, currentPlayer, playerById]);
+  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, activeLockedSet]);
 
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
@@ -867,37 +935,7 @@ const Auction = () => {
     return endedQueue && Number((session?.unsoldPlayers || []).length) > 0 && !session?.isAcceleratedRound && !session?.acceleratedRoundSkipped;
   }, [queueLength, session?.queueIndex, session?.unsoldPlayers, session?.isAcceleratedRound, session?.acceleratedRoundSkipped]);
 
-  const setProgress = useMemo(() => {
-    const queue = (session?.auctionQueue || []) as string[];
-    const queueIndex = Number(session?.queueIndex ?? -1);
-    const currentPool = resolveSetKey(currentPlayer);
-    const activeSetLabel = SET_LABELS[currentPool] || 'General';
-    const currentSetIndex = SET_ORDER.indexOf(currentPool);
 
-    if (!queue.length) return { activeSetLabel, playersRemainingInSet: 0, currentSetIndex };
-
-    const startIndex = Math.max(0, queueIndex);
-    const remainingIds = queue.slice(startIndex);
-    const remainingInSet = remainingIds.filter((id) => {
-      const player = playerById.get(id);
-      return resolveSetKey(player) === currentPool;
-    }).length;
-
-    return { activeSetLabel, playersRemainingInSet: Math.max(0, remainingInSet), currentSetIndex };
-  }, [session?.auctionQueue, session?.queueIndex, currentPlayer, playerById]);
-
-  const remainingSetPlayers = useMemo(() => {
-    const queue = (session?.auctionQueue || []) as string[];
-    const queueIndex = Number(session?.queueIndex ?? -1);
-    const currentPool = resolveSetKey(currentPlayer);
-    const startIndex = Math.max(0, queueIndex);
-
-    return queue
-      .slice(startIndex)
-      .filter((id) => resolveSetKey(playerById.get(id)) === currentPool)
-      .map((id) => String((playerById.get(id) as any)?.name || id))
-      .slice(0, 25);
-  }, [session?.auctionQueue, session?.queueIndex, currentPlayer, playerById]);
 
   const auctionEnded = (session?.phase === "AUCTION_COMPLETE" || session?.phase === "ENDED") || (queueLength > 0 && Number(session?.queueIndex ?? -1) >= queueLength);
   useEffect(() => {
@@ -937,6 +975,7 @@ const Auction = () => {
     <div className="h-screen broadcast-container flex flex-col overflow-hidden">
       <Header
         gameCode={gameCode!}
+        hideGameCode={isAIMode}
         currentSetLabel={`${typeof setProgress.currentSetIndex === "number" && setProgress.currentSetIndex >= 0 ? `Set ${setProgress.currentSetIndex + 1}: ` : ""}${setProgress.activeSetLabel}`}
         onAdvancePlayer={gameCode && isHost ? handleAdvancePlayer : undefined}
         onSkipSet={gameCode && isHost ? handleSkipSet : undefined}
@@ -948,6 +987,16 @@ const Auction = () => {
         onMenuClick={() => setTeamDrawerOpen(true)}
         onLeaveGame={() => setLeaveConfirmOpen(true)}
       />
+
+      {transitionSet && (
+        <PoolTransition
+          key={transitionSet.key}
+          poolName={transitionSet.label}
+          playersInPool={transitionSet.playersInPool}
+          setNumber={transitionSet.setNumber}
+          onComplete={() => setTransitionSet(null)}
+        />
+      )}
 
       <AlertDialog open={leaveConfirmOpen} onOpenChange={setLeaveConfirmOpen}>
         <AlertDialogContent>
