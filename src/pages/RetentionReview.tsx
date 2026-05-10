@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type WheelEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { listenSession, listenTeams, startAuction } from '@/lib/sessionService';
@@ -19,6 +19,15 @@ const TEAM_OWNERS: Record<string, string> = {
   srh: 'Kalanithi Maran',
   gt: 'CVC Capital Partners',
   lsg: 'Sanjiv Goenka',
+};
+
+const handleRetainedListWheel = (event: WheelEvent<HTMLDivElement>) => {
+  const list = event.currentTarget;
+  if (list.scrollHeight <= list.clientHeight) return;
+
+  event.preventDefault();
+  event.stopPropagation();
+  list.scrollTop += event.deltaY;
 };
 
 const RetentionReview = () => {
@@ -108,15 +117,16 @@ const RetentionReview = () => {
 
                   {/* BACK FACE */}
                   <div 
-                    className="absolute inset-0 border border-yellow-500/50 bg-[#0B1C3D] rounded-xl p-4 overflow-hidden"
+                    className="absolute inset-0 border border-yellow-500/50 bg-[#0B1C3D] rounded-xl p-4 overflow-hidden flex flex-col"
                     style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
                   >
-                    <h3 className="text-yellow-400 font-display text-lg mb-3 border-b border-white/10 pb-1 sticky top-0 bg-[#0B1C3D] z-10">
+                    <h3 className="text-yellow-400 font-display text-lg mb-3 border-b border-white/10 pb-1 bg-[#0B1C3D] shrink-0">
                       Retained Players
                     </h3>
                     <div
-                      className="retained-player-list h-[238px] overflow-y-auto overscroll-contain pr-1 scroll-smooth custom-scrollbar"
-                      onWheel={(event) => event.stopPropagation()}
+                      className="retained-player-list h-[238px] min-h-0 overflow-y-auto pr-1"
+                      onWheel={handleRetainedListWheel}
+                      onClick={(event) => event.stopPropagation()}
                       onTouchMove={(event) => event.stopPropagation()}
                     >
                       {retainedPlayers.length === 0 ? (
