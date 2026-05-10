@@ -7,7 +7,7 @@ import type { Player } from '@/lib/samplePlayers';
 import { useGameData } from '@/contexts/GameDataContext';
 import { TeamLogo } from '@/components/TeamLogo';
 import { CheckCircle2 } from 'lucide-react';
-import { RETENTION_ROLE_ORDER, STAR_RATING_ORDER, getPlayerStarRating, groupPlayersByRetentionRoleAndStars } from '@/lib/playerSorting';
+import { RETENTION_ROLE_ORDER, groupPlayersByRetentionRole } from '@/lib/playerSorting';
 
 const roleBadge = (role: string) => {
   if (role.toLowerCase().includes('wicket')) return 'WK';
@@ -55,7 +55,7 @@ const Retention = () => {
     return masterPlayerList.filter((p: any) => (p.previousTeamId || p.previousTeam || '').toLowerCase() === myTeam.toLowerCase());
   }, [masterPlayerList, myTeam]);
 
-  const groupedSquad = useMemo(() => groupPlayersByRetentionRoleAndStars(squad as any[]), [squad]);
+  const groupedSquad = useMemo(() => groupPlayersByRetentionRole(squad as any[]), [squad]);
 
   const costById = useMemo(() => {
     let cappedSlot = 0;
@@ -149,66 +149,47 @@ const Retention = () => {
                 <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
                   <h2 className="font-display text-2xl text-yellow-400">{roleGroup.label}</h2>
                   <span className="rounded-full border border-yellow-400/25 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-100">
-                    {STAR_RATING_ORDER.reduce((sum, star) => sum + (groupedSquad[roleGroup.key]?.[star]?.length || 0), 0)} Players
+                    {(groupedSquad[roleGroup.key] || []).length} Players
                   </span>
                 </div>
 
-                <div className="space-y-6">
-                  {STAR_RATING_ORDER.map((star) => {
-                    const players = groupedSquad[roleGroup.key]?.[star] || [];
-                    if (!players.length) return null;
-
+                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-5">
+                  {(groupedSquad[roleGroup.key] || []).map((player: any) => {
+                    const isSelected = selected.includes(player.id);
+                    const role = roleBadge(player.role || '');
+                    const cost = isSelected ? Number(costById[player.id] || 0) : undefined;
                     return (
-                      <div key={`${roleGroup.key}-${star}`}>
-                        <div className="mb-3 flex items-center gap-3">
-                          <h3 className="text-sm font-semibold uppercase tracking-[0.2em] text-slate-300">{star} Star Players</h3>
-                          <span className="text-yellow-400" aria-label={`${star} star rating`}>{'⭐'.repeat(star)}</span>
+                      <button
+                        key={player.id}
+                        onClick={() => handleToggle(player.id)}
+                        className={cn(
+                          'relative text-left rounded-xl border p-3 bg-[#0f172a] transition-all duration-300',
+                          'hover:scale-[1.02] hover:shadow-[0_0_18px_rgba(251,191,36,0.45)]',
+                          isSelected ? 'border-yellow-400 shadow-[0_0_22px_rgba(251,191,36,0.6)]' : 'border-white/10',
+                        )}
+                      >
+                        {isSelected && (
+                          <>
+                            <div className="absolute left-2 top-2 text-[11px] text-yellow-400 font-semibold">- {formatPrice(cost || 0)}</div>
+                            <div className="absolute right-2 bottom-2 flex items-center gap-1 text-xs text-yellow-400">
+                              <CheckCircle2 className="w-4 h-4" /> Retained
+                            </div>
+                          </>
+                        )}
+
+                        <span className="absolute right-2 top-2 text-[10px] rounded-md border border-yellow-400/50 px-2 py-0.5 text-yellow-400">{role}</span>
+
+                        <div className="w-full aspect-square rounded-md bg-secondary flex items-center justify-center overflow-hidden mb-3 mt-2">
+                          {player.imageUrl || player.image ? (
+                            <img src={player.imageUrl || player.image} alt={player.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <span className="text-muted-foreground text-xs">No image</span>
+                          )}
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-5">
-                          {players.map((player: any) => {
-                            const isSelected = selected.includes(player.id);
-                            const role = roleBadge(player.role || '');
-                            const cost = isSelected ? Number(costById[player.id] || 0) : undefined;
-                            const starRating = getPlayerStarRating(player);
-                            return (
-                              <button
-                                key={player.id}
-                                onClick={() => handleToggle(player.id)}
-                                className={cn(
-                                  'relative text-left rounded-xl border p-3 bg-[#0f172a] transition-all duration-300',
-                                  'hover:scale-[1.02] hover:shadow-[0_0_18px_rgba(251,191,36,0.45)]',
-                                  isSelected ? 'border-yellow-400 shadow-[0_0_22px_rgba(251,191,36,0.6)]' : 'border-white/10',
-                                )}
-                              >
-                                {isSelected && (
-                                  <>
-                                    <div className="absolute left-2 top-2 text-[11px] text-yellow-400 font-semibold">- {formatPrice(cost || 0)}</div>
-                                    <div className="absolute right-2 bottom-2 flex items-center gap-1 text-xs text-yellow-400">
-                                      <CheckCircle2 className="w-4 h-4" /> Retained
-                                    </div>
-                                  </>
-                                )}
 
-                                <span className="absolute right-2 top-2 text-[10px] rounded-md border border-yellow-400/50 px-2 py-0.5 text-yellow-400">{role}</span>
-
-                                <div className="w-full aspect-square rounded-md bg-secondary flex items-center justify-center overflow-hidden mb-3 mt-2">
-                                  {player.imageUrl || player.image ? (
-                                    <img src={player.imageUrl || player.image} alt={player.name} className="w-full h-full object-cover" />
-                                  ) : (
-                                    <span className="text-muted-foreground text-xs">No image</span>
-                                  )}
-                                </div>
-
-                                <p className="font-semibold truncate">{player.name}</p>
-                                <div className="mt-1 flex items-center justify-between gap-2">
-                                  <p className="text-xs text-muted-foreground">{player.isCapped ? 'Capped' : 'Uncapped'}</p>
-                                  <p className="text-[10px] text-yellow-400">{'⭐'.repeat(starRating)}</p>
-                                </div>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                        <p className="font-semibold truncate">{player.name}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{player.isCapped ? 'Capped' : 'Uncapped'}</p>
+                      </button>
                     );
                   })}
                 </div>
