@@ -11,8 +11,6 @@ export const RETENTION_ROLE_ORDER: Array<{ key: RetentionRoleKey; label: string 
   { key: 'bowlers', label: 'Bowlers' },
 ];
 
-export const STAR_RATING_ORDER = [5, 4, 3, 2, 1] as const;
-
 export const getPlayerStarRating = (player: PlayerLike) => {
   const rating = Number(player?.starRating ?? player?.rating ?? 0);
   if (!Number.isFinite(rating)) return 0;
@@ -35,20 +33,14 @@ export const sortPlayersByStarRatingDesc = <T extends PlayerLike>(players: T[]) 
   });
 };
 
-export const groupPlayersByRetentionRoleAndStars = <T extends PlayerLike>(players: T[]) => {
+export const groupPlayersByRetentionRole = <T extends PlayerLike>(players: T[]) => {
   const roleGroups = RETENTION_ROLE_ORDER.reduce((acc, role) => {
-    acc[role.key] = STAR_RATING_ORDER.reduce((starAcc, star) => {
-      starAcc[star] = [] as T[];
-      return starAcc;
-    }, {} as Record<number, T[]>);
+    acc[role.key] = [] as T[];
     return acc;
-  }, {} as Record<RetentionRoleKey, Record<number, T[]>>);
+  }, {} as Record<RetentionRoleKey, T[]>);
 
   sortPlayersByStarRatingDesc(players).forEach((player) => {
-    const roleKey = resolveRetentionRoleKey(player);
-    const starRating = getPlayerStarRating(player);
-    if (!roleGroups[roleKey][starRating]) roleGroups[roleKey][starRating] = [];
-    roleGroups[roleKey][starRating].push(player);
+    roleGroups[resolveRetentionRoleKey(player)].push(player);
   });
 
   return roleGroups;
