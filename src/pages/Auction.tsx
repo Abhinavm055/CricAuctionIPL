@@ -15,6 +15,7 @@ import {
   loadNextPlayer,
   markPlayerReadyForNext,
   skipCurrentPlayer,
+  skipRemainingSet,
   togglePauseAuction,
   startAcceleratedRound,
   skipAcceleratedRound,
@@ -409,10 +410,10 @@ const Auction = () => {
 
   const canSkipSet = useMemo(() => {
     if (!isHost || !gameCode || !currentAuction?.activePlayerId) return false;
-    if (pendingRtm || currentAuction?.isAuctionLocked) return false;
+    if (pendingRtm) return false;
     if (isAIMode) return true;
-    return !hasBidActivity;
-  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.isAuctionLocked, pendingRtm, isAIMode, hasBidActivity]);
+    return ['SOLD', 'UNSOLD'].includes(String(currentAuction?.status || ''));
+  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.status, pendingRtm, isAIMode]);
 
   const lockedAuctionSets = useMemo(() => {
     const storedSets = (session?.auctionSets || []) as Array<{ key: string; label?: string; playerIds?: string[] }>;
@@ -485,50 +486,44 @@ const Auction = () => {
   const handleAdvancePlayer = useCallback(async () => {
     if (!gameCode || !isHost || !currentPlayer || !currentAuction?.activePlayerId) return;
 
-    if (!isAIMode) {
-      if (hasBidActivity) return;
-      await skipCurrentPlayer(gameCode);
-      return;
-    }
+    suppressSoldBannerRef.current = true;
+    try {
+      if (isAIMode) {
+        await skipCurrentPlayer(gameCode, { aiResolve: true });
+        return;
+      }
 
-    const preferredTeamId = String((currentPlayer as any).previousTeamId || (currentPlayer as any).previousTeam || "").toLowerCase();
-    const fallbackAI = teams.find((team) => team.id !== myTeamId);
-    const preferredAI = teams.find((team) => team.id === preferredTeamId && team.id !== myTeamId);
-    const aiTeam = preferredAI || fallbackAI;
-    const sellAmount = Number((currentPlayer as any).basePrice || currentAuction.currentBid || 0);
-    if (!aiTeam || sellAmount <= 0) {
+      if (hasBidActivity || currentAuction?.status !== 'RUNNING') return;
       await skipCurrentPlayer(gameCode);
-      return;
+    } finally {
+      suppressSoldBannerRef.current = false;
     }
-
-    await placeBid(gameCode, aiTeam.id, sellAmount);
-    await resolveAuction(gameCode);
-    await loadNextPlayer(gameCode);
-  }, [gameCode, isHost, currentPlayer, currentAuction?.activePlayerId, currentAuction?.currentBid, isAIMode, hasBidActivity, teams, myTeamId]);
+  }, [gameCode, isHost, currentPlayer, currentAuction?.activePlayerId, currentAuction?.status, isAIMode, hasBidActivity]);
 
   const handleSkipSet = useCallback(async () => {
     if (!gameCode || !isHost || !session?.auctionQueue || !currentAuction?.activePlayerId) return;
     const currentQueueIndex = Number(session?.queueIndex ?? -1);
     if (currentQueueIndex < 0) return;
 
-    const queue = (session.auctionQueue || []) as string[];
-    const remainingQueueIds = new Set(queue.slice(currentQueueIndex));
-    const idsInPool = (activeLockedSet?.playerIds || []).filter((id) => remainingQueueIds.has(id));
+    if (isAIMode) {
+      suppressSoldBannerRef.current = true;
+      try {
+        await skipRemainingSet(gameCode);
+      } finally {
+        suppressSoldBannerRef.current = false;
+      }
+      return;
+    }
+
+    if (!['SOLD', 'UNSOLD'].includes(String(currentAuction?.status || ''))) return;
 
     suppressSoldBannerRef.current = true;
     try {
-      for (let i = 0; i < idsInPool.length; i += 1) {
-        try {
-          await skipCurrentPlayer(gameCode);
-        } catch {
-          await resolveAuction(gameCode).catch(() => undefined);
-        }
-        await loadNextPlayer(gameCode);
-      }
+      await skipRemainingSet(gameCode, { aiResolve: false });
     } finally {
       suppressSoldBannerRef.current = false;
     }
-  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, activeLockedSet]);
+  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, currentAuction?.status, isAIMode]);
 
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
