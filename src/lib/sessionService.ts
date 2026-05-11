@@ -141,6 +141,11 @@ const getPlayerOverseasFlag = (playerData: any) => Boolean(playerData?.overseas 
 const getPlayerPreviousTeamId = (playerData: any) => String(playerData?.previousTeamId ?? playerData?.previousTeam ?? "").toLowerCase();
 const getPlayerRating = (playerData: any) => Number(playerData?.rating ?? playerData?.starRating ?? 0);
 
+const isAiControlledTeam = (teamId: string, teamData: any, sessionData: any) => {
+  const assignedController = String(sessionData?.selectedTeams?.[teamId] || '');
+  return assignedController.startsWith('AI-') || Boolean(teamData?.isAI);
+};
+
 const buildRecentPurchases = (existing: Array<{ playerId: string; price: number; teamId: string }>, purchase: { playerId: string; price: number; teamId: string }) => {
   return [purchase, ...(existing || [])];
 };
@@ -241,12 +246,12 @@ const applySilentSkipSaleToLocalTeam = (
   };
 };
 
-const buildSilentSkipHistoryRecord = (outcome: any) => ({
+const buildSilentSkipHistoryRecord = (outcome: any, source = 'AI_SKIP') => ({
   playerId: outcome.playerId,
   teamId: outcome.sold ? outcome.teamId : null,
   price: outcome.sold ? outcome.price : 0,
   status: outcome.sold ? 'SOLD' : 'UNSOLD',
-  source: 'AI_SKIP',
+  source,
   createdAt: Timestamp.fromMillis(Date.now()),
 });
 
@@ -1127,7 +1132,8 @@ export const skipCurrentPlayer = async (gameCode: string, options: { aiResolve?:
     }
 
     const teamState = teamSnaps.map((snap, index) => ({ id: IPL_TEAMS[index].id, ref: teamRefs[index], data: snap.data() || {} }));
-    const outcome = pickRealisticSkipOutcome({ id: auction.activePlayerId, ...(playerSnap.data() || {}) }, teamState);
+    const aiTeamState = teamState.filter((team) => isAiControlledTeam(team.id, team.data, sessionData));
+    const outcome = pickRealisticSkipOutcome({ id: auction.activePlayerId, ...(playerSnap.data() || {}) }, aiTeamState);
     const historyRecord = buildSilentSkipHistoryRecord(outcome);
     const unsoldPlayers = [...((sessionData.unsoldPlayers || []) as string[])];
     let recentPurchases = [...((sessionData.recentPurchases || []) as any[])];
@@ -1214,7 +1220,8 @@ export const skipRemainingSet = async (gameCode: string, options: { aiResolve?: 
     const auctionSets = (sessionData.auctionSets || []) as Array<{ key: string; playerIds?: string[] }>;
     const activeSet = auctionSets.find((set) => (set.playerIds || []).includes(auction.activePlayerId));
     const activeSetIds = new Set(activeSet?.playerIds || [auction.activePlayerId]);
-    const startIndex = options.aiResolve === false && ['SOLD', 'UNSOLD'].includes(String(auction.status || '')) ? queueIndex + 1 : queueIndex;
+    const shouldAiResolve = options.aiResolve !== false && String(sessionData.mode || '').toUpperCase() === 'VS_AI';
+    const startIndex = !shouldAiResolve && ['SOLD', 'UNSOLD'].includes(String(auction.status || '')) ? queueIndex + 1 : queueIndex;
     let endIndex = queueIndex;
     while (endIndex + 1 < queue.length && activeSetIds.has(queue[endIndex + 1])) endIndex += 1;
     const idsToProcess = queue.slice(startIndex, endIndex + 1);
@@ -1225,16 +1232,17 @@ export const skipRemainingSet = async (gameCode: string, options: { aiResolve?: 
     const teamRefs = IPL_TEAMS.map((t) => doc(db, "sessions", gameCode, "teams", t.id));
     const teamSnaps = await Promise.all(teamRefs.map((ref) => tx.get(ref)));
     const teamState = teamSnaps.map((snap, index) => ({ id: IPL_TEAMS[index].id, ref: teamRefs[index], data: snap.data() || {} }));
+    const aiTeamState = teamState.filter((team) => isAiControlledTeam(team.id, team.data, sessionData));
 
     let unsoldPlayers = [...((sessionData.unsoldPlayers || []) as string[])];
     let recentPurchases = [...((sessionData.recentPurchases || []) as any[])];
     const historyRecords: any[] = [];
 
     idsToProcess.forEach((playerId, index) => {
-      const outcome = options.aiResolve === false
-        ? { sold: false as const, playerId }
-        : pickRealisticSkipOutcome({ id: playerId, ...(playerSnaps[index].data() || {}) }, teamState);
-      historyRecords.push(buildSilentSkipHistoryRecord(outcome));
+      const outcome = shouldAiResolve
+        ? pickRealisticSkipOutcome({ id: playerId, ...(playerSnaps[index].data() || {}) }, aiTeamState)
+        : { sold: false as const, playerId };
+      historyRecords.push(buildSilentSkipHistoryRecord(outcome, shouldAiResolve ? 'AI_SKIP' : 'MULTIPLAYER_SKIP'));
 
       if (outcome.sold) {
         const target = teamState.find((team) => team.id === outcome.teamId);
