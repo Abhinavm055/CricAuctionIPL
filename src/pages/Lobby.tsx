@@ -5,7 +5,7 @@ import { IPL_TEAMS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { Users, ArrowLeft, Copy, Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { selectTeam, listenSession, startRetention } from '@/lib/sessionService';
+import { selectTeam, listenSession, startRetention, resolveHostReconnectTimeout } from '@/lib/sessionService';
 import { TeamLogo } from '@/components/TeamLogo';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -97,6 +97,15 @@ const Lobby = () => {
     const unsub = listenSession(gameCode, (data) => setSession(data));
     return () => unsub();
   }, [gameCode]);
+
+  useEffect(() => {
+    if (!gameCode || session?.hostReconnect?.status !== 'PENDING') return;
+    resolveHostReconnectTimeout(gameCode).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      resolveHostReconnectTimeout(gameCode).catch(() => undefined);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [gameCode, session?.hostReconnect?.status, session?.hostReconnect?.deadlineAt]);
 
   useEffect(() => {
     if (session?.phase === 'AUCTION') navigate(`/auction/${gameCode}`);

@@ -274,6 +274,8 @@ const DEFAULT_AUCTION_STATE = {
   lastEvent: null,
 };
 
+const HOST_RECONNECT_GRACE_MS = 30_000;
+
 const retentionEngine = new RetentionEngine();
 const auctionEngine = new AuctionEngine();
 const rtmEngine = new RtmEngine();
@@ -381,11 +383,16 @@ export const leaveGame = async (gameCode: string, userId: string) => {
     const teamId = Object.entries(selectedTeams).find(([_, uid]) => uid === userId)?.[0] || null;
 
     if (session.hostId === userId) {
+      const reconnectDeadline = Timestamp.fromMillis(Date.now() + HOST_RECONNECT_GRACE_MS);
       tx.update(sessionRef, {
-        phase: "ENDED",
+        hostReconnect: {
+          hostId: userId,
+          startedAt: Timestamp.fromMillis(Date.now()),
+          deadlineAt: reconnectDeadline,
+          status: "PENDING",
+        },
         [`disconnectedPlayers.${userId}`]: true,
         playersJoined: arrayRemove(userId),
-        currentAuction: DEFAULT_AUCTION_STATE,
       });
       return;
     }
@@ -415,6 +422,55 @@ export const leaveGame = async (gameCode: string, userId: string) => {
   });
 };
 
+export const resolveHostReconnectTimeout = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) return;
+
+    const session = sessionSnap.data() as any;
+    const hostReconnect = session?.hostReconnect as any;
+    if (!hostReconnect || hostReconnect.status !== "PENDING") return;
+
+    const deadlineMs = typeof hostReconnect?.deadlineAt?.toMillis === "function" ? hostReconnect.deadlineAt.toMillis() : 0;
+    if (!deadlineMs || Date.now() < deadlineMs) return;
+
+    const disconnectedPlayers = (session?.disconnectedPlayers || {}) as Record<string, boolean>;
+    const previousHostId = String(session?.hostId || "");
+    const stillDisconnected = Boolean(disconnectedPlayers?.[previousHostId]);
+    if (!stillDisconnected) {
+      tx.update(sessionRef, { hostReconnect: deleteField() });
+      return;
+    }
+
+    const joinedPlayers = (session?.playersJoined || []) as string[];
+    const nextHostId = joinedPlayers.find((id) => id && id !== previousHostId && !disconnectedPlayers[id]) || null;
+
+    if (nextHostId) {
+      tx.update(sessionRef, {
+        hostId: nextHostId,
+        hostReconnect: {
+          ...hostReconnect,
+          status: "TRANSFERRED",
+          resolvedAt: Timestamp.fromMillis(Date.now()),
+          newHostId: nextHostId,
+        },
+      });
+      return;
+    }
+
+    tx.update(sessionRef, {
+      phase: "ENDED",
+      currentAuction: DEFAULT_AUCTION_STATE,
+      hostReconnect: {
+        ...hostReconnect,
+        status: "ENDED_NO_HOST",
+        resolvedAt: Timestamp.fromMillis(Date.now()),
+      },
+    });
+  });
+};
+
 export const rejoinGame = async (gameCode: string, userId: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
   await runTransaction(db, async (tx) => {
@@ -431,6 +487,7 @@ export const rejoinGame = async (gameCode: string, userId: string) => {
     tx.update(sessionRef, {
       [`disconnectedPlayers.${userId}`]: deleteField(),
       playersJoined: arrayUnion(userId),
+      ...(session.hostId === userId ? { hostReconnect: deleteField() } : {}),
     });
 
     tx.update(doc(db, "sessions", gameCode, "teams", teamId), {

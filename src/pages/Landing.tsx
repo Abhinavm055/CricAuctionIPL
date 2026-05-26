@@ -84,7 +84,17 @@ const Landing = () => {
       const snap = await getDocs(q);
       const record = snap.docs[0]?.data();
       if (!record?.gameCode) return;
-      setResumeSession({ gameCode: String(record.gameCode), auctionStage: String(record.auctionStage || 'retention') });
+      const gameCode = String(record.gameCode);
+      const sessionSnap = await getDoc(doc(db, 'sessions', gameCode));
+      if (!sessionSnap.exists()) return;
+      const sessionData = sessionSnap.data() as any;
+      const phase = String(sessionData?.phase || '');
+      const isActiveAuction = ['RETENTION', 'AUCTION'].includes(phase);
+      if (!isActiveAuction) {
+        setResumeSession(null);
+        return;
+      }
+      setResumeSession({ gameCode, auctionStage: String(record.auctionStage || 'retention') });
     };
 
     loadResume();

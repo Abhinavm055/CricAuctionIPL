@@ -22,6 +22,7 @@ import {
   leaveGame,
   rejoinGame,
   updateAuctionStats,
+  resolveHostReconnectTimeout,
 } from "@/lib/sessionService";
 import { AIEngine } from "@/engine/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
@@ -319,6 +320,15 @@ const Auction = () => {
     if (!gameCode || !session?.disconnectedPlayers?.[userId]) return;
     rejoinGame(gameCode, userId).catch(() => undefined);
   }, [gameCode, userId, session?.disconnectedPlayers]);
+
+  useEffect(() => {
+    if (!gameCode || session?.hostReconnect?.status !== "PENDING") return;
+    resolveHostReconnectTimeout(gameCode).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      resolveHostReconnectTimeout(gameCode).catch(() => undefined);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [gameCode, session?.hostReconnect?.status, session?.hostReconnect?.deadlineAt]);
 
   const currentAuction = session?.currentAuction;
 
