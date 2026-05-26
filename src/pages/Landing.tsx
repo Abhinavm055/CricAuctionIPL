@@ -16,7 +16,7 @@ import {
   signOut,
   type User,
 } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 
 const getUserId = () => {
   const existing = localStorage.getItem('uid');
@@ -47,30 +47,10 @@ const Landing = () => {
 
   const stats = useMemo(() => ({ liveAuctions: 12, playersOnline: 68 }), []);
 
-  const upsertUserDoc = async (authUser: User) => {
-    const ref = doc(db, 'users', authUser.uid);
-    const snap = await getDoc(ref);
-    await setDoc(
-      ref,
-      {
-        uid: authUser.uid,
-        name: authUser.displayName || authUser.email?.split('@')[0] || 'Manager',
-        email: authUser.email || '',
-        auctionsPlayed: snap.exists() ? snap.data().auctionsPlayed || 0 : 0,
-        auctionsWon: snap.exists() ? snap.data().auctionsWon || 0 : 0,
-        managerName: snap.exists() ? snap.data().managerName || localStorage.getItem('managerName') || '' : localStorage.getItem('managerName') || '',
-        createdAt: snap.exists() ? snap.data().createdAt || serverTimestamp() : serverTimestamp(),
-      },
-      { merge: true },
-    );
-  };
-
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (currentUser) {
-        upsertUserDoc(currentUser);
-      } else {
+      if (!currentUser) {
         setResumeSession(null);
       }
     });

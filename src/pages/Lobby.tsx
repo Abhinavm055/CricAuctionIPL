@@ -128,8 +128,30 @@ const Lobby = () => {
   const persistManagerPreference = async (value: string) => {
     const normalized = value.trim();
     localStorage.setItem('managerName', normalized);
-    if (!authUid || !normalized) return;
-    await setDoc(doc(db, 'users', authUid), { uid: authUid, managerName: normalized }, { merge: true });
+  };
+
+  const upsertLeaderboardPlayerAfterJoin = async (finalManagerName: string) => {
+    if (!authUid) return;
+    const userRef = doc(db, 'users', authUid);
+    const existing = await getDoc(userRef);
+    if (existing.exists()) {
+      await setDoc(userRef, { managerName: finalManagerName }, { merge: true });
+      return;
+    }
+
+    await setDoc(
+      userRef,
+      {
+        uid: authUid,
+        name: finalManagerName,
+        managerName: finalManagerName,
+        email: auth.currentUser?.email || '',
+        auctionsPlayed: 0,
+        auctionsWon: 0,
+        createdAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
   };
 
   const renderTeamCard = (team: (typeof IPL_TEAMS)[number], index: number, showSelectedBadge = true) => {
@@ -190,6 +212,7 @@ const Lobby = () => {
       const finalManagerName = managerName.trim();
       await selectTeam(gameCode, draftTeam, userId, finalManagerName);
       await persistManagerPreference(finalManagerName);
+      await upsertLeaderboardPlayerAfterJoin(finalManagerName);
 
       if (authUid) {
         await addDoc(collection(db, 'sessions'), {
