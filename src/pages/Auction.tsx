@@ -198,6 +198,7 @@ const Auction = () => {
   const suppressSoldBannerRef = useRef(false);
   const shownSetTransitionKeysRef = useRef<Set<string>>(new Set());
   const [transitionSet, setTransitionSet] = useState<{ key: string; label: string; setNumber: number; playersInPool: number } | null>(null);
+  const [setIntroDelayUntilMs, setSetIntroDelayUntilMs] = useState<number>(0);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -367,6 +368,7 @@ const Auction = () => {
   const nextBid = getNextBid(displayedCurrentBid || 0);
   const timerEndsAtMs = currentAuction?.timerEndsAt?.toMillis?.() || 0;
   const timerSeconds = Math.max(0, Math.floor((timerEndsAtMs - nowMs) / 1000));
+  const isSetIntroDelayActive = !transitionSet && currentAuction?.status === "RUNNING" && nowMs < setIntroDelayUntilMs;
 
   useEffect(() => {
     if (!currentAuction || currentAuction.status !== 'RUNNING') return;
@@ -699,7 +701,7 @@ const Auction = () => {
   }, [currentAuction?.activePlayerId, currentPlayer?.name, speakLine]);
 
   useEffect(() => {
-    if (!currentAuction?.activePlayerId || currentAuction?.status !== "RUNNING") return;
+    if (!currentAuction?.activePlayerId || currentAuction?.status !== "RUNNING" || isSetIntroDelayActive) return;
     const playerKey = currentAuction.activePlayerId;
     const marks = spokenMarksRef.current[playerKey] || new Set<number>();
 
@@ -721,15 +723,16 @@ const Auction = () => {
     spokenMarksRef.current[playerKey] = marks;
 
     if (timerSeconds === 0) playSound('hammer');
-  }, [timerSeconds, currentAuction?.status, currentAuction?.activePlayerId, playSound, speakLine]);
+  }, [timerSeconds, currentAuction?.status, currentAuction?.activePlayerId, playSound, speakLine, isSetIntroDelayActive]);
 
   useEffect(() => {
     if (!isHost || !gameCode) return;
     if (timerSeconds !== 0) return;
     if (currentAuction?.status !== 'RUNNING') return;
+    if (isSetIntroDelayActive) return;
 
     resolveAuction(gameCode).catch(() => undefined);
-  }, [isHost, gameCode, timerSeconds, currentAuction?.status]);
+  }, [isHost, gameCode, timerSeconds, currentAuction?.status, isSetIntroDelayActive]);
 
 
   useEffect(() => {
@@ -1000,7 +1003,10 @@ const Auction = () => {
           poolName={transitionSet.label}
           playersInPool={transitionSet.playersInPool}
           setNumber={transitionSet.setNumber}
-          onComplete={() => setTransitionSet(null)}
+          onComplete={() => {
+            setTransitionSet(null);
+            setSetIntroDelayUntilMs(Date.now() + 5000);
+          }}
         />
       )}
 
@@ -1198,7 +1204,15 @@ const Auction = () => {
 
               <div className="h-full overflow-hidden">
                 <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
-                  {currentPlayer && currentAuction?.status === 'RUNNING' && (
+                  {isSetIntroDelayActive && (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="text-center">
+                        <p className="font-display text-3xl text-primary mb-2">Set Intro Complete</p>
+                        <p className="text-muted-foreground">Auction starts in {Math.max(1, Math.ceil((setIntroDelayUntilMs - nowMs) / 1000))}s</p>
+                      </div>
+                    </div>
+                  )}
+                  {currentPlayer && currentAuction?.status === 'RUNNING' && !isSetIntroDelayActive && (
                     <div key={currentAuction?.activePlayerId || "player-card"} className="animate-[playerSpotlight_0.8s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] h-full relative isolate">
                       <div className="absolute inset-0 bg-yellow-400/20 rounded-xl filter blur-xl animate-[pulseGlow_1.5s_ease-in-out_infinite_alternate] -z-10" />
                       <PlayerCard
