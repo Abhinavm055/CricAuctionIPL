@@ -1,11 +1,11 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { generateGameCode } from '@/lib/constants';
 import { Bot, Users, Volume2, VolumeX, Menu, Trophy, PlayCircle, Swords, ListChecks, Gavel } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { createSession } from '@/lib/sessionService';
+import { createSession, joinSession } from '@/lib/sessionService';
 import { auth, db } from '@/lib/firebase';
 import {
   createUserWithEmailAndPassword,
@@ -28,6 +28,7 @@ const getUserId = () => {
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const howItWorksRef = useRef<HTMLElement | null>(null);
   const [isMuted, setIsMuted] = useState(false);
@@ -44,6 +45,7 @@ const Landing = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [authError, setAuthError] = useState('');
   const [resumeSession, setResumeSession] = useState<{ gameCode: string; auctionStage: string } | null>(null);
+  const [joiningInvite, setJoiningInvite] = useState(false);
 
   const stats = useMemo(() => ({ liveAuctions: 12, playersOnline: 68 }), []);
 
@@ -56,6 +58,28 @@ const Landing = () => {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    const joinCode = String(searchParams.get('join') || '').trim().toUpperCase();
+    if (!joinCode) return;
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (joiningInvite) return;
+
+    const joinViaInvite = async () => {
+      try {
+        setJoiningInvite(true);
+        const uid = getUserId();
+        await joinSession(joinCode, uid);
+        navigate(`/lobby/${joinCode}`, { replace: true });
+      } catch {
+        setJoiningInvite(false);
+      }
+    };
+    joinViaInvite();
+  }, [searchParams, user, navigate, joiningInvite]);
 
   useEffect(() => {
     if (!user) return;
