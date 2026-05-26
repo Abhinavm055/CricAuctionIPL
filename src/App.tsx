@@ -16,6 +16,7 @@ import AdminPage from "./pages/AdminPage";
 import Feedback from "./pages/Feedback";
 import Profile from "./pages/Profile";
 import { AddToHomeScreenButton } from "./components/AddToHomeScreenButton";
+import JoinRoom from "./pages/JoinRoom";
 
 const Auction = lazy(() => import("./pages/Auction"));
 const Retention = lazy(() => import("./pages/Retention"));
@@ -37,6 +38,7 @@ const App = () => (
                 <Routes>
                   <Route path="/" element={<Landing />} />
                   <Route path="/multiplayer" element={<Multiplayer />} />
+                  <Route path="/join/:roomCode" element={<JoinRoom />} />
                   <Route path="/lobby/:gameCode" element={<Lobby />} />
                   <Route path="/retention/:gameCode" element={<Retention />} />
                   <Route path="/retention-review/:gameCode" element={<RetentionReview />} />

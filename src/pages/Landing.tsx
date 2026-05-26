@@ -1,11 +1,11 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { generateGameCode } from '@/lib/constants';
 import { Bot, Users, Volume2, VolumeX, Menu, Trophy, PlayCircle, Swords, ListChecks, Gavel } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { createSession } from '@/lib/sessionService';
+import { createSession, joinSession } from '@/lib/sessionService';
 import { auth, db } from '@/lib/firebase';
 import {
   createUserWithEmailAndPassword,
@@ -16,7 +16,7 @@ import {
   signOut,
   type User,
 } from 'firebase/auth';
-import { collection, doc, getDoc, getDocs, limit, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 
 const getUserId = () => {
   const existing = localStorage.getItem('uid');
@@ -28,6 +28,7 @@ const getUserId = () => {
 
 const Landing = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const howItWorksRef = useRef<HTMLElement | null>(null);
   const [isMuted, setIsMuted] = useState(false);
@@ -44,38 +45,44 @@ const Landing = () => {
   const [isRegisterMode, setIsRegisterMode] = useState(false);
   const [authError, setAuthError] = useState('');
   const [resumeSession, setResumeSession] = useState<{ gameCode: string; auctionStage: string } | null>(null);
+  const [joiningInvite, setJoiningInvite] = useState(false);
+  const [invalidRoomCode, setInvalidRoomCode] = useState(false);
 
   const stats = useMemo(() => ({ liveAuctions: 12, playersOnline: 68 }), []);
-
-  const upsertUserDoc = async (authUser: User) => {
-    const ref = doc(db, 'users', authUser.uid);
-    const snap = await getDoc(ref);
-    await setDoc(
-      ref,
-      {
-        uid: authUser.uid,
-        name: authUser.displayName || authUser.email?.split('@')[0] || 'Manager',
-        email: authUser.email || '',
-        auctionsPlayed: snap.exists() ? snap.data().auctionsPlayed || 0 : 0,
-        auctionsWon: snap.exists() ? snap.data().auctionsWon || 0 : 0,
-        managerName: snap.exists() ? snap.data().managerName || localStorage.getItem('managerName') || '' : localStorage.getItem('managerName') || '',
-        createdAt: snap.exists() ? snap.data().createdAt || serverTimestamp() : serverTimestamp(),
-      },
-      { merge: true },
-    );
-  };
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
-      if (currentUser) {
-        upsertUserDoc(currentUser);
-      } else {
+      if (!currentUser) {
         setResumeSession(null);
       }
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    const joinCode = String(searchParams.get('join') || '').trim().toUpperCase();
+    if (!joinCode) return;
+    setInvalidRoomCode(false);
+    if (!user) {
+      setShowAuthModal(true);
+      return;
+    }
+    if (joiningInvite) return;
+
+    const joinViaInvite = async () => {
+      try {
+        setJoiningInvite(true);
+        const uid = getUserId();
+        await joinSession(joinCode, uid);
+        navigate(`/lobby/${joinCode}`, { replace: true });
+      } catch {
+        setJoiningInvite(false);
+        setInvalidRoomCode(true);
+      }
+    };
+    joinViaInvite();
+  }, [searchParams, user, navigate, joiningInvite]);
 
   useEffect(() => {
     if (!user) return;
@@ -84,7 +91,17 @@ const Landing = () => {
       const snap = await getDocs(q);
       const record = snap.docs[0]?.data();
       if (!record?.gameCode) return;
-      setResumeSession({ gameCode: String(record.gameCode), auctionStage: String(record.auctionStage || 'retention') });
+      const gameCode = String(record.gameCode);
+      const sessionSnap = await getDoc(doc(db, 'sessions', gameCode));
+      if (!sessionSnap.exists()) return;
+      const sessionData = sessionSnap.data() as any;
+      const phase = String(sessionData?.phase || '');
+      const isActiveAuction = ['RETENTION', 'AUCTION'].includes(phase);
+      if (!isActiveAuction) {
+        setResumeSession(null);
+        return;
+      }
+      setResumeSession({ gameCode, auctionStage: String(record.auctionStage || 'retention') });
     };
 
     loadResume();
@@ -276,6 +293,9 @@ const Landing = () => {
       </header>
 
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-10 w-full max-w-6xl mx-auto">
+        {invalidRoomCode && (
+          <div className="mb-4 text-red-400 font-semibold">Invalid Room Code</div>
+        )}
         {resumeSession && (
           <div className="mb-5 rounded-lg border border-yellow-400/40 bg-[#0f172a]/90 px-4 py-3 text-sm">
             Resume Auction?
