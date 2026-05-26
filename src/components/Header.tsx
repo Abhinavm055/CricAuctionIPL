@@ -1,4 +1,4 @@
-import { Moon, Sun, FastForward, ChevronRight, PauseCircle, PlayCircle, LogOut } from 'lucide-react';
+import { Moon, Sun, FastForward, ChevronRight, PauseCircle, PlayCircle, LogOut, Square } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
 interface HeaderProps {
@@ -13,6 +13,7 @@ interface HeaderProps {
   canAdvancePlayer?: boolean;
   canSkipSet?: boolean;
   onLeaveGame?: () => void;
+  onEndGame?: () => void;
   onMenuClick?: () => void;
 }
 
@@ -30,6 +31,7 @@ export const Header = ({
   canAdvancePlayer = false,
   canSkipSet = false,
   onLeaveGame,
+  onEndGame,
   onMenuClick,
 }: HeaderProps) => {
   const { resolvedTheme, setTheme } = useTheme();
@@ -73,6 +75,11 @@ export const Header = ({
           <button title={isPaused ? 'Resume Auction' : 'Pause Auction'} onClick={onPauseToggle} disabled={!canControl || !onPauseToggle} className={controlButtonClass}>
             {isPaused ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
           </button>
+          {onEndGame && (
+            <button title="End Game" onClick={onEndGame} disabled={!canControl} className={`${controlButtonClass} text-amber-400 hover:text-amber-300`}>
+              <Square className="h-4 w-4" />
+            </button>
+          )}
           <button title="Leave Game" onClick={onLeaveGame} className={`${controlButtonClass} text-red-400 hover:text-red-300`}>
             <LogOut className="h-4 w-4" />
           </button>

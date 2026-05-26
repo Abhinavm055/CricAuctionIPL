@@ -96,7 +96,10 @@ const Landing = () => {
       if (!sessionSnap.exists()) return;
       const sessionData = sessionSnap.data() as any;
       const phase = String(sessionData?.phase || '');
-      const isActiveAuction = ['RETENTION', 'AUCTION'].includes(phase);
+      const queue = (sessionData?.auctionQueue || []) as string[];
+      const queueIndex = Number(sessionData?.queueIndex ?? -1);
+      const notCompleted = phase === 'AUCTION' && !(queue.length > 0 && queueIndex >= queue.length);
+      const isActiveAuction = notCompleted;
       if (!isActiveAuction) {
         setResumeSession(null);
         return;

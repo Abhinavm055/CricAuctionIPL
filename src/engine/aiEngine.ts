@@ -1,4 +1,4 @@
-import { SQUAD_CONSTRAINTS } from '@/lib/constants';
+import { MIN_PLAYER_BASE_PRICE, SQUAD_CONSTRAINTS } from '@/lib/constants';
 import { getSmartIncrement } from '@/lib/playerValue';
 
 export interface EnginePlayer {
@@ -33,9 +33,9 @@ export class AIEngine {
     if (player.overseas && team.overseasCount >= SQUAD_CONSTRAINTS.MAX_OVERSEAS) return null;
 
     const playersNeeded = Math.max(0, SQUAD_CONSTRAINTS.MIN_SQUAD - team.squadSize);
-    const minReserve = playersNeeded * 2_000_000;
+    const minReserve = playersNeeded * MIN_PLAYER_BASE_PRICE;
     const maxBudget = Math.max(0, Number(team.purseRemaining || 0) - minReserve);
-    const maxValue = Number(player.dynamicValue || player.basePrice || 0) * (1.2 + Math.random() * 0.3);
+    const maxValue = Number(player.dynamicValue || player.basePrice || 0) * 1.1;
 
     if (currentBid >= maxValue || currentBid >= maxBudget) return null;
 
