@@ -23,6 +23,7 @@ import {
   rejoinGame,
   updateAuctionStats,
   resolveHostReconnectTimeout,
+  endGameByHost,
 } from "@/lib/sessionService";
 import { AIEngine } from "@/engine/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
@@ -312,6 +313,10 @@ const Auction = () => {
     if (session && !["AUCTION", "AUCTION_COMPLETE", "ENDED"].includes(session.phase)) navigate(`/lobby/${gameCode}`);
   }, [session, gameCode, navigate]);
 
+  useEffect(() => {
+    if (session?.phase === "AUCTION_COMPLETE") navigate("/leaderboard");
+  }, [session?.phase, navigate]);
+
   const isHost = session?.hostId === userId;
   const queueLength = (session?.auctionQueue || []).length;
   const myTeamId = Object.entries(session?.selectedTeams || {}).find(([_, uid]) => uid === userId)?.[0] as string | undefined;
@@ -369,6 +374,9 @@ const Auction = () => {
   const timerEndsAtMs = currentAuction?.timerEndsAt?.toMillis?.() || 0;
   const timerSeconds = Math.max(0, Math.floor((timerEndsAtMs - nowMs) / 1000));
   const isSetIntroDelayActive = !transitionSet && currentAuction?.status === "RUNNING" && nowMs < setIntroDelayUntilMs;
+  const isSetIntroActive = Boolean(transitionSet) || isSetIntroDelayActive;
+  const introDelaySeconds = isSetIntroDelayActive ? Math.max(0, Math.ceil((setIntroDelayUntilMs - nowMs) / 1000)) : 0;
+  const effectiveTimerSeconds = timerSeconds + introDelaySeconds;
 
   useEffect(() => {
     if (!currentAuction || currentAuction.status !== 'RUNNING') return;
@@ -705,34 +713,34 @@ const Auction = () => {
     const playerKey = currentAuction.activePlayerId;
     const marks = spokenMarksRef.current[playerKey] || new Set<number>();
 
-    if (timerSeconds <= 4 && timerSeconds >= 1 && !marks.has(timerSeconds)) {
+    if (effectiveTimerSeconds <= 4 && effectiveTimerSeconds >= 1 && !marks.has(effectiveTimerSeconds)) {
       playSound('tick');
-      marks.add(timerSeconds);
+      marks.add(effectiveTimerSeconds);
     }
 
-    if (timerSeconds === 3 && !marks.has(103)) {
+    if (effectiveTimerSeconds === 3 && !marks.has(103)) {
       speakLine('Going once');
       marks.add(103);
     }
 
-    if (timerSeconds === 1 && !marks.has(101)) {
+    if (effectiveTimerSeconds === 1 && !marks.has(101)) {
       speakLine('Going twice');
       marks.add(101);
     }
 
     spokenMarksRef.current[playerKey] = marks;
 
-    if (timerSeconds === 0) playSound('hammer');
-  }, [timerSeconds, currentAuction?.status, currentAuction?.activePlayerId, playSound, speakLine, isSetIntroDelayActive]);
+    if (effectiveTimerSeconds === 0) playSound('hammer');
+  }, [effectiveTimerSeconds, currentAuction?.status, currentAuction?.activePlayerId, playSound, speakLine, isSetIntroDelayActive]);
 
   useEffect(() => {
     if (!isHost || !gameCode) return;
-    if (timerSeconds !== 0) return;
+    if (effectiveTimerSeconds !== 0) return;
     if (currentAuction?.status !== 'RUNNING') return;
     if (isSetIntroDelayActive) return;
 
     resolveAuction(gameCode).catch(() => undefined);
-  }, [isHost, gameCode, timerSeconds, currentAuction?.status, isSetIntroDelayActive]);
+  }, [isHost, gameCode, effectiveTimerSeconds, currentAuction?.status, isSetIntroDelayActive]);
 
 
   useEffect(() => {
@@ -995,6 +1003,10 @@ const Auction = () => {
         canSkipSet={canSkipSet}
         onMenuClick={() => setTeamDrawerOpen(true)}
         onLeaveGame={() => setLeaveConfirmOpen(true)}
+        onEndGame={gameCode && isHost ? async () => {
+          await endGameByHost(gameCode, userId);
+          navigate("/leaderboard");
+        } : undefined}
       />
 
       {transitionSet && (
@@ -1160,7 +1172,7 @@ const Auction = () => {
               </div>
             </div>
 
-            <div className="pointer-events-none absolute left-1/2 -top-10 -translate-x-1/2 z-20">
+            {!isSetIntroActive && <div className="pointer-events-none absolute left-1/2 -top-10 -translate-x-1/2 z-20">
               <div className="relative h-[110px] w-[110px] md:h-[140px] md:w-[140px] rounded-full bg-[#020617] border-2 border-[#00CFFF66] grid place-items-center shadow-[0_0_35px_rgba(0,207,255,0.38)]">
                 <svg viewBox="0 0 120 120" className="absolute inset-0 -rotate-90">
                   <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(0,207,255,0.22)" strokeWidth="8" />
@@ -1169,17 +1181,17 @@ const Auction = () => {
                     cy="60"
                     r="50"
                     fill="none"
-                    stroke={timerSeconds <= 10 ? "#FF4D4D" : "#00CFFF"}
+                    stroke={effectiveTimerSeconds <= 10 ? "#FF4D4D" : "#00CFFF"}
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={2 * Math.PI * 50}
-                    strokeDashoffset={(2 * Math.PI * 50) - (((Math.max(0, Math.floor(timerSeconds))) / (currentAuction?.status === 'RUNNING' ? (session?.isAcceleratedRound ? 10 : 30) : 30)) * (2 * Math.PI * 50))}
+                    strokeDashoffset={(2 * Math.PI * 50) - (((Math.max(0, Math.floor(effectiveTimerSeconds))) / (currentAuction?.status === 'RUNNING' ? (session?.isAcceleratedRound ? 10 : 30) : 30)) * (2 * Math.PI * 50))}
                     className="transition-[stroke-dashoffset] duration-500"
                   />
                 </svg>
-                <span className={`font-display text-3xl md:text-5xl leading-none ${timerSeconds <= 10 ? 'timer-urgent text-[#FF4D4D]' : 'text-[#d7f8ff]'}`}>{Math.max(0, Math.floor(timerSeconds))}</span>
+                <span className={`font-display text-3xl md:text-5xl leading-none ${effectiveTimerSeconds <= 10 ? 'timer-urgent text-[#FF4D4D]' : 'text-[#d7f8ff]'}`}>{Math.max(0, Math.floor(effectiveTimerSeconds))}</span>
               </div>
-            </div>
+            </div>}
           </div>
 
           <main className="flex-1 overflow-y-auto p-3 md:p-5">

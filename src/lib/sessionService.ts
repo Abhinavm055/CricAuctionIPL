@@ -460,11 +460,11 @@ export const resolveHostReconnectTimeout = async (gameCode: string) => {
     }
 
     tx.update(sessionRef, {
-      phase: "ENDED",
+      phase: "AUCTION_COMPLETE",
       currentAuction: DEFAULT_AUCTION_STATE,
       hostReconnect: {
         ...hostReconnect,
-        status: "ENDED_NO_HOST",
+        status: "NO_HOST_AVAILABLE",
         resolvedAt: Timestamp.fromMillis(Date.now()),
       },
     });
@@ -1452,6 +1452,22 @@ export const skipAcceleratedRound = async (gameCode: string) => {
     phase: "AUCTION_COMPLETE",
     acceleratedRoundSkipped: true,
     currentAuction: DEFAULT_AUCTION_STATE,
+  });
+};
+
+export const endGameByHost = async (gameCode: string, userId: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(sessionRef);
+    if (!snap.exists()) throw new Error("Session not found");
+    const session = snap.data() as any;
+    if (session.hostId !== userId) throw new Error("Only host can end game");
+
+    tx.update(sessionRef, {
+      phase: "AUCTION_COMPLETE",
+      currentAuction: DEFAULT_AUCTION_STATE,
+      hostReconnect: deleteField(),
+    });
   });
 };
 

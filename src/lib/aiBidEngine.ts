@@ -1,4 +1,4 @@
-import { AI_STRATEGIES, SQUAD_CONSTRAINTS, TEAM_NEEDS_TEMPLATE, getNextBid } from './constants';
+import { AI_STRATEGIES, MIN_PLAYER_BASE_PRICE, SQUAD_CONSTRAINTS, TEAM_NEEDS_TEMPLATE, getNextBid } from './constants';
 
 export type AIStrategy = typeof AI_STRATEGIES[number];
 
@@ -65,7 +65,8 @@ export const getAIMaxBid = (player: AIBidPlayer, team: AIBidTeam): number => {
     maxBid = Math.max(maxBid, 100000000 + Math.random() * 100000000);
   }
 
-  return Math.floor(Math.min(maxBid, Number(team.purseRemaining || 0)));
+  const dynamicCap = Number((player as any).dynamicValue || player.basePrice || 0) * 1.1;
+  return Math.floor(Math.min(maxBid, Number(team.purseRemaining || 0), dynamicCap));
 };
 
 export const getAIBidDecision = (
@@ -83,7 +84,11 @@ export const getAIBidDecision = (
     if (!team.isAI) return false;
     if (team.id === currentBidderId) return false;
     if (Number(team.purseRemaining || 0) < nextBid) return false;
-    if (Number(team.squadSize || team.players?.length || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD) return false;
+    const squadSize = Number(team.squadSize || team.players?.length || 0);
+    const remainingSlots = Math.max(0, SQUAD_CONSTRAINTS.MIN_SQUAD - squadSize);
+    const reserveNeeded = remainingSlots * MIN_PLAYER_BASE_PRICE;
+    if (Number(team.purseRemaining || 0) - nextBid < reserveNeeded) return false;
+    if (squadSize >= SQUAD_CONSTRAINTS.MAX_SQUAD) return false;
     if (isOverseas(player) && Number(team.overseasCount || 0) >= SQUAD_CONSTRAINTS.MAX_OVERSEAS) return false;
     return true;
   });
