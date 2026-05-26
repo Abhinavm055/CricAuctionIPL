@@ -1124,7 +1124,7 @@ export const resolveRtmTimeout = async (gameCode: string) => {
 
 
 
-export const skipCurrentPlayer = async (gameCode: string, options: { aiResolve?: boolean } = {}) => {
+export const skipCurrentPlayer = async (gameCode: string, options: { aiResolve?: boolean; restrictedTeamIds?: string[] } = {}) => {
   const sessionRef = doc(db, "sessions", gameCode);
   await runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef);
@@ -1183,14 +1183,18 @@ export const skipCurrentPlayer = async (gameCode: string, options: { aiResolve?:
       return;
     }
 
-    const teamState = teamSnaps.map((snap, index) => ({ id: IPL_TEAMS[index].id, ref: teamRefs[index], data: snap.data() || {} }));
-    const outcome = pickRealisticSkipOutcome({ id: auction.activePlayerId, ...(playerSnap.data() || {}) }, teamState);
+    const allTeamState = teamSnaps.map((snap, index) => ({ id: IPL_TEAMS[index].id, ref: teamRefs[index], data: snap.data() || {} }));
+    const restrictedIds = new Set((options.restrictedTeamIds || []).map((id) => String(id)));
+    const eligibleTeamState = restrictedIds.size
+      ? allTeamState.filter((team) => restrictedIds.has(team.id))
+      : allTeamState;
+    const outcome = pickRealisticSkipOutcome({ id: auction.activePlayerId, ...(playerSnap.data() || {}) }, eligibleTeamState);
     const historyRecord = buildSilentSkipHistoryRecord(outcome);
     const unsoldPlayers = [...((sessionData.unsoldPlayers || []) as string[])];
     let recentPurchases = [...((sessionData.recentPurchases || []) as any[])];
 
     if (outcome.sold) {
-      const target = teamState.find((team) => team.id === outcome.teamId);
+      const target = allTeamState.find((team) => team.id === outcome.teamId);
       if (target) {
         target.data = applySilentSkipSaleToLocalTeam(target.data, outcome.playerId, outcome.price, outcome.isOverseas, outcome.role);
         tx.update(target.ref, {
@@ -1257,7 +1261,7 @@ export const skipCurrentPlayer = async (gameCode: string, options: { aiResolve?:
   });
 };
 
-export const skipRemainingSet = async (gameCode: string, options: { aiResolve?: boolean } = { aiResolve: true }) => {
+export const skipRemainingSet = async (gameCode: string, options: { aiResolve?: boolean; restrictedTeamIds?: string[] } = { aiResolve: true }) => {
   const sessionRef = doc(db, "sessions", gameCode);
   await runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef);
@@ -1282,6 +1286,10 @@ export const skipRemainingSet = async (gameCode: string, options: { aiResolve?: 
     const teamRefs = IPL_TEAMS.map((t) => doc(db, "sessions", gameCode, "teams", t.id));
     const teamSnaps = await Promise.all(teamRefs.map((ref) => tx.get(ref)));
     const teamState = teamSnaps.map((snap, index) => ({ id: IPL_TEAMS[index].id, ref: teamRefs[index], data: snap.data() || {} }));
+    const restrictedIds = new Set((options.restrictedTeamIds || []).map((id) => String(id)));
+    const eligibleTeamState = restrictedIds.size
+      ? teamState.filter((team) => restrictedIds.has(team.id))
+      : teamState;
 
     let unsoldPlayers = [...((sessionData.unsoldPlayers || []) as string[])];
     let recentPurchases = [...((sessionData.recentPurchases || []) as any[])];
@@ -1290,7 +1298,7 @@ export const skipRemainingSet = async (gameCode: string, options: { aiResolve?: 
     idsToProcess.forEach((playerId, index) => {
       const outcome = options.aiResolve === false
         ? { sold: false as const, playerId }
-        : pickRealisticSkipOutcome({ id: playerId, ...(playerSnaps[index].data() || {}) }, teamState);
+        : pickRealisticSkipOutcome({ id: playerId, ...(playerSnaps[index].data() || {}) }, eligibleTeamState);
       historyRecords.push(buildSilentSkipHistoryRecord(outcome));
 
       if (outcome.sold) {

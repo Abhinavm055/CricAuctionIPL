@@ -405,6 +405,12 @@ const Auction = () => {
   };
 
   const isAIMode = String(session?.mode || "").toUpperCase() === "VS_AI";
+  const aiOnlyTeamIds = useMemo(() => {
+    const selectedTeams = (session?.selectedTeams || {}) as Record<string, string>;
+    return Object.entries(selectedTeams)
+      .filter(([_, uid]) => String(uid || "").startsWith("AI-"))
+      .map(([teamId]) => teamId);
+  }, [session?.selectedTeams]);
   const hasBidActivity = useMemo(() => {
     if (!currentAuction || !currentPlayer) return false;
     const base = Number((currentPlayer as any).basePrice || 0);
@@ -414,9 +420,10 @@ const Auction = () => {
   const canAdvancePlayer = useMemo(() => {
     if (!isHost || !gameCode || !currentAuction?.activePlayerId) return false;
     if (pendingRtm || currentAuction?.isAuctionLocked) return false;
+    if (currentAuction?.status !== "RUNNING") return false;
     if (isAIMode) return true;
     return !hasBidActivity;
-  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.isAuctionLocked, pendingRtm, isAIMode, hasBidActivity]);
+  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.isAuctionLocked, currentAuction?.status, pendingRtm, isAIMode, hasBidActivity]);
 
   const canSkipSet = useMemo(() => {
     if (!isHost || !gameCode || !currentAuction?.activePlayerId) return false;
@@ -499,7 +506,7 @@ const Auction = () => {
     suppressSoldBannerRef.current = true;
     try {
       if (isAIMode) {
-        await skipCurrentPlayer(gameCode, { aiResolve: true });
+        await skipCurrentPlayer(gameCode, { aiResolve: true, restrictedTeamIds: aiOnlyTeamIds });
         return;
       }
 
@@ -508,7 +515,7 @@ const Auction = () => {
     } finally {
       suppressSoldBannerRef.current = false;
     }
-  }, [gameCode, isHost, currentPlayer, currentAuction?.activePlayerId, currentAuction?.status, isAIMode, hasBidActivity]);
+  }, [gameCode, isHost, currentPlayer, currentAuction?.activePlayerId, currentAuction?.status, isAIMode, hasBidActivity, aiOnlyTeamIds]);
 
   const handleSkipSet = useCallback(async () => {
     if (!gameCode || !isHost || !session?.auctionQueue || !currentAuction?.activePlayerId) return;
@@ -518,7 +525,7 @@ const Auction = () => {
     if (isAIMode) {
       suppressSoldBannerRef.current = true;
       try {
-        await skipRemainingSet(gameCode);
+        await skipRemainingSet(gameCode, { aiResolve: true, restrictedTeamIds: aiOnlyTeamIds });
       } finally {
         suppressSoldBannerRef.current = false;
       }
@@ -533,7 +540,7 @@ const Auction = () => {
     } finally {
       suppressSoldBannerRef.current = false;
     }
-  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, currentAuction?.status, isAIMode]);
+  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, currentAuction?.status, isAIMode, aiOnlyTeamIds]);
 
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
