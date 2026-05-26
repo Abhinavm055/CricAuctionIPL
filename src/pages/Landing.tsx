@@ -46,6 +46,7 @@ const Landing = () => {
   const [authError, setAuthError] = useState('');
   const [resumeSession, setResumeSession] = useState<{ gameCode: string; auctionStage: string } | null>(null);
   const [joiningInvite, setJoiningInvite] = useState(false);
+  const [invalidRoomCode, setInvalidRoomCode] = useState(false);
 
   const stats = useMemo(() => ({ liveAuctions: 12, playersOnline: 68 }), []);
 
@@ -62,6 +63,7 @@ const Landing = () => {
   useEffect(() => {
     const joinCode = String(searchParams.get('join') || '').trim().toUpperCase();
     if (!joinCode) return;
+    setInvalidRoomCode(false);
     if (!user) {
       setShowAuthModal(true);
       return;
@@ -76,6 +78,7 @@ const Landing = () => {
         navigate(`/lobby/${joinCode}`, { replace: true });
       } catch {
         setJoiningInvite(false);
+        setInvalidRoomCode(true);
       }
     };
     joinViaInvite();
@@ -290,6 +293,9 @@ const Landing = () => {
       </header>
 
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-10 w-full max-w-6xl mx-auto">
+        {invalidRoomCode && (
+          <div className="mb-4 text-red-400 font-semibold">Invalid Room Code</div>
+        )}
         {resumeSession && (
           <div className="mb-5 rounded-lg border border-yellow-400/40 bg-[#0f172a]/90 px-4 py-3 text-sm">
             Resume Auction?
