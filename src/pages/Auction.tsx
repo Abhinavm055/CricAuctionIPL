@@ -22,6 +22,8 @@ import {
   leaveGame,
   rejoinGame,
   updateAuctionStats,
+  resolveHostReconnectTimeout,
+  endGameByHost,
 } from "@/lib/sessionService";
 import { AIEngine } from "@/engine/aiEngine";
 import { TeamDetailsPanel } from "@/components/TeamDetailsPanel";
@@ -197,6 +199,7 @@ const Auction = () => {
   const suppressSoldBannerRef = useRef(false);
   const shownSetTransitionKeysRef = useRef<Set<string>>(new Set());
   const [transitionSet, setTransitionSet] = useState<{ key: string; label: string; setNumber: number; playersInPool: number } | null>(null);
+  const [setIntroDelayUntilMs, setSetIntroDelayUntilMs] = useState<number>(0);
 
   const userId = localStorage.getItem("uid") || "";
   const { masterPlayerList } = useGameData();
@@ -310,6 +313,10 @@ const Auction = () => {
     if (session && !["AUCTION", "AUCTION_COMPLETE", "ENDED"].includes(session.phase)) navigate(`/lobby/${gameCode}`);
   }, [session, gameCode, navigate]);
 
+  useEffect(() => {
+    if (session?.phase === "AUCTION_COMPLETE") navigate("/leaderboard");
+  }, [session?.phase, navigate]);
+
   const isHost = session?.hostId === userId;
   const queueLength = (session?.auctionQueue || []).length;
   const myTeamId = Object.entries(session?.selectedTeams || {}).find(([_, uid]) => uid === userId)?.[0] as string | undefined;
@@ -319,6 +326,15 @@ const Auction = () => {
     if (!gameCode || !session?.disconnectedPlayers?.[userId]) return;
     rejoinGame(gameCode, userId).catch(() => undefined);
   }, [gameCode, userId, session?.disconnectedPlayers]);
+
+  useEffect(() => {
+    if (!gameCode || session?.hostReconnect?.status !== "PENDING") return;
+    resolveHostReconnectTimeout(gameCode).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      resolveHostReconnectTimeout(gameCode).catch(() => undefined);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [gameCode, session?.hostReconnect?.status, session?.hostReconnect?.deadlineAt]);
 
   const currentAuction = session?.currentAuction;
 
@@ -357,6 +373,10 @@ const Auction = () => {
   const nextBid = getNextBid(displayedCurrentBid || 0);
   const timerEndsAtMs = currentAuction?.timerEndsAt?.toMillis?.() || 0;
   const timerSeconds = Math.max(0, Math.floor((timerEndsAtMs - nowMs) / 1000));
+  const isSetIntroDelayActive = !transitionSet && currentAuction?.status === "RUNNING" && nowMs < setIntroDelayUntilMs;
+  const isSetIntroActive = Boolean(transitionSet) || isSetIntroDelayActive;
+  const introDelaySeconds = isSetIntroDelayActive ? Math.max(0, Math.ceil((setIntroDelayUntilMs - nowMs) / 1000)) : 0;
+  const effectiveTimerSeconds = timerSeconds + introDelaySeconds;
 
   useEffect(() => {
     if (!currentAuction || currentAuction.status !== 'RUNNING') return;
@@ -395,6 +415,12 @@ const Auction = () => {
   };
 
   const isAIMode = String(session?.mode || "").toUpperCase() === "VS_AI";
+  const aiOnlyTeamIds = useMemo(() => {
+    const selectedTeams = (session?.selectedTeams || {}) as Record<string, string>;
+    return Object.entries(selectedTeams)
+      .filter(([_, uid]) => String(uid || "").startsWith("AI-"))
+      .map(([teamId]) => teamId);
+  }, [session?.selectedTeams]);
   const hasBidActivity = useMemo(() => {
     if (!currentAuction || !currentPlayer) return false;
     const base = Number((currentPlayer as any).basePrice || 0);
@@ -404,9 +430,10 @@ const Auction = () => {
   const canAdvancePlayer = useMemo(() => {
     if (!isHost || !gameCode || !currentAuction?.activePlayerId) return false;
     if (pendingRtm || currentAuction?.isAuctionLocked) return false;
+    if (currentAuction?.status !== "RUNNING") return false;
     if (isAIMode) return true;
     return !hasBidActivity;
-  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.isAuctionLocked, pendingRtm, isAIMode, hasBidActivity]);
+  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.isAuctionLocked, currentAuction?.status, pendingRtm, isAIMode, hasBidActivity]);
 
   const canSkipSet = useMemo(() => {
     if (!isHost || !gameCode || !currentAuction?.activePlayerId) return false;
@@ -489,7 +516,7 @@ const Auction = () => {
     suppressSoldBannerRef.current = true;
     try {
       if (isAIMode) {
-        await skipCurrentPlayer(gameCode, { aiResolve: true });
+        await skipCurrentPlayer(gameCode, { aiResolve: true, restrictedTeamIds: aiOnlyTeamIds });
         return;
       }
 
@@ -498,7 +525,7 @@ const Auction = () => {
     } finally {
       suppressSoldBannerRef.current = false;
     }
-  }, [gameCode, isHost, currentPlayer, currentAuction?.activePlayerId, currentAuction?.status, isAIMode, hasBidActivity]);
+  }, [gameCode, isHost, currentPlayer, currentAuction?.activePlayerId, currentAuction?.status, isAIMode, hasBidActivity, aiOnlyTeamIds]);
 
   const handleSkipSet = useCallback(async () => {
     if (!gameCode || !isHost || !session?.auctionQueue || !currentAuction?.activePlayerId) return;
@@ -508,7 +535,7 @@ const Auction = () => {
     if (isAIMode) {
       suppressSoldBannerRef.current = true;
       try {
-        await skipRemainingSet(gameCode);
+        await skipRemainingSet(gameCode, { aiResolve: true, restrictedTeamIds: aiOnlyTeamIds });
       } finally {
         suppressSoldBannerRef.current = false;
       }
@@ -523,7 +550,7 @@ const Auction = () => {
     } finally {
       suppressSoldBannerRef.current = false;
     }
-  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, currentAuction?.status, isAIMode]);
+  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, currentAuction?.status, isAIMode, aiOnlyTeamIds]);
 
   const handleBid = useCallback(async (amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
@@ -682,37 +709,38 @@ const Auction = () => {
   }, [currentAuction?.activePlayerId, currentPlayer?.name, speakLine]);
 
   useEffect(() => {
-    if (!currentAuction?.activePlayerId || currentAuction?.status !== "RUNNING") return;
+    if (!currentAuction?.activePlayerId || currentAuction?.status !== "RUNNING" || isSetIntroDelayActive) return;
     const playerKey = currentAuction.activePlayerId;
     const marks = spokenMarksRef.current[playerKey] || new Set<number>();
 
-    if (timerSeconds <= 4 && timerSeconds >= 1 && !marks.has(timerSeconds)) {
+    if (effectiveTimerSeconds <= 4 && effectiveTimerSeconds >= 1 && !marks.has(effectiveTimerSeconds)) {
       playSound('tick');
-      marks.add(timerSeconds);
+      marks.add(effectiveTimerSeconds);
     }
 
-    if (timerSeconds === 3 && !marks.has(103)) {
+    if (effectiveTimerSeconds === 3 && !marks.has(103)) {
       speakLine('Going once');
       marks.add(103);
     }
 
-    if (timerSeconds === 1 && !marks.has(101)) {
+    if (effectiveTimerSeconds === 1 && !marks.has(101)) {
       speakLine('Going twice');
       marks.add(101);
     }
 
     spokenMarksRef.current[playerKey] = marks;
 
-    if (timerSeconds === 0) playSound('hammer');
-  }, [timerSeconds, currentAuction?.status, currentAuction?.activePlayerId, playSound, speakLine]);
+    if (effectiveTimerSeconds === 0) playSound('hammer');
+  }, [effectiveTimerSeconds, currentAuction?.status, currentAuction?.activePlayerId, playSound, speakLine, isSetIntroDelayActive]);
 
   useEffect(() => {
     if (!isHost || !gameCode) return;
-    if (timerSeconds !== 0) return;
+    if (effectiveTimerSeconds !== 0) return;
     if (currentAuction?.status !== 'RUNNING') return;
+    if (isSetIntroDelayActive) return;
 
     resolveAuction(gameCode).catch(() => undefined);
-  }, [isHost, gameCode, timerSeconds, currentAuction?.status]);
+  }, [isHost, gameCode, effectiveTimerSeconds, currentAuction?.status, isSetIntroDelayActive]);
 
 
   useEffect(() => {
@@ -975,6 +1003,10 @@ const Auction = () => {
         canSkipSet={canSkipSet}
         onMenuClick={() => setTeamDrawerOpen(true)}
         onLeaveGame={() => setLeaveConfirmOpen(true)}
+        onEndGame={gameCode && isHost ? async () => {
+          await endGameByHost(gameCode, userId);
+          navigate("/leaderboard");
+        } : undefined}
       />
 
       {transitionSet && (
@@ -983,7 +1015,10 @@ const Auction = () => {
           poolName={transitionSet.label}
           playersInPool={transitionSet.playersInPool}
           setNumber={transitionSet.setNumber}
-          onComplete={() => setTransitionSet(null)}
+          onComplete={() => {
+            setTransitionSet(null);
+            setSetIntroDelayUntilMs(Date.now() + 5000);
+          }}
         />
       )}
 
@@ -1137,7 +1172,7 @@ const Auction = () => {
               </div>
             </div>
 
-            <div className="pointer-events-none absolute left-1/2 -top-10 -translate-x-1/2 z-20">
+            {!isSetIntroActive && <div className="pointer-events-none absolute left-1/2 -top-10 -translate-x-1/2 z-20">
               <div className="relative h-[110px] w-[110px] md:h-[140px] md:w-[140px] rounded-full bg-[#020617] border-2 border-[#00CFFF66] grid place-items-center shadow-[0_0_35px_rgba(0,207,255,0.38)]">
                 <svg viewBox="0 0 120 120" className="absolute inset-0 -rotate-90">
                   <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(0,207,255,0.22)" strokeWidth="8" />
@@ -1146,17 +1181,17 @@ const Auction = () => {
                     cy="60"
                     r="50"
                     fill="none"
-                    stroke={timerSeconds <= 10 ? "#FF4D4D" : "#00CFFF"}
+                    stroke={effectiveTimerSeconds <= 10 ? "#FF4D4D" : "#00CFFF"}
                     strokeWidth="8"
                     strokeLinecap="round"
                     strokeDasharray={2 * Math.PI * 50}
-                    strokeDashoffset={(2 * Math.PI * 50) - (((Math.max(0, Math.floor(timerSeconds))) / (currentAuction?.status === 'RUNNING' ? (session?.isAcceleratedRound ? 10 : 30) : 30)) * (2 * Math.PI * 50))}
+                    strokeDashoffset={(2 * Math.PI * 50) - (((Math.max(0, Math.floor(effectiveTimerSeconds))) / (currentAuction?.status === 'RUNNING' ? (session?.isAcceleratedRound ? 10 : 30) : 30)) * (2 * Math.PI * 50))}
                     className="transition-[stroke-dashoffset] duration-500"
                   />
                 </svg>
-                <span className={`font-display text-3xl md:text-5xl leading-none ${timerSeconds <= 10 ? 'timer-urgent text-[#FF4D4D]' : 'text-[#d7f8ff]'}`}>{Math.max(0, Math.floor(timerSeconds))}</span>
+                <span className={`font-display text-3xl md:text-5xl leading-none ${effectiveTimerSeconds <= 10 ? 'timer-urgent text-[#FF4D4D]' : 'text-[#d7f8ff]'}`}>{Math.max(0, Math.floor(effectiveTimerSeconds))}</span>
               </div>
-            </div>
+            </div>}
           </div>
 
           <main className="flex-1 overflow-y-auto p-3 md:p-5">
@@ -1181,7 +1216,15 @@ const Auction = () => {
 
               <div className="h-full overflow-hidden">
                 <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
-                  {currentPlayer && currentAuction?.status === 'RUNNING' && (
+                  {isSetIntroDelayActive && (
+                    <div className="h-full flex items-center justify-center">
+                      <div className="text-center">
+                        <p className="font-display text-3xl text-primary mb-2">Set Intro Complete</p>
+                        <p className="text-muted-foreground">Auction starts in {Math.max(1, Math.ceil((setIntroDelayUntilMs - nowMs) / 1000))}s</p>
+                      </div>
+                    </div>
+                  )}
+                  {currentPlayer && currentAuction?.status === 'RUNNING' && !isSetIntroDelayActive && (
                     <div key={currentAuction?.activePlayerId || "player-card"} className="animate-[playerSpotlight_0.8s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] h-full relative isolate">
                       <div className="absolute inset-0 bg-yellow-400/20 rounded-xl filter blur-xl animate-[pulseGlow_1.5s_ease-in-out_infinite_alternate] -z-10" />
                       <PlayerCard

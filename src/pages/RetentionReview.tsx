@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { listenSession, listenTeams, startAuction } from '@/lib/sessionService';
 import { IPL_TEAMS, formatPrice } from '@/lib/constants';
 import { useGameData } from '@/contexts/GameDataContext';
-import { ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, User } from 'lucide-react';
 import { TeamLogo } from '@/components/TeamLogo';
 import { cn } from '@/lib/utils';
 
@@ -96,7 +96,9 @@ const RetentionReview = () => {
                 key={team.id} 
                 className="group relative h-[320px] rounded-xl cursor-pointer"
                 style={{ perspective: '1000px' }}
-                onClick={() => openTeamCard(team.id)}
+                onClick={() => {
+                  if (expandedTeamId !== team.id) setExpandedTeamId(team.id);
+                }}
               >
                 <div 
                   className={cn(
@@ -140,11 +142,25 @@ const RetentionReview = () => {
                   >
                     <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-1">
                       <h3 className="text-yellow-400 font-display text-lg">Retained Players</h3>
-                      {retainedPlayers.length > 0 && (
-                        <span className="rounded-full border border-yellow-400/30 px-2 py-0.5 text-[11px] text-yellow-200">
-                          {(retentionSlideIndex[team.id] || 0) + 1}/{retainedPlayers.length}
-                        </span>
-                      )}
+                      <div className="flex items-center gap-2">
+                        {retainedPlayers.length > 0 && (
+                          <span className="rounded-full border border-yellow-400/30 px-2 py-0.5 text-[11px] text-yellow-200">
+                            {(retentionSlideIndex[team.id] || 0) + 1}/{retainedPlayers.length}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          className="inline-flex h-7 items-center gap-1 rounded-full border border-white/15 bg-black/20 px-2 text-[11px] text-white transition hover:border-yellow-400/60 hover:text-yellow-200"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setExpandedTeamId(null);
+                          }}
+                          aria-label={`Show ${team.shortName} team details`}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Details
+                        </button>
+                      </div>
                     </div>
                     {retainedPlayers.length === 0 ? (
                       <div className="flex h-[238px] items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/10">
@@ -154,7 +170,16 @@ const RetentionReview = () => {
                       const activeIndex = Math.min(retentionSlideIndex[team.id] || 0, retainedPlayers.length - 1);
                       const activePlayer = retainedPlayers[activeIndex];
                       const retentionPrice = prices[activePlayer.id] || 0;
-                      const isPlayerTransitioning = Boolean(retentionTransitioning[team.id]);
+                      const moveSlide = (direction: -1 | 1) => {
+                        setRetentionSlideIndex((prev) => {
+                          const current = Math.min(prev[team.id] || 0, retainedPlayers.length - 1);
+                          const next = current + direction;
+                          if (next < 0 || next > retainedPlayers.length - 1) return prev;
+                          return { ...prev, [team.id]: next };
+                        });
+                      };
+                      const canGoLeft = activeIndex > 0;
+                      const canGoRight = activeIndex < retainedPlayers.length - 1;
 
                       return (
                         <div className="relative h-[238px] overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-[#111c34] to-[#071229] p-3">
@@ -193,16 +218,18 @@ const RetentionReview = () => {
                           )}
                           <button
                             type="button"
-                            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white transition hover:scale-110 hover:border-yellow-400/60 hover:bg-yellow-400/20"
-                            onClick={(event) => { event.stopPropagation(); moveRetainedPlayer(team.id, activeIndex, retainedPlayers.length, -1); }}
+                            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white transition hover:scale-110 hover:border-yellow-400/60 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:border-white/10 disabled:hover:bg-black/35"
+                            onClick={(event) => { event.stopPropagation(); moveSlide(-1); }}
+                            disabled={!canGoLeft}
                             aria-label={`Show previous retained ${team.shortName} player`}
                           >
                             <ChevronLeft className="h-4 w-4" />
                           </button>
                           <button
                             type="button"
-                            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white transition hover:scale-110 hover:border-yellow-400/60 hover:bg-yellow-400/20"
-                            onClick={(event) => { event.stopPropagation(); moveRetainedPlayer(team.id, activeIndex, retainedPlayers.length, 1); }}
+                            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white transition hover:scale-110 hover:border-yellow-400/60 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:border-white/10 disabled:hover:bg-black/35"
+                            onClick={(event) => { event.stopPropagation(); moveSlide(1); }}
+                            disabled={!canGoRight}
                             aria-label={`Show next retained ${team.shortName} player`}
                           >
                             <ChevronRight className="h-4 w-4" />
