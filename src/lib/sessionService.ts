@@ -27,6 +27,7 @@ import {
   SQUAD_CONSTRAINTS,
   AI_STRATEGIES,
   TEAM_NEEDS_TEMPLATE,
+  MIN_PLAYER_BASE_PRICE,
 } from "@/lib/constants";
 import { RetentionEngine } from "@/engine/retentionEngine";
 import { AuctionEngine } from "@/engine/auctionEngine";
@@ -141,6 +142,22 @@ const getPlayerOverseasFlag = (playerData: any) => Boolean(playerData?.overseas 
 const getPlayerPreviousTeamId = (playerData: any) => String(playerData?.previousTeamId ?? playerData?.previousTeam ?? "").toLowerCase();
 const getPlayerRating = (playerData: any) => Number(playerData?.rating ?? playerData?.starRating ?? 0);
 
+const getSquadSize = (teamData: any) => Number(teamData?.squadSize ?? ((teamData?.players || []).length + (teamData?.retainedPlayers || []).length));
+
+const getProtectedAuctionBudget = (teamData: any) => {
+  const squadSize = getSquadSize(teamData);
+  const remainingSlots = Math.max(0, SQUAD_CONSTRAINTS.MAX_SQUAD - squadSize);
+  const reserveNeeded = remainingSlots * MIN_PLAYER_BASE_PRICE;
+  return Math.max(0, Number(teamData?.purseRemaining || 0) - reserveNeeded);
+};
+
+const canProtectPurseAfterBid = (teamData: any, bidAmount: number) => {
+  const squadSize = getSquadSize(teamData);
+  const remainingSlots = Math.max(0, SQUAD_CONSTRAINTS.MAX_SQUAD - squadSize);
+  const reserveNeeded = remainingSlots * MIN_PLAYER_BASE_PRICE;
+  return Number(teamData?.purseRemaining || 0) - bidAmount >= reserveNeeded;
+};
+
 const isAiControlledTeam = (teamId: string, teamData: any, sessionData: any) => {
   const assignedController = String(sessionData?.selectedTeams?.[teamId] || '');
   return assignedController.startsWith('AI-') || Boolean(teamData?.isAI);
@@ -190,16 +207,18 @@ const pickRealisticSkipOutcome = (
 
   const eligibleTeams = teams
     .filter(({ data }) => Number(data?.purseRemaining || 0) >= basePrice)
-    .filter(({ data }) => Number(data?.squadSize ?? ((data?.players || []).length + (data?.retainedPlayers || []).length)) < SQUAD_CONSTRAINTS.MAX_SQUAD)
+    .filter(({ data }) => canProtectPurseAfterBid(data, basePrice))
+    .filter(({ data }) => getSquadSize(data) < SQUAD_CONSTRAINTS.MAX_SQUAD)
     .filter(({ data }) => !isOverseas || Number(data?.overseasCount || 0) < SQUAD_CONSTRAINTS.MAX_OVERSEAS)
     .map((team) => {
       const needScore = getRoleNeedScore(team.data, role);
-      const purseCr = Number(team.data?.purseRemaining || 0) / 10000000;
+      const squadSize = getSquadSize(team.data);
+      const purseCr = getProtectedAuctionBudget(team.data) / 10000000;
       const formerTeamBoost = previousTeamId && team.id === previousTeamId ? 1.2 : 0;
       const randomDemand = Math.random() * 1.8;
       return {
         ...team,
-        demandScore: rating * 1.7 + needScore * 0.9 + Math.min(4, purseCr / 12) + formerTeamBoost + randomDemand,
+        demandScore: rating * 1.7 + needScore * 1.15 + Math.min(4, purseCr / 12) + Math.max(0, 22 - squadSize) * 0.18 + formerTeamBoost + randomDemand,
       };
     })
     .sort((a, b) => b.demandScore - a.demandScore);
@@ -207,15 +226,19 @@ const pickRealisticSkipOutcome = (
   if (!eligibleTeams.length || basePrice <= 0) return { sold: false as const, playerId };
 
   const scarcityBoost = eligibleTeams[0]?.demandScore || 0;
-  const sellChance = Math.max(0.18, Math.min(0.94, 0.22 + rating * 0.13 + scarcityBoost * 0.045));
+  const completionNeedBoost = Math.max(0, 22 - getSquadSize(eligibleTeams[0]?.data)) * 0.025;
+  const sellChance = Math.max(0.18, Math.min(0.96, 0.22 + rating * 0.13 + scarcityBoost * 0.045 + completionNeedBoost));
   if (Math.random() > sellChance) return { sold: false as const, playerId };
 
   const topSlice = eligibleTeams.slice(0, Math.min(4, eligibleTeams.length));
   const winningTeam = topSlice[Math.floor(Math.random() * topSlice.length)];
   const starMultiplier = rating >= 4.5 ? 4.5 + Math.random() * 5.5 : rating >= 3.5 ? 2.2 + Math.random() * 3.6 : rating >= 2.5 ? 1.2 + Math.random() * 2.2 : 1 + Math.random() * 1.2;
   const demandMultiplier = 1 + Math.min(1.8, winningTeam.demandScore / 9);
-  const ceiling = Number(winningTeam.data?.purseRemaining || 0);
-  const price = Math.min(ceiling, roundToBidIncrement(basePrice * starMultiplier * demandMultiplier));
+  const ceiling = getProtectedAuctionBudget(winningTeam.data);
+  const realisticCap = rating >= 4.5 ? 240000000 : rating >= 4 ? 160000000 : rating >= 3 ? 90000000 : 45000000;
+  const price = Math.min(ceiling, realisticCap, roundToBidIncrement(basePrice * starMultiplier * demandMultiplier));
+
+  if (price < basePrice || !canProtectPurseAfterBid(winningTeam.data, price)) return { sold: false as const, playerId };
 
   return {
     sold: true as const,
