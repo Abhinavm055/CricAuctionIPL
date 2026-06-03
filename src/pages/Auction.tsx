@@ -587,6 +587,8 @@ const Auction = () => {
         overseasCount: Number(t.overseasCount || 0),
         roleNeeds: (t as any).teamNeeds || {},
         aggressionLevel: STRATEGY_AGGRESSION[String((t as any).aiStrategy || 'balanced')] || 1,
+        aiStrategy: String((t as any).aiStrategy || 'balanced'),
+        shortName: t.shortName,
       })),
       {
         id: (currentPlayer as any).id,
