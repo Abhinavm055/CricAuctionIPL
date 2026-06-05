@@ -163,8 +163,12 @@ const isAiControlledTeam = (teamId: string, teamData: any, sessionData: any) => 
   return assignedController.startsWith('AI-') || Boolean(teamData?.isAI);
 };
 
-const buildRecentPurchases = (existing: Array<{ playerId: string; price: number; teamId: string }>, purchase: { playerId: string; price: number; teamId: string }) => {
-  return [purchase, ...(existing || [])];
+const buildRecentPurchases = (
+  existing: Array<{ playerId: string; price: number; teamId: string; timestamp?: number }>,
+  purchase: { playerId: string; price: number; teamId: string; timestamp?: number }
+) => {
+  const newPurchase = { ...purchase, timestamp: purchase.timestamp || Date.now() };
+  return [newPurchase, ...(existing || [])];
 };
 
 const normalizeRoleKey = (role: string | undefined) => {

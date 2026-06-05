@@ -196,6 +196,8 @@ const Auction = () => {
   const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
   const [rtmSubmissionLocked, setRtmSubmissionLocked] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
+  const [activeBidOverlay, setActiveBidOverlay] = useState<{ teamShortName: string; amountStr: string } | null>(null);
+  const overlayTimerRef = useRef<number | null>(null);
   const suppressSoldBannerRef = useRef(false);
   const shownSetTransitionKeysRef = useRef<Set<string>>(new Set());
   const [transitionSet, setTransitionSet] = useState<{ key: string; label: string; setNumber: number; playersInPool: number } | null>(null);
@@ -626,6 +628,7 @@ const Auction = () => {
   useEffect(() => {
     return () => {
       if (autoAdvanceHostTimeoutRef.current) window.clearTimeout(autoAdvanceHostTimeoutRef.current);
+      if (overlayTimerRef.current) window.clearTimeout(overlayTimerRef.current);
     };
   }, []);
 
@@ -634,7 +637,7 @@ const Auction = () => {
     if (Number(currentAuction.currentBid || 0) === prevBidRef.current) return;
 
     setGlowingTeamId(currentAuction.currentBidderId);
-    const timeout = window.setTimeout(() => setGlowingTeamId(null), 900);
+    const timeout = window.setTimeout(() => setGlowingTeamId(null), 2500);
     return () => window.clearTimeout(timeout);
   }, [currentAuction?.currentBid, currentAuction?.currentBidderId]);
 
@@ -650,11 +653,24 @@ const Auction = () => {
         : `${team?.shortName || "Team"} bids ${amount}`;
       setCommentary((prev) => [line, ...prev].slice(0, 14));
       playSound('bid');
+
+      // Set active bid flash overlay
+      if (overlayTimerRef.current) window.clearTimeout(overlayTimerRef.current);
+      if (team) {
+        setActiveBidOverlay({
+          teamShortName: team.shortName,
+          amountStr: amount,
+        });
+        overlayTimerRef.current = window.setTimeout(() => {
+          setActiveBidOverlay(null);
+        }, 1500);
+      }
     }
 
     if (currentAuction.status === "SOLD" && prevStatusRef.current !== "SOLD") {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
       setCommentary((prev) => [`${currentPlayer?.name || 'Player'} SOLD to ${team?.shortName || 'TEAM'} for ${formatCrPrice(Number(currentAuction.currentBid || 0))}!`, ...prev].slice(0, 14));
+      setActiveBidOverlay(null); // Clear active bid overlay on sale
       if (!suppressSoldBannerRef.current) {
         setBanner({ kind: 'SOLD', price: Number(currentAuction.currentBid || 0), team: team?.shortName || 'TEAM' });
         setTimeout(() => setBanner(null), 2000);
@@ -665,6 +681,7 @@ const Auction = () => {
     }
 
     if (currentAuction.status === "UNSOLD" && prevStatusRef.current !== "UNSOLD") {
+      setActiveBidOverlay(null); // Clear active bid overlay if unsold
       setBanner({ kind: 'UNSOLD' });
       setTimeout(() => setBanner(null), 2000);
       playSound('hammer');
@@ -689,7 +706,7 @@ const Auction = () => {
     if (autoAdvanceHostTimeoutRef.current) window.clearTimeout(autoAdvanceHostTimeoutRef.current);
 
     const delayMs = currentAuction.status === 'SOLD'
-      ? (currentAuction?.rtmResultMessage ? 5000 : 3000)
+      ? (currentAuction?.rtmResultMessage ? 5000 : 4000)
       : 2000;
 
     autoAdvanceHostTimeoutRef.current = window.setTimeout(async () => {
@@ -772,7 +789,7 @@ const Auction = () => {
     currentAuction?.status === "SOLD"
       && soldAtMs
       && soldElapsedMs >= (currentAuction?.rtmResultMessage ? 2000 : 0)
-      && soldElapsedMs < (currentAuction?.rtmResultMessage ? 5000 : 3000),
+      && soldElapsedMs < (currentAuction?.rtmResultMessage ? 5000 : 4000),
   );
 
   useEffect(() => {
@@ -926,18 +943,17 @@ const Auction = () => {
     return purchases;
   }, [session?.recentPurchases]);
 
-  const commentaryTicker = useMemo(() => {
-    const saleLines = recentPurchases.map((p) => {
+  const commentaryTickerItems = useMemo(() => {
+    return recentPurchases.map((p) => {
       const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
       const team = teams.find((t) => t.id === p.teamId);
-      return `${pl?.name || p.playerId} SOLD to ${team?.shortName || p.teamId} for ${formatCrPrice(p.price)}`;
+      return {
+        name: pl?.name || p.playerId,
+        team: team?.shortName || p.teamId,
+        price: formatCrPrice(p.price),
+      };
     });
-
-    const lines = [...commentary, ...saleLines]
-      .filter((line) => /(bids|SOLD)/i.test(String(line)))
-      .slice(0, 14);
-    return lines.join(' • ');
-  }, [recentPurchases, masterPlayerList, teams, commentary]);
+  }, [recentPurchases, masterPlayerList, teams]);
 
   const showAcceleratedButton = useMemo(() => {
     if (!isHost) return false;
@@ -1056,6 +1072,7 @@ const Auction = () => {
               purseRemaining: Number(team.purseRemaining || 0),
               squadSize: Number(team.squadSize || 0),
               rtmCards: Number(team.rtmCards || 0),
+              retainedCount: team.retainedPlayers?.length || 0,
             }))}
             myTeamId={myTeamId}
             currentBidderId={currentAuction?.currentBidderId}
@@ -1167,38 +1184,94 @@ const Auction = () => {
 
       {!auctionEnded && (
         <>
-          <div className="relative">
-            <div className="border-y border-[#00CFFF66] bg-[#061734cc] backdrop-blur-md overflow-hidden py-1.5">
-              <div className="whitespace-nowrap animate-[marquee_28s_linear_infinite] text-xs md:text-sm text-yellow-100 px-4">
-                {commentaryTicker} &nbsp; • &nbsp; {commentaryTicker}
+          <div className="relative shrink-0">
+            <div className="border-y border-[#00CFFF66] bg-[#05142ccc]/90 backdrop-blur-md overflow-hidden py-2">
+              <div className="whitespace-nowrap animate-[marquee_55s_linear_infinite] hover:[animation-play-state:paused] cursor-pointer text-xs md:text-sm font-semibold tracking-wide text-slate-200 flex items-center gap-12 px-4 select-none">
+                {commentaryTickerItems.length === 0 ? (
+                  <div className="flex items-center gap-4">
+                    <span className="text-yellow-400 font-bold">📢 Waiting for first sale...</span>
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-300">Place your bids to start the auction</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-12 shrink-0">
+                      {commentaryTickerItems.map((item, i) => (
+                        <div key={`ticker-1-${i}`} className="flex items-center gap-3">
+                          <span className="text-white font-bold">{item.name}</span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-yellow-400 font-extrabold uppercase bg-yellow-500/10 border border-yellow-500/25 px-1.5 py-0.5 rounded text-[10px] tracking-widest">{item.team}</span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-emerald-400 font-bold">{item.price}</span>
+                          <span className="text-yellow-500/50 ml-4 font-mono">✦</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-12 shrink-0">
+                      {commentaryTickerItems.map((item, i) => (
+                        <div key={`ticker-2-${i}`} className="flex items-center gap-3">
+                          <span className="text-white font-bold">{item.name}</span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-yellow-400 font-extrabold uppercase bg-yellow-500/10 border border-yellow-500/25 px-1.5 py-0.5 rounded text-[10px] tracking-widest">{item.team}</span>
+                          <span className="text-slate-500">•</span>
+                          <span className="text-emerald-400 font-bold">{item.price}</span>
+                          <span className="text-yellow-500/50 ml-4 font-mono">✦</span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </div>
+ 
+            {!isSetIntroActive && (() => {
+              const timerColor =
+                effectiveTimerSeconds < 5
+                  ? "#EF4444"
+                  : effectiveTimerSeconds <= 10
+                  ? "#F59E0B"
+                  : "#10B981";
+              const timerPulseClass = effectiveTimerSeconds < 5 ? "animate-[timerUrgent_0.6s_infinite_alternate]" : "";
 
-            {!isSetIntroActive && <div className="pointer-events-none absolute left-1/2 -top-10 -translate-x-1/2 z-20">
-              <div className="relative h-[110px] w-[110px] md:h-[140px] md:w-[140px] rounded-full bg-[#020617] border-2 border-[#00CFFF66] grid place-items-center shadow-[0_0_35px_rgba(0,207,255,0.38)]">
-                <svg viewBox="0 0 120 120" className="absolute inset-0 -rotate-90">
-                  <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(0,207,255,0.22)" strokeWidth="8" />
-                  <circle
-                    cx="60"
-                    cy="60"
-                    r="50"
-                    fill="none"
-                    stroke={effectiveTimerSeconds <= 10 ? "#FF4D4D" : "#00CFFF"}
-                    strokeWidth="8"
-                    strokeLinecap="round"
-                    strokeDasharray={2 * Math.PI * 50}
-                    strokeDashoffset={(2 * Math.PI * 50) - (((Math.max(0, Math.floor(effectiveTimerSeconds))) / (currentAuction?.status === 'RUNNING' ? (session?.isAcceleratedRound ? 10 : 30) : 30)) * (2 * Math.PI * 50))}
-                    className="transition-[stroke-dashoffset] duration-500"
-                  />
-                </svg>
-                <span className={`font-display text-3xl md:text-5xl leading-none ${effectiveTimerSeconds <= 10 ? 'timer-urgent text-[#FF4D4D]' : 'text-[#d7f8ff]'}`}>{Math.max(0, Math.floor(effectiveTimerSeconds))}</span>
-              </div>
-            </div>}
+              return (
+                <div className="pointer-events-none absolute left-1/2 -top-16 -translate-x-1/2 z-20">
+                  <div
+                    className={`relative h-[130px] w-[130px] md:h-[160px] md:w-[160px] rounded-full bg-slate-950/95 border-2 grid place-items-center transition-all duration-300 ${timerPulseClass}`}
+                    style={{
+                      borderColor: `${timerColor}aa`,
+                      boxShadow: `0 0 40px ${timerColor}50, inset 0 0 20px ${timerColor}15`,
+                    }}
+                  >
+                    <svg viewBox="0 0 120 120" className="absolute inset-0 -rotate-90">
+                      <circle cx="60" cy="60" r="50" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
+                      <circle
+                        cx="60"
+                        cy="60"
+                        r="50"
+                        fill="none"
+                        stroke={timerColor}
+                        strokeWidth="8"
+                        strokeLinecap="round"
+                        strokeDasharray={2 * Math.PI * 50}
+                        strokeDashoffset={(2 * Math.PI * 50) - (((Math.max(0, Math.floor(effectiveTimerSeconds))) / (currentAuction?.status === 'RUNNING' ? (session?.isAcceleratedRound ? 10 : 30) : 30)) * (2 * Math.PI * 50))}
+                        className="transition-[stroke-dashoffset] duration-500"
+                      />
+                    </svg>
+                    <span
+                      className="font-display text-5xl md:text-7xl font-black leading-none transition-colors duration-300 select-none font-mono"
+                      style={{ color: timerColor }}
+                    >
+                      {Math.max(0, Math.floor(effectiveTimerSeconds))}
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
-          <main className="flex-1 overflow-y-auto p-3 md:p-5">
-            <div className="hidden lg:grid grid-cols-[3fr_5fr_3fr] gap-4 min-h-full">
-              <div>
+          <main className="flex-1 overflow-hidden p-3 md:p-5">
+            <div className="hidden lg:grid grid-cols-[3.3fr_4.9fr_2.8fr] gap-4 h-full">
+              <div className="h-full">
                 <TeamGrid
                   teams={teams.map((team) => ({
                     id: team.id,
@@ -1208,6 +1281,7 @@ const Auction = () => {
                     purseRemaining: Number(team.purseRemaining || 0),
                     squadSize: Number(team.squadSize || 0),
                     rtmCards: Number(team.rtmCards || 0),
+                    retainedCount: team.retainedPlayers?.length || 0,
                   }))}
                   myTeamId={myTeamId}
                   currentBidderId={currentAuction?.currentBidderId}
@@ -1217,7 +1291,7 @@ const Auction = () => {
               </div>
 
               <div className="h-full overflow-hidden">
-                <div className="h-full rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3 overflow-hidden">
+                <div className="h-full rounded-xl border border-yellow-500/35 bg-gradient-to-b from-[#071a3a] to-[#040e21] p-3 overflow-hidden flex flex-col justify-between">
                   {isSetIntroDelayActive && (
                     <div className="h-full flex items-center justify-center">
                       <div className="text-center">
@@ -1228,17 +1302,28 @@ const Auction = () => {
                   )}
                   {currentPlayer && currentAuction?.status === 'RUNNING' && !isSetIntroDelayActive && (
                     <div key={currentAuction?.activePlayerId || "player-card"} className="animate-[playerSpotlight_0.8s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards] h-full relative isolate">
-                      <div className="absolute inset-0 bg-yellow-400/20 rounded-xl filter blur-xl animate-[pulseGlow_1.5s_ease-in-out_infinite_alternate] -z-10" />
+                      <div className="absolute inset-0 bg-yellow-400/15 rounded-xl filter blur-xl animate-[pulseGlow_1.5s_ease-in-out_infinite_alternate] -z-10" />
                       <PlayerCard
                         player={currentPlayer as any}
                         currentBid={displayedCurrentBid}
                         currentBidderId={currentBidderTeam?.id || null}
                         currentBidderName={currentBidderTeam?.shortName || 'BID'}
                       />
+                      
+                      {/* Bidding activity overlay flash */}
+                      {activeBidOverlay && (
+                        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none animate-[bidFlash_0.35s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
+                          <div className="bg-[#051126]/95 border-2 border-yellow-400 px-6 py-2.5 rounded-2xl shadow-[0_0_30px_rgba(250,204,21,0.6)] flex items-center gap-2">
+                            <span className="font-display text-lg text-yellow-400 font-extrabold animate-pulse">{activeBidOverlay.teamShortName}</span>
+                            <span className="text-xs text-white uppercase tracking-wider font-bold">BID</span>
+                            <span className="font-display text-lg text-emerald-400 font-extrabold">{activeBidOverlay.amountStr}</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {currentAuction?.status === 'PAUSED' && <p className="text-lg font-semibold text-yellow-400 mt-6">Auction Paused by Host</p>}
+                  {currentAuction?.status === 'PAUSED' && <p className="text-lg font-semibold text-yellow-400 mt-6 text-center">Auction Paused by Host</p>}
 
                   {(!currentPlayer || !['RUNNING', 'PAUSED'].includes(currentAuction?.status)) && !['SOLD', 'UNSOLD'].includes(currentAuction?.status || '') && (
                     <div className="mt-8 text-center">
@@ -1253,16 +1338,18 @@ const Auction = () => {
                   currentBid={displayedCurrentBid}
                   canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
                   onBid={handleBid}
-                  recentPurchases={recentPurchases.slice(0, 8).map((p) => {
+                  recentPurchases={recentPurchases.map((p) => {
                     const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
                     const team = teams.find((t) => t.id === p.teamId);
                     return {
                       playerName: pl?.name || p.playerId,
                       teamShortName: team?.shortName || p.teamId,
                       price: p.price,
+                      timestamp: p.timestamp,
                     };
                   })}
                   upcomingPlayers={remainingSetPlayers}
+                  currentPlayer={currentPlayer}
                 />
               </div>
             </div>
@@ -1285,16 +1372,18 @@ const Auction = () => {
                   currentBid={displayedCurrentBid}
                   canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
                   onBid={handleBid}
-                  recentPurchases={recentPurchases.slice(0, 6).map((p) => {
+                  recentPurchases={recentPurchases.map((p) => {
                     const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
                     const team = teams.find((t) => t.id === p.teamId);
                     return {
                       playerName: pl?.name || p.playerId,
                       teamShortName: team?.shortName || p.teamId,
                       price: p.price,
+                      timestamp: p.timestamp,
                     };
                   })}
                   upcomingPlayers={remainingSetPlayers}
+                  currentPlayer={currentPlayer}
                 />
               </div>
             </div>
@@ -1307,6 +1396,9 @@ const Auction = () => {
             @keyframes rtmFade { 0% { opacity: 0; transform: translateY(8px); } 100% { opacity: 1; transform: translateY(0); } }
             @keyframes hammerDrop { 0% { transform: translate(-50%, -45px) rotate(-25deg); opacity: 0; } 70% { transform: translate(-50%, 0) rotate(10deg); opacity: 1; } 100% { transform: translate(-50%, -5px) rotate(0deg); opacity: 1; } }
             @keyframes hammerImpact { 0% { transform: scale(0.7); opacity: 0; } 100% { transform: scale(1.12); opacity: 0; } }
+            @keyframes bidFlash { 0% { transform: translate(-50%, -50%) scale(0.85); opacity: 0; } 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; } }
+            @keyframes timerPulse { 0%, 100% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.5)); } 50% { transform: scale(1.08); filter: drop-shadow(0 0 30px rgba(239, 68, 68, 0.95)); } }
+            @keyframes pulseBid { 0%, 100% { box-shadow: 0 0 0 0 rgba(250,204,21,0.4); } 50% { box-shadow: 0 0 0 15px rgba(250,204,21,0); } }
           `}</style>
         </>
       )}

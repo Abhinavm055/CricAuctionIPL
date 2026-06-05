@@ -21,6 +21,19 @@ const TEAM_OWNERS: Record<string, string> = {
   lsg: 'Sanjiv Goenka',
 };
 
+const TEAM_GRADIENTS: Record<string, string> = {
+  pbks: 'from-red-950/60 via-red-900/40 to-yellow-600/10',
+  mi: 'from-blue-950/60 via-blue-900/40 to-yellow-600/10',
+  csk: 'from-yellow-950/60 via-yellow-900/40 to-yellow-500/10',
+  rcb: 'from-red-950/60 via-red-900/40 to-black/40',
+  kkr: 'from-purple-950/60 via-purple-900/40 to-yellow-600/10',
+  dc: 'from-blue-950/60 via-blue-900/40 to-red-600/10',
+  rr: 'from-pink-950/60 via-pink-900/40 to-blue-600/10',
+  srh: 'from-orange-950/60 via-orange-900/40 to-black/40',
+  gt: 'from-slate-950/60 via-slate-900/40 to-yellow-600/10',
+  lsg: 'from-cyan-950/60 via-blue-950/40 to-yellow-600/10',
+};
+
 const RetentionReview = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
   const navigate = useNavigate();
@@ -58,7 +71,7 @@ const RetentionReview = () => {
       <div className="max-w-[1500px] mx-auto">
         <h1 className="text-3xl font-display mb-6 text-center text-primary">RETENTION REVIEW</h1>
 
-        <div className="grid mb-10" style={{ gridTemplateColumns: 'repeat(4, 1fr)', gap: '24px' }}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6 mb-10">
           {IPL_TEAMS.map((team) => {
             const teamDoc = teams.find((t) => t.id === team.id) || {};
             const retainedIds = (teamDoc.retainedPlayers || session?.retentions?.[team.id]?.players || []) as string[];
@@ -66,10 +79,28 @@ const RetentionReview = () => {
             const prices = teamDoc.playerPurchasePrices || {};
             const managerName = session?.managerNames?.[team.id] || (String(session?.selectedTeams?.[team.id] || '').startsWith('AI-') ? TEAM_OWNERS[team.id] || 'AI Manager' : TEAM_OWNERS[team.id] || 'Available');
 
+            const rawIndex = retentionSlideIndex[team.id] || 0;
+            const activeIndex = retainedPlayers.length > 0 
+              ? Math.max(0, Math.min(rawIndex, retainedPlayers.length - 1)) 
+              : 0;
+
+            const moveSlide = (direction: -1 | 1) => {
+              setRetentionSlideIndex((prev) => {
+                const current = prev[team.id] || 0;
+                let next = current + direction;
+                if (next < 0) {
+                  next = Math.max(0, retainedPlayers.length - 1);
+                } else if (next > retainedPlayers.length - 1) {
+                  next = 0;
+                }
+                console.log(`[Carousel Navigation] Team ${team.id} index: ${current} -> ${next} (Total: ${retainedPlayers.length})`);
+                return { ...prev, [team.id]: next };
+              });
+            };
             return (
               <div 
                 key={team.id} 
-                className="group relative h-[320px] rounded-xl cursor-pointer"
+                className="group relative h-[480px] rounded-xl cursor-pointer"
                 style={{ perspective: '1000px' }}
                 onClick={() => {
                   if (expandedTeamId !== team.id) setExpandedTeamId(team.id);
@@ -85,122 +116,166 @@ const RetentionReview = () => {
                   
                   {/* FRONT FACE */}
                   <div 
-                    className="absolute inset-0 border border-white/10 bg-[#0f172a] rounded-xl p-4 flex flex-col justify-between hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] hover:border-yellow-400/70 overflow-hidden"
+                    className={cn(
+                      "absolute inset-0 border border-white/10 bg-[#0f172a] rounded-xl p-4 flex flex-col justify-between hover:shadow-[0_0_20px_rgba(251,191,36,0.5)] hover:border-yellow-400/70 overflow-hidden",
+                      expandedTeamId === team.id ? "pointer-events-none" : ""
+                    )}
                     style={{ backfaceVisibility: 'hidden' }}
                   >
-                    <div className="relative z-10 transition-all duration-200 h-full group-hover:opacity-90">
+                    <div className="relative z-10 transition-all duration-200 h-full flex flex-col justify-between group-hover:opacity-90">
                       <div>
-                        <div className="flex items-center gap-3 mb-3">
-                          <TeamLogo teamId={team.id} logo={teamDoc.logo || team.logo} shortName={team.shortName} size="md" />
+                        <div className="flex items-center gap-4 mb-4">
+                          <TeamLogo teamId={team.id} logo={teamDoc.logo || team.logo} shortName={team.shortName} size="lg" />
                           <div>
-                            <h2 className="font-display text-lg leading-none">{team.shortName}</h2>
-                            <p className="text-[11px] text-muted-foreground uppercase tracking-wide">{team.name}</p>
+                            <h2 className="font-display text-xl leading-none">{team.shortName}</h2>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">{team.name}</p>
                           </div>
                         </div>
 
-                        <p className="text-sm mb-1 text-muted-foreground">Manager: <span className="text-foreground truncate block">{managerName}</span></p>
-                        <p className="text-sm mb-1">Retained: {retainedIds.length}/6</p>
-                        <p className="text-sm mb-1">RTM: {teamDoc.rtmCards ?? session?.retentions?.[team.id]?.rtm ?? 0}</p>
-                        <p className="text-sm mb-2">Purse: <span className="text-yellow-400">{formatPrice(teamDoc.purseRemaining ?? team.purse)}</span></p>
-                        <p className={(session?.retentions?.[team.id]?.locked || retainedIds.length) ? 'text-xs font-semibold text-emerald-400' : 'text-xs font-semibold text-yellow-300'}>
+                        <div className="space-y-4 mt-6 text-sm">
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wider">Manager</p>
+                            <p className="text-base font-semibold text-white mt-0.5 truncate">{managerName}</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-xs text-muted-foreground uppercase tracking-wider">Retained</p>
+                              <p className="text-lg font-bold text-white mt-0.5">{retainedIds.length} <span className="text-xs text-muted-foreground font-normal">/ 6</span></p>
+                            </div>
+                            <div>
+                              <p className="text-xs text-muted-foreground uppercase tracking-wider">RTM Cards</p>
+                              <p className="text-lg font-bold text-white mt-0.5">{teamDoc.rtmCards ?? session?.retentions?.[team.id]?.rtm ?? 0}</p>
+                            </div>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wider">Remaining Purse</p>
+                            <p className="text-xl font-bold text-yellow-400 mt-0.5">{formatPrice(teamDoc.purseRemaining ?? team.purse)}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="border-t border-white/5 pt-3 flex items-center justify-between">
+                        <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Status</span>
+                        <span className={cn(
+                          "text-xs font-semibold px-2.5 py-1 rounded-full border",
+                          (session?.retentions?.[team.id]?.locked || retainedIds.length)
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                            : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'
+                        )}>
                           {(session?.retentions?.[team.id]?.locked || retainedIds.length) ? '🟢 LOCKED' : '🟡 PENDING'}
-                        </p>
+                        </span>
                       </div>
                     </div>
                   </div>
 
                   {/* BACK FACE */}
                   <div 
-                    className="absolute inset-0 border border-yellow-500/50 bg-[#0B1C3D] rounded-xl p-4 overflow-hidden"
+                    className={cn(
+                      "absolute inset-0 border border-yellow-500/50 bg-[#0B1C3D] rounded-xl p-4 overflow-hidden flex flex-col justify-between select-none",
+                      expandedTeamId !== team.id ? "pointer-events-none" : ""
+                    )}
                     style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
                   >
-                    <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-1">
-                      <h3 className="text-yellow-400 font-display text-lg">Retained Players</h3>
+                    <div className="flex items-center justify-between border-b border-white/10 pb-2 shrink-0">
+                      <h3 className="text-yellow-400 font-display text-sm tracking-wider uppercase font-semibold">Retained Players</h3>
                       <div className="flex items-center gap-2">
                         {retainedPlayers.length > 0 && (
-                          <span className="rounded-full border border-yellow-400/30 px-2 py-0.5 text-[11px] text-yellow-200">
-                            {(retentionSlideIndex[team.id] || 0) + 1}/{retainedPlayers.length}
+                          <span className="rounded-full border border-yellow-400/30 px-2.5 py-0.5 text-[11px] text-yellow-200 font-semibold">
+                            {activeIndex + 1}/{retainedPlayers.length}
                           </span>
                         )}
                         <button
                           type="button"
-                          className="inline-flex h-7 items-center gap-1 rounded-full border border-white/15 bg-black/20 px-2 text-[11px] text-white transition hover:border-yellow-400/60 hover:text-yellow-200"
+                          className="inline-flex h-6 items-center gap-1 rounded-full border border-white/15 bg-black/20 px-2.5 text-[10px] text-white transition hover:border-yellow-400/60 hover:text-yellow-200"
                           onClick={(event) => {
                             event.stopPropagation();
                             setExpandedTeamId(null);
                           }}
                           aria-label={`Show ${team.shortName} team details`}
                         >
-                          <RotateCcw className="h-3.5 w-3.5" />
+                          <RotateCcw className="h-3 w-3" />
                           Details
                         </button>
                       </div>
                     </div>
                     {retainedPlayers.length === 0 ? (
-                      <div className="flex h-[238px] items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/10">
+                      <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/10">
                         <p className="text-sm text-muted-foreground text-center">No players retained</p>
                       </div>
-                    ) : (() => {
-                      const activeIndex = Math.min(retentionSlideIndex[team.id] || 0, retainedPlayers.length - 1);
-                      const activePlayer = retainedPlayers[activeIndex];
-                      const retentionPrice = prices[activePlayer.id] || 0;
-                      const moveSlide = (direction: -1 | 1) => {
-                        setRetentionSlideIndex((prev) => {
-                          const current = Math.min(prev[team.id] || 0, retainedPlayers.length - 1);
-                          const next = current + direction;
-                          if (next < 0 || next > retainedPlayers.length - 1) return prev;
-                          return { ...prev, [team.id]: next };
-                        });
-                      };
-                      const canGoLeft = activeIndex > 0;
-                      const canGoRight = activeIndex < retainedPlayers.length - 1;
+                    ) : (
+                      <>
+                        {(() => {
+                          const activePlayer = retainedPlayers[activeIndex];
+                          if (!activePlayer) return null;
+                          const retentionPrice = prices[activePlayer.id] || 0;
+                          const teamGradient = TEAM_GRADIENTS[team.id] || 'from-[#111c34] to-[#071229]';
 
-                      return (
-                        <div className="relative h-[238px] overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-[#111c34] to-[#071229] p-3">
-                          <div key={activePlayer.id} className="flex h-full flex-col items-center justify-center text-center animate-[retentionSlideIn_0.35s_ease-out]">
-                            <div className="relative mb-3 h-28 w-28 overflow-hidden rounded-full border-2 border-yellow-400/50 bg-[#06122b] shadow-[0_0_24px_rgba(250,204,21,0.20)]">
-                              {(activePlayer.image || activePlayer.imageUrl) ? (
-                                <img src={activePlayer.image || activePlayer.imageUrl} alt={activePlayer.name} className="h-full w-full object-cover transition-transform duration-500 hover:scale-110" />
-                              ) : (
-                                <div className="flex h-full w-full items-center justify-center"><User className="h-10 w-10 text-muted-foreground" /></div>
-                              )}
-                            </div>
-                            <p className="w-full truncate text-base font-bold text-white">{activePlayer.name}</p>
-                            <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">{activePlayer.role || activePlayer.category || 'Retained Player'}</p>
-                            <div className="mt-3 grid w-full grid-cols-2 gap-2 text-xs">
-                              <div className="rounded-lg bg-black/20 px-2 py-1.5">
-                                <p className="text-muted-foreground">Price</p>
-                                <p className="font-semibold text-yellow-400">{formatPrice(retentionPrice)}</p>
+                          return (
+                            <div className="flex-1 flex flex-col justify-between mt-3 overflow-hidden min-h-0">
+                              
+                              {/* LARGE PLAYER SHOWCASE AREA */}
+                              <div className={cn(
+                                "relative h-[230px] w-full overflow-hidden rounded-lg border border-white/5 bg-gradient-to-b shrink-0 flex items-center justify-center shadow-inner py-3 px-2",
+                                teamGradient
+                              )}>
+                                <div key={activePlayer.id} className="w-full h-full flex items-center justify-center animate-[retentionSlideIn_0.35s_ease-out]">
+                                  {(activePlayer.image || activePlayer.imageUrl) ? (
+                                    <img 
+                                      src={activePlayer.image || activePlayer.imageUrl} 
+                                      alt={activePlayer.name} 
+                                      className="h-full w-full object-contain object-center scale-[1.03] transition-transform duration-500 hover:scale-[1.1]" 
+                                    />
+                                  ) : (
+                                    <div className="flex h-full w-full items-center justify-center">
+                                      <User className="h-12 w-12 text-muted-foreground/60" />
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Vertically centered navigation arrows inside showcase */}
+                                <button
+                                  type="button"
+                                  className="absolute left-2 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white transition hover:scale-110 hover:border-yellow-400/60 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-30"
+                                  onClick={(event) => { event.stopPropagation(); moveSlide(-1); }}
+                                  disabled={retainedPlayers.length <= 1}
+                                  aria-label={`Show previous retained ${team.shortName} player`}
+                                >
+                                  <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="absolute right-2 top-1/2 z-10 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/45 text-white transition hover:scale-110 hover:border-yellow-400/60 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-30"
+                                  onClick={(event) => { event.stopPropagation(); moveSlide(1); }}
+                                  disabled={retainedPlayers.length <= 1}
+                                  aria-label={`Show next retained ${team.shortName} player`}
+                                >
+                                  <ChevronRight className="h-4 w-4" />
+                                </button>
                               </div>
-                              <div className="rounded-lg bg-black/20 px-2 py-1.5">
-                                <p className="text-muted-foreground">Rating</p>
-                                <p className="font-semibold text-emerald-300">{activePlayer.rating || activePlayer.starRating || '—'}</p>
+
+                              {/* Player Name and Role centered */}
+                              <div className="text-center mt-2.5 shrink-0 flex-1 flex flex-col justify-center min-h-0">
+                                <p className="w-full truncate text-lg md:text-xl font-extrabold text-white tracking-wide leading-tight">{activePlayer.name}</p>
+                                <p className="text-[10px] md:text-xs uppercase tracking-[0.2em] text-yellow-400 font-bold mt-1">{activePlayer.role || activePlayer.category || 'Retained Player'}</p>
+                              </div>
+
+                              {/* Price and Rating centered at the bottom */}
+                              <div className="grid w-full grid-cols-2 gap-3.5 text-[11px] mt-2.5 pb-0.5 shrink-0">
+                                <div className="rounded-lg bg-black/40 border border-white/5 px-2.5 py-1.5 flex flex-col items-center justify-center shadow-md">
+                                  <span className="text-[8px] md:text-[9px] text-slate-400 uppercase tracking-widest font-semibold">Price</span>
+                                  <span className="font-extrabold text-yellow-400 text-sm mt-0.5">{formatPrice(retentionPrice)}</span>
+                                </div>
+                                <div className="rounded-lg bg-black/40 border border-white/5 px-2.5 py-1.5 flex flex-col items-center justify-center shadow-md">
+                                  <span className="text-[8px] md:text-[9px] text-slate-400 uppercase tracking-widest font-semibold">Rating</span>
+                                  <span className="font-extrabold text-emerald-400 text-sm mt-0.5">{activePlayer.rating || activePlayer.starRating || '—'}</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                          <button
-                            type="button"
-                            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white transition hover:scale-110 hover:border-yellow-400/60 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:border-white/10 disabled:hover:bg-black/35"
-                            onClick={(event) => { event.stopPropagation(); moveSlide(-1); }}
-                            disabled={!canGoLeft}
-                            aria-label={`Show previous retained ${team.shortName} player`}
-                          >
-                            <ChevronLeft className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white transition hover:scale-110 hover:border-yellow-400/60 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:border-white/10 disabled:hover:bg-black/35"
-                            onClick={(event) => { event.stopPropagation(); moveSlide(1); }}
-                            disabled={!canGoRight}
-                            aria-label={`Show next retained ${team.shortName} player`}
-                          >
-                            <ChevronRight className="h-4 w-4" />
-                          </button>
-                        </div>
-                      );
-                    })()}
+                          );
+                        })()}
+                      </>
+                    )}
                   </div>
-
                 </div>
               </div>
             );

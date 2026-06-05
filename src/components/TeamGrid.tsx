@@ -1,4 +1,5 @@
 import { TeamCard } from './TeamCard';
+import { IPL_TEAMS } from '@/lib/constants';
 
 interface TeamInfo {
   id: string;
@@ -8,6 +9,7 @@ interface TeamInfo {
   purseRemaining: number;
   squadSize: number;
   rtmCards: number;
+  retainedCount?: number;
 }
 
 interface TeamGridProps {
@@ -19,15 +21,22 @@ interface TeamGridProps {
 }
 
 export const TeamGrid = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSelectTeam }: TeamGridProps) => {
-  const myTeam = teams.find((team) => team.id === myTeamId) || null;
-  const gridTeams = (myTeam ? teams.filter((team) => team.id !== myTeam.id) : teams).slice(0, 9);
+  // Sort teams in a stable, consistent order matching the official IPL_TEAMS definition
+  const orderedTeams = [...teams].sort((a, b) => {
+    const idxA = IPL_TEAMS.findIndex((t) => t.id === a.id);
+    const idxB = IPL_TEAMS.findIndex((t) => t.id === b.id);
+    return idxA - idxB;
+  });
 
   return (
-    <div className="rounded-xl border border-yellow-500/40 bg-[#071a3a] p-3">
-      <p className="text-xs uppercase tracking-widest text-yellow-300 mb-2">Teams</p>
+    <div className="rounded-2xl border border-yellow-500/35 bg-[#051126]/95 p-4 shadow-[0_12px_40px_rgba(0,0,0,0.5)] flex flex-col h-full max-h-[calc(100vh-140px)]">
+      <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2.5 shrink-0">
+        <p className="text-xs font-display uppercase tracking-widest text-yellow-400 font-semibold">Team Standings & Stats</p>
+        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold font-mono bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded-full">10 Franchises</span>
+      </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        {gridTeams.map((team) => (
+      <div className="flex-1 overflow-y-auto pr-1.5 grid grid-cols-2 gap-3.5 pb-1">
+        {orderedTeams.map((team) => (
           <TeamCard
             key={team.id}
             id={team.id}
@@ -37,6 +46,7 @@ export const TeamGrid = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSe
             purseRemaining={team.purseRemaining}
             squadSize={team.squadSize}
             rtmCards={team.rtmCards}
+            retainedCount={team.retainedCount}
             isCurrentBidder={team.id === currentBidderId}
             shouldGlow={team.id === glowingTeamId}
             isUserTeam={team.id === myTeamId}
@@ -44,24 +54,6 @@ export const TeamGrid = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSe
           />
         ))}
       </div>
-
-      {myTeam && (
-        <div className="mt-3">
-          <TeamCard
-            id={myTeam.id}
-            shortName={myTeam.shortName}
-            name={myTeam.name}
-            logo={myTeam.logo}
-            purseRemaining={myTeam.purseRemaining}
-            squadSize={myTeam.squadSize}
-            rtmCards={myTeam.rtmCards}
-            isCurrentBidder={myTeam.id === currentBidderId}
-            shouldGlow={myTeam.id === glowingTeamId}
-            isUserTeam
-            onClick={() => onSelectTeam(myTeam.id)}
-          />
-        </div>
-      )}
     </div>
   );
 };
