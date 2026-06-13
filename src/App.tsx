@@ -8,8 +8,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Lobby from "./pages/Lobby";
 import NotFound from "./pages/NotFound";
-import { AdminProvider } from "./contexts/AdminContext";
-import { GameDataProvider } from "./contexts/GameDataContext";
+import { AdminProvider } from "@/contexts/AdminContext";
+import { GameDataProvider } from "@/contexts/GameDataContext";
 import Multiplayer from "./pages/Multiplayer";
 import RetentionReview from "./pages/RetentionReview";
 import AdminPage from "./pages/AdminPage";
@@ -21,6 +21,7 @@ import JoinRoom from "./pages/JoinRoom";
 const Auction = lazy(() => import("./pages/Auction"));
 const Retention = lazy(() => import("./pages/Retention"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
+const Summary = lazy(() => import("./pages/Summary"));
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ const App = () => (
                   <Route path="/retention-review/:gameCode" element={<RetentionReview />} />
                   <Route path="/auction/:gameCode" element={<Auction />} />
                   <Route path="/leaderboard" element={<Leaderboard />} />
+                  <Route path="/summary/:gameCode" element={<Summary />} />
                   <Route path="/feedback" element={<Feedback />} />
                   <Route path="/profile" element={<Profile />} />
                   <Route path="/admin" element={<AdminPage />} />

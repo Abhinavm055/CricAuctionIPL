@@ -10,7 +10,7 @@ import {
   arrayRemove,
   deleteField,
   query,
-  runTransaction,
+  runTransaction as firestoreRunTransaction,
   Timestamp,
   getDocs,
   setDoc,
@@ -32,6 +32,50 @@ import {
 import { RetentionEngine } from "@/engine/retentionEngine";
 import { AuctionEngine } from "@/engine/auctionEngine";
 import { RtmEngine } from "@/engine/rtmEngine";
+
+const runTransaction = async <T>(
+  db: any,
+  updateFunction: (transaction: any) => Promise<T>,
+  options?: { maxAttempts?: number }
+): Promise<T> => {
+  const maxAttempts = options?.maxAttempts || 5;
+  let attempt = 0;
+  let delay = 100;
+
+  while (true) {
+    attempt++;
+    try {
+      return await firestoreRunTransaction(db, updateFunction);
+    } catch (error: any) {
+      const errorCode = error?.code || "";
+      const errorMessage = error?.message || "";
+      console.warn(`[Transaction Attempt ${attempt}/${maxAttempts}] Failed:`, errorCode, errorMessage);
+
+      if (errorCode === "failed-precondition" || errorCode === "aborted") {
+        console.warn(`[Conflict Details] Error Code: ${errorCode}. Message: ${errorMessage}`);
+        if (error.details) {
+          console.warn(`[Conflict Metadata]: ${error.details}`);
+        }
+      }
+
+      const isRetryable =
+        errorCode === "aborted" ||
+        errorCode === "failed-precondition" ||
+        errorCode === "unavailable" ||
+        errorMessage.includes("contention") ||
+        errorMessage.includes("concurrency");
+
+      if (attempt >= maxAttempts || !isRetryable) {
+        console.error(`[Transaction] Max attempts reached or non-retryable error:`, error);
+        throw error;
+      }
+
+      const backoffDelay = delay * Math.pow(1.5, attempt) + Math.random() * 50;
+      console.log(`[Transaction] Retrying in ${backoffDelay.toFixed(0)}ms...`);
+      await new Promise((resolve) => setTimeout(resolve, backoffDelay));
+    }
+  }
+};
 
 const SET_SEQUENCE = [
   "marquee-1",
@@ -111,13 +155,52 @@ const shuffleArray = <T,>(items: T[]) => {
 const buildAuctionSets = (players: Array<Record<string, any>>) => {
   const grouped = SET_SEQUENCE.reduce((acc, key) => ({ ...acc, [key]: [] as Array<Record<string, any>> }), {} as Record<string, Array<Record<string, any>>>);
 
+  // Group players by category
+  const playersByCategory: Record<string, Array<Record<string, any>>> = {};
   players.forEach((player) => {
     const category = normalizeCategory(player);
-    const setNo = resolveSetNumber(player, category);
-    const key = `${category}-${setNo}`;
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(player);
+    if (!playersByCategory[category]) {
+      playersByCategory[category] = [];
+    }
+    playersByCategory[category].push(player);
   });
+
+  // For each category, sort/distribute players who don't have a set assigned
+  Object.entries(playersByCategory).forEach(([category, catPlayers]) => {
+    // Sort players so higher rated/priced players are distributed first
+    const sortedPlayers = [...catPlayers].sort((a, b) => {
+      const rA = Number(a.rating ?? a.starRating ?? 3);
+      const rB = Number(b.rating ?? b.starRating ?? 3);
+      if (rA !== rB) return rB - rA; // Higher rating first
+      const pA = Number(a.basePrice ?? 0);
+      const pB = Number(b.basePrice ?? 0);
+      return pB - pA; // Higher price first
+    });
+
+    const maxSets = category === "marquee" ? 2 : 4;
+    
+    sortedPlayers.forEach((player, index) => {
+      const explicit = Number(player?.setNumber ?? player?.set ?? player?.setNo);
+      const marquee = Number(player?.marqueeSet);
+      let setNo = 0;
+      if (category === "marquee") {
+        setNo = Number.isFinite(marquee) && marquee > 0 ? marquee : (Number.isFinite(explicit) && explicit > 0 ? explicit : 0);
+      } else {
+        setNo = Number.isFinite(explicit) && explicit > 0 ? explicit : 0;
+      }
+
+      // If no set number is explicitly provided, distribute them evenly
+      if (setNo === 0) {
+        setNo = (index % maxSets) + 1;
+      }
+
+      const key = `${category}-${Math.max(1, Math.min(maxSets, Math.floor(setNo)))}`;
+      if (!grouped[key]) grouped[key] = [];
+      grouped[key].push(player);
+    });
+  });
+
+  console.log("[buildAuctionSets] Generated sets:", Object.entries(grouped).map(([k, v]) => `${k}: ${v.length} players`));
 
   return shuffleArray(
     SET_SEQUENCE
@@ -163,8 +246,12 @@ const isAiControlledTeam = (teamId: string, teamData: any, sessionData: any) => 
   return assignedController.startsWith('AI-') || Boolean(teamData?.isAI);
 };
 
-const buildRecentPurchases = (existing: Array<{ playerId: string; price: number; teamId: string }>, purchase: { playerId: string; price: number; teamId: string }) => {
-  return [purchase, ...(existing || [])];
+const buildRecentPurchases = (
+  existing: Array<{ playerId: string; price: number; teamId: string; timestamp?: number }>,
+  purchase: { playerId: string; price: number; teamId: string; timestamp?: number }
+) => {
+  const newPurchase = { ...purchase, timestamp: purchase.timestamp || Date.now() };
+  return [newPurchase, ...(existing || [])];
 };
 
 const normalizeRoleKey = (role: string | undefined) => {
@@ -715,6 +802,21 @@ export const startAuction = async (gameCode: string) => {
   });
 };
 
+const logSetsAndUnsoldCount = (sessionData: any, queueIndex: number) => {
+  const queue = (sessionData.auctionQueue || []) as string[];
+  const auctionSets = (sessionData.auctionSets || []) as Array<{ key: string; label: string; playerIds?: string[] }>;
+  const unsoldPlayers = (sessionData.unsoldPlayers || []) as string[];
+
+  const completedSets = auctionSets.filter(set => {
+    return (set.playerIds || []).every(id => {
+      const idx = queue.indexOf(id);
+      return idx !== -1 && idx < queueIndex;
+    });
+  });
+
+  console.log(`[AUCTION PROGRESS PROGRESS] Sets completed: ${completedSets.length}/${auctionSets.length}. Unsold players count: ${unsoldPlayers.length}.`);
+};
+
 export const loadNextPlayer = async (gameCode: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
   await runTransaction(db, async (tx) => {
@@ -726,25 +828,51 @@ export const loadNextPlayer = async (gameCode: string) => {
     const teamSnaps = await Promise.all(IPL_TEAMS.map((t) => tx.get(doc(db, "sessions", gameCode, "teams", t.id))));
     const teamSquadSizes = teamSnaps.map((snap) => Number(snap.data()?.squadSize || 0));
     const nextIndex = Number(sessionData.queueIndex ?? -1) + 1;
+    logSetsAndUnsoldCount(sessionData, nextIndex);
+    const queueProcessed = nextIndex >= auctionQueue.length;
+    const allTeamsFull = teamSquadSizes.every((size) => size >= SQUAD_CONSTRAINTS.MAX_SQUAD);
 
-    if (auctionEngine.shouldEndAuction({ queueIndex: nextIndex, queueLength: auctionQueue.length, teamSquadSizes })) {
-      tx.update(sessionRef, {
-        phase: "AUCTION_COMPLETE",
-        queueIndex: auctionQueue.length,
-        currentAuction: DEFAULT_AUCTION_STATE,
-      });
+    if (queueProcessed || allTeamsFull) {
+      const hasUnsold = Number((sessionData.unsoldPlayers || []).length) > 0;
+      const isAccelerated = Boolean(sessionData.isAcceleratedRound);
+
+      if (queueProcessed && !allTeamsFull && !isAccelerated && hasUnsold) {
+        console.log(`[ACCELERATED ROUND] Normal sets complete via loadNextPlayer. Unsold players count: ${(sessionData.unsoldPlayers || []).length}. Moving to Accelerated Round selection.`);
+        tx.update(sessionRef, {
+          queueIndex: auctionQueue.length,
+          currentAuction: DEFAULT_AUCTION_STATE,
+        });
+      } else {
+        if (isAccelerated) {
+          console.log(`[ACCELERATED ROUND] Accelerated round complete via loadNextPlayer. Phase transitioning to AUCTION_COMPLETE.`);
+        }
+        tx.update(sessionRef, {
+          phase: "AUCTION_COMPLETE",
+          queueIndex: auctionQueue.length,
+          currentAuction: DEFAULT_AUCTION_STATE,
+        });
+      }
       return;
     }
 
-    const playerSnap = await tx.get(doc(db, "players", auctionQueue[nextIndex]));
+    const activePlayerId = auctionQueue[nextIndex];
+    const playerSnap = await tx.get(doc(db, "players", activePlayerId));
+
+    const auctionSets = (sessionData.auctionSets || []) as Array<{ key: string; playerIds?: string[] }>;
+    const activeSet = auctionSets.find((set) => (set.playerIds || []).includes(activePlayerId));
+    const isFirstInSet = activeSet && activeSet.playerIds?.[0] === activePlayerId;
+
+    const transitionDelay = (isFirstInSet && !sessionData.isAcceleratedRound) ? 8 : 0;
+    const timerDuration = (sessionData.isAcceleratedRound ? BID_RESET_TIMER : AUCTION_TIMER) + transitionDelay;
+
     tx.update(sessionRef, {
       queueIndex: nextIndex,
       pendingRtm: null,
       currentAuction: {
-        activePlayerId: auctionQueue[nextIndex],
+        activePlayerId: activePlayerId,
         currentBid: Number(playerSnap.data()?.basePrice || 0),
         currentBidderId: null,
-        timerEndsAt: Timestamp.fromMillis(Date.now() + (sessionData.isAcceleratedRound ? BID_RESET_TIMER : AUCTION_TIMER) * 1000),
+        timerEndsAt: Timestamp.fromMillis(Date.now() + timerDuration * 1000),
         status: "RUNNING",
         auctionState: "BIDDING",
         isAuctionLocked: false,
@@ -763,7 +891,7 @@ export const loadNextPlayer = async (gameCode: string) => {
         rtmResultMessage: null,
         lastEvent: {
           type: "next-player",
-          playerId: auctionQueue[nextIndex],
+          playerId: activePlayerId,
           createdAt: Timestamp.fromMillis(Date.now()),
         },
       },
@@ -792,8 +920,16 @@ export const placeBid = async (gameCode: string, teamId: string, amount: number)
 
     const team = teamSnap.data();
     const squadSize = Number(team.squadSize ?? ((team.players || []).length + (team.retainedPlayers || []).length));
+    if (squadSize >= SQUAD_CONSTRAINTS.MAX_SQUAD) {
+      console.log(`[TEAM LOCK] Bidding rejected: Team ${teamId} has reached max squad size (${SQUAD_CONSTRAINTS.MAX_SQUAD}) and is LOCKED.`);
+      throw new Error("Squad full");
+    }
     const overseasCount = Number(team.overseasCount || 0);
     const isOverseas = getPlayerOverseasFlag(playerSnap.data());
+
+    const bidBefore = Number(currentAuction.currentBid || 0);
+    const bidderBefore = currentAuction.currentBidderId || "None";
+    console.log(`[BID INCREMENT LOG] Before bid update on player ${currentAuction.activePlayerId}: Bid = ${bidBefore} (held by ${bidderBefore}), new proposed Bid = ${amount} (requested by team ${teamId})`);
 
     auctionEngine.validateBid({
       amount,
@@ -812,6 +948,8 @@ export const placeBid = async (gameCode: string, teamId: string, amount: number)
       "currentAuction.timerEndsAt": Timestamp.fromMillis(Date.now() + BID_RESET_TIMER * 1000),
       "currentAuction.timerMode": "AUCTION",
     });
+
+    console.log(`[BID INCREMENT LOG] After bid update on player ${currentAuction.activePlayerId}: Bid = ${amount} (held by team ${teamId})`);
   });
 };
 
@@ -1164,12 +1302,13 @@ export const skipCurrentPlayer = async (gameCode: string, options: { aiResolve?:
     const queue = (sessionData.auctionQueue || []) as string[];
     const queueIndex = Number(sessionData.queueIndex ?? -1);
     const nextIndex = queueIndex + 1;
+    logSetsAndUnsoldCount(sessionData, nextIndex);
     const playerRef = doc(db, "players", auction.activePlayerId);
     const playerSnap = await tx.get(playerRef);
     const nextPlayerRef = nextIndex < queue.length ? doc(db, "players", queue[nextIndex]) : null;
     const nextPlayerSnap = nextPlayerRef ? await tx.get(nextPlayerRef) : null;
     const teamRefs = IPL_TEAMS.map((t) => doc(db, "sessions", gameCode, "teams", t.id));
-    const teamSnaps = options.aiResolve ? await Promise.all(teamRefs.map((ref) => tx.get(ref))) : [];
+    const teamSnaps = await Promise.all(teamRefs.map((ref) => tx.get(ref)));
 
     if (!options.aiResolve) {
       const basePrice = Number(playerSnap.data()?.basePrice || 0);
@@ -1240,14 +1379,32 @@ export const skipCurrentPlayer = async (gameCode: string, options: { aiResolve?:
     }
 
     if (nextIndex >= queue.length) {
-      tx.update(sessionRef, {
-        phase: "AUCTION_COMPLETE",
-        queueIndex: queue.length,
-        unsoldPlayers,
-        recentPurchases,
-        auctionHistory: arrayUnion(historyRecord),
-        currentAuction: DEFAULT_AUCTION_STATE,
-      });
+      const allTeamsFull = allTeamState.every((team) => Number(team.data.squadSize || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD);
+      const hasUnsold = unsoldPlayers.length > 0;
+      const isAccelerated = Boolean(sessionData.isAcceleratedRound);
+
+      if (!allTeamsFull && !isAccelerated && hasUnsold) {
+        console.log(`[ACCELERATED ROUND] Normal sets complete via skipCurrentPlayer. Unsold players count: ${unsoldPlayers.length}. Moving to Accelerated Round selection.`);
+        tx.update(sessionRef, {
+          queueIndex: queue.length,
+          unsoldPlayers,
+          recentPurchases,
+          auctionHistory: arrayUnion(historyRecord),
+          currentAuction: DEFAULT_AUCTION_STATE,
+        });
+      } else {
+        if (isAccelerated) {
+          console.log(`[ACCELERATED ROUND] Accelerated round complete via skipCurrentPlayer. Phase transitioning to AUCTION_COMPLETE.`);
+        }
+        tx.update(sessionRef, {
+          phase: "AUCTION_COMPLETE",
+          queueIndex: queue.length,
+          unsoldPlayers,
+          recentPurchases,
+          auctionHistory: arrayUnion(historyRecord),
+          currentAuction: DEFAULT_AUCTION_STATE,
+        });
+      }
       return;
     }
 
@@ -1309,6 +1466,7 @@ export const skipRemainingSet = async (gameCode: string, options: { aiResolve?: 
     while (endIndex + 1 < queue.length && activeSetIds.has(queue[endIndex + 1])) endIndex += 1;
     const idsToProcess = queue.slice(startIndex, endIndex + 1);
     const nextIndex = endIndex + 1;
+    logSetsAndUnsoldCount(sessionData, nextIndex);
 
     const playerSnaps = await Promise.all(idsToProcess.map((id) => tx.get(doc(db, "players", id))));
     const nextPlayerSnap = nextIndex < queue.length ? await tx.get(doc(db, "players", queue[nextIndex])) : null;
@@ -1353,14 +1511,32 @@ export const skipRemainingSet = async (gameCode: string, options: { aiResolve?: 
     });
 
     if (nextIndex >= queue.length) {
-      tx.update(sessionRef, {
-        phase: "AUCTION_COMPLETE",
-        queueIndex: queue.length,
-        unsoldPlayers,
-        recentPurchases,
-        auctionHistory: arrayUnion(...historyRecords),
-        currentAuction: DEFAULT_AUCTION_STATE,
-      });
+      const allTeamsFull = teamState.every((team) => Number(team.data.squadSize || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD);
+      const hasUnsold = unsoldPlayers.length > 0;
+      const isAccelerated = Boolean(sessionData.isAcceleratedRound);
+
+      if (!allTeamsFull && !isAccelerated && hasUnsold) {
+        console.log(`[ACCELERATED ROUND] Normal sets complete via skipRemainingSet. Unsold players count: ${unsoldPlayers.length}. Moving to Accelerated Round selection.`);
+        tx.update(sessionRef, {
+          queueIndex: queue.length,
+          unsoldPlayers,
+          recentPurchases,
+          auctionHistory: arrayUnion(...historyRecords),
+          currentAuction: DEFAULT_AUCTION_STATE,
+        });
+      } else {
+        if (isAccelerated) {
+          console.log(`[ACCELERATED ROUND] Accelerated round complete via skipRemainingSet. Phase transitioning to AUCTION_COMPLETE.`);
+        }
+        tx.update(sessionRef, {
+          phase: "AUCTION_COMPLETE",
+          queueIndex: queue.length,
+          unsoldPlayers,
+          recentPurchases,
+          auctionHistory: arrayUnion(...historyRecords),
+          currentAuction: DEFAULT_AUCTION_STATE,
+        });
+      }
       return;
     }
 
@@ -1462,6 +1638,7 @@ export const startAcceleratedRound = async (gameCode: string) => {
     if (!hasFinishedNormalQueue) throw new Error("Accelerated round can start only after normal queue ends");
 
     const unsold = shuffleArray((sessionData.unsoldPlayers || []) as string[]);
+    console.log(`[ACCELERATED ROUND] Starting Accelerated Round. Unsold players count: ${unsold.length}`);
     tx.update(sessionRef, {
       phase: "AUCTION",
       auctionQueue: unsold,
@@ -1496,6 +1673,8 @@ export const endGameByHost = async (gameCode: string, userId: string) => {
       phase: "AUCTION_COMPLETE",
       currentAuction: DEFAULT_AUCTION_STATE,
       hostReconnect: deleteField(),
+      queueIndex: (session.auctionQueue || []).length,
+      acceleratedRoundSkipped: true,
     });
   });
 };
@@ -1557,3 +1736,46 @@ export const updateAuctionStats = async (
 export const getPlayerMetaForAI = {
   getPlayerRating,
 };
+
+export const restartAuction = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  const sessionSnap = await getDoc(sessionRef);
+  if (!sessionSnap.exists()) throw new Error("Session not found");
+  
+  const batch = writeBatch(db);
+
+  batch.update(sessionRef, {
+    phase: "LOBBY",
+    retentions: {},
+    auctionQueue: [],
+    queueIndex: -1,
+    unsoldPlayers: [],
+    recentPurchases: [],
+    isAcceleratedRound: false,
+    acceleratedRoundSkipped: false,
+    pendingRtm: null,
+    auctionShuffleLocked: deleteField(),
+    auctionStartedAt: deleteField(),
+    retentionStartedAt: deleteField(),
+    currentAuction: DEFAULT_AUCTION_STATE,
+    updatedAt: serverTimestamp(),
+  });
+
+  for (const team of IPL_TEAMS) {
+    const teamRef = doc(db, "sessions", gameCode, "teams", team.id);
+    batch.update(teamRef, {
+      purseRemaining: team.purse,
+      players: [],
+      retainedPlayers: [],
+      playerPurchasePrices: {},
+      squadSize: 0,
+      overseasCount: 0,
+      rtmCards: 0,
+      teamNeeds: { ...TEAM_NEEDS_TEMPLATE },
+      updatedAt: serverTimestamp(),
+    });
+  }
+
+  await batch.commit();
+};
+

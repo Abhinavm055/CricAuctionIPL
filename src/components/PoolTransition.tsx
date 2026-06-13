@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cn } from '@/lib/utils';
 
 interface PoolTransitionProps {
@@ -10,6 +10,11 @@ interface PoolTransitionProps {
 
 export const PoolTransition = ({ poolName, playersInPool, onComplete, setNumber }: PoolTransitionProps) => {
   const [phase, setPhase] = useState<'enter' | 'display' | 'exit'>('enter');
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   useEffect(() => {
     // Enter phase
@@ -17,14 +22,14 @@ export const PoolTransition = ({ poolName, playersInPool, onComplete, setNumber 
     // Display phase
     const displayTimer = setTimeout(() => setPhase('exit'), 2500);
     // Exit and complete
-    const exitTimer = setTimeout(onComplete, 3000);
+    const exitTimer = setTimeout(() => onCompleteRef.current(), 3000);
 
     return () => {
       clearTimeout(enterTimer);
       clearTimeout(displayTimer);
       clearTimeout(exitTimer);
     };
-  }, [onComplete]);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[#020617]/96 backdrop-blur-md">

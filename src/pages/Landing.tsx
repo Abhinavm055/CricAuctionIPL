@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { generateGameCode } from '@/lib/constants';
 import { Bot, Users, Volume2, VolumeX, Menu, Trophy, PlayCircle, Swords, ListChecks, Gavel } from 'lucide-react';
@@ -225,11 +226,17 @@ const Landing = () => {
   ];
 
   return (
-    <div className="landing-page min-h-screen relative flex flex-col overflow-hidden">
-      <div className="absolute inset-0 bg-[#020617]/60 backdrop-blur-[1.2px]" />
+    <div className="landing-page min-h-screen relative flex flex-col overflow-hidden bg-slate-950">
+      <div className="absolute inset-0 bg-[#020617]/65 backdrop-blur-[1.5px] z-0" />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+        <div className="stadium-ambient stadium-ambient-cyan -top-40 -left-40 w-[600px] h-[600px]" />
+        <div className="stadium-ambient stadium-ambient-gold -bottom-40 -right-40 w-[700px] h-[700px]" />
+      </div>
 
-      <header className="relative z-20 flex justify-between items-center px-8 py-4 bg-[#020617]/85 border-b border-gray-800">
-        <h1 className="text-yellow-400 text-xl font-bold tracking-wide">CRICAUCTIONIPL</h1>
+      <header className="relative z-20 flex justify-between items-center px-8 py-4 bg-[#020617]/40 backdrop-blur-md border-b border-white/5 shadow-lg">
+        <h1 className="text-yellow-400 text-xl font-display font-black tracking-widest uppercase">
+          CRIC<span className="text-[#00CFFF]">AUCTION</span>IPL
+        </h1>
 
         <div className="md:hidden flex items-center">
           <Sheet>
@@ -238,7 +245,7 @@ const Landing = () => {
                 <Menu className="w-6 h-6" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="bg-[#020617] border-white/10 p-6 flex flex-col gap-6 pt-12">
+            <SheetContent side="right" className="bg-[#020617]/95 border-white/10 p-6 flex flex-col gap-6 pt-12 backdrop-blur-xl">
               <SheetHeader className="hidden">
                 <SheetTitle className="text-yellow-400">Menu</SheetTitle>
               </SheetHeader>
@@ -260,29 +267,29 @@ const Landing = () => {
         </div>
 
         <nav className="hidden md:flex gap-6 text-gray-300 items-center text-sm md:text-base">
-          <Link to="/leaderboard" className="hover:text-yellow-400 transition-colors">Leaderboard</Link>
-          <Link to="/feedback" className="hover:text-yellow-400 transition-colors">Feedback</Link>
+          <Link to="/leaderboard" className="hover:text-yellow-400 transition-colors font-semibold">Leaderboard</Link>
+          <Link to="/feedback" className="hover:text-yellow-400 transition-colors font-semibold">Feedback</Link>
 
           {user ? (
             <div className="relative">
               <button
                 onClick={() => setShowProfileMenu((prev) => !prev)}
-                className="flex items-center gap-2 hover:text-yellow-400 transition-colors"
+                className="flex items-center gap-2 hover:text-yellow-400 transition-colors font-semibold"
               >
                 👤 {user.displayName || user.email?.split('@')[0] || 'Profile'}
               </button>
 
               {showProfileMenu && (
-                <div className="absolute right-0 mt-2 w-44 bg-[#0f172a] rounded-lg shadow-lg border border-white/10 overflow-hidden">
-                  <button onClick={() => navigate('/profile')} className="block w-full text-left px-4 py-2 hover:bg-gray-700/60">Profile</button>
-                  <button onClick={() => navigate('/profile')} className="block w-full text-left px-4 py-2 hover:bg-gray-700/60">Statistics</button>
+                <div className="absolute right-0 mt-2 w-44 bg-[#0f172ad0] backdrop-blur-md rounded-lg shadow-lg border border-white/10 overflow-hidden">
+                  <button onClick={() => navigate('/profile')} className="block w-full text-left px-4 py-2 hover:bg-white/5">Profile</button>
+                  <button onClick={() => navigate('/profile')} className="block w-full text-left px-4 py-2 hover:bg-white/5">Statistics</button>
                   <button
                     onClick={async () => {
                       await signOut(auth);
                       localStorage.removeItem('managerName');
                       setShowProfileMenu(false);
                     }}
-                    className="block w-full text-left px-4 py-2 hover:bg-gray-700/60 text-red-300"
+                    className="block w-full text-left px-4 py-2 hover:bg-white/5 text-red-300"
                   >
                     Logout
                   </button>
@@ -290,82 +297,112 @@ const Landing = () => {
               )}
             </div>
           ) : (
-            <button onClick={() => setShowAuthModal(true)} className="hover:text-yellow-400 transition-colors">Login</button>
+            <button onClick={() => setShowAuthModal(true)} className="hover:text-yellow-400 transition-colors font-semibold">Login</button>
           )}
         </nav>
       </header>
 
       <main className="relative z-10 flex-1 flex flex-col items-center justify-center px-6 py-10 w-full max-w-6xl mx-auto">
         {invalidRoomCode && (
-          <div className="mb-4 text-red-400 font-semibold">Invalid Room Code</div>
+          <div className="mb-4 text-red-400 font-semibold bg-red-950/40 border border-red-500/30 px-4 py-2 rounded-xl backdrop-blur-md">Invalid Room Code</div>
         )}
         {resumeSession && (
-          <div className="mb-5 rounded-lg border border-yellow-400/40 bg-[#0f172a]/90 px-4 py-3 text-sm">
-            Resume Auction?
+          <div className="mb-5 rounded-xl border border-yellow-500/30 bg-[#0f172a]/80 backdrop-blur-md px-4 py-3 text-sm flex items-center shadow-lg">
+            <span className="text-slate-300">Resume Active Auction?</span>
             <button
               onClick={() => navigate(`/lobby/${resumeSession.gameCode}`)}
-              className="ml-3 text-yellow-400 hover:text-yellow-300"
+              className="ml-3 text-yellow-400 hover:text-yellow-300 font-bold underline decoration-yellow-400/30 hover:decoration-yellow-300 underline-offset-4"
             >
               Continue {resumeSession.gameCode}
             </button>
           </div>
         )}
 
-        <section className="text-center mb-12 slide-up">
-          <h2 className="font-display text-6xl md:text-8xl text-[#FFD700] mb-4 tracking-wide">
-            IPL AUCTION
-            <span className="block text-[#FFD700] text-shadow-glow glow-title">SIMULATOR</span>
+        <motion.section 
+          initial={{ opacity: 0, y: -30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+          className="text-center mb-12"
+        >
+          <h2 className="font-display text-6xl md:text-8xl text-white mb-2 tracking-wide font-extrabold">
+            IPL <span className="text-yellow-400 text-shadow-glow glow-title">AUCTION</span>
+            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 via-amber-200 to-[#00CFFF] text-5xl md:text-7xl font-black mt-1 uppercase tracking-widest">SIMULATOR</span>
           </h2>
-        </section>
+          <div className="f1-accent-line w-48 mx-auto mt-4 rounded-full" />
+        </motion.section>
 
-        <section className="grid md:grid-cols-2 gap-6 w-full max-w-5xl slide-up" style={{ animationDelay: '0.15s' }}>
-          <article className="group p-6 rounded-2xl border border-primary/25 bg-[#0f172a]/90 transition-all duration-300 hover:-translate-y-2 hover:scale-105 hover:border-primary/80 hover:shadow-[0_0_30px_rgba(251,191,36,0.6)]">
-            <Users className="w-10 h-10 text-primary mb-3 transition-transform duration-300 group-hover:scale-110" />
-            <h3 className="font-display text-2xl mb-2 text-[#FFD700]">VS Multiplayer Auction</h3>
-            <p className="text-sm text-muted-foreground mb-4">Host or join a live IPL auction with friends.</p>
+        <motion.section 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.7, delay: 0.15, ease: "easeOut" }}
+          className="grid md:grid-cols-2 gap-6 w-full max-w-5xl"
+        >
+          <article className="group p-8 rounded-3xl border border-white/10 bg-[#0f182c]/40 backdrop-blur-lg hover:border-yellow-500/40 hover:shadow-[0_12px_40px_rgba(251,191,36,0.15)] transition-all duration-300 flex flex-col justify-between">
+            <div>
+              <div className="w-14 h-14 rounded-2xl bg-yellow-400/10 border border-yellow-400/25 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform duration-300">
+                <Users className="w-7 h-7 text-yellow-400" />
+              </div>
+              <h3 className="font-display text-3xl mb-3 text-white uppercase tracking-wide">Multiplayer Room</h3>
+              <p className="text-sm text-slate-400 mb-6 leading-relaxed">Host or join a live session and bid against friends in real-time.</p>
+            </div>
             <Button
               variant="gold"
               size="lg"
               onClick={handlePlayMultiplayer}
-              className="w-full button-attention bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-semibold hover:scale-105 hover:shadow-[0_0_20px_rgba(251,191,36,0.9)] transition-all duration-300"
+              className="w-full text-slate-950 font-bold hover:shadow-[0_0_20px_rgba(251,191,36,0.4)] transition-all duration-300"
             >
               Play Multiplayer
             </Button>
           </article>
 
-          <article className="group p-6 rounded-2xl border border-primary/25 bg-[#0f172a]/90 transition-all duration-300 hover:-translate-y-2 hover:scale-105 hover:border-primary/80 hover:shadow-[0_0_30px_rgba(251,191,36,0.6)]">
-            <Bot className="w-10 h-10 text-primary mb-3 transition-transform duration-300 group-hover:scale-110" />
-            <h3 className="font-display text-2xl mb-2 text-[#FFD700]">VS AI Auction</h3>
-            <p className="text-sm text-muted-foreground mb-4">1 human team vs 9 AI teams with personality-driven bidding.</p>
+          <article className="group p-8 rounded-3xl border border-white/10 bg-[#0f182c]/40 backdrop-blur-lg hover:border-[#00CFFF]/45 hover:shadow-[0_12px_40px_rgba(0,207,255,0.15)] transition-all duration-300 flex flex-col justify-between">
+            <div>
+              <div className="w-14 h-14 rounded-2xl bg-cyan-400/10 border border-cyan-400/25 flex items-center justify-center mb-6 group-hover:scale-105 transition-transform duration-300">
+                <Bot className="w-7 h-7 text-[#00CFFF]" />
+              </div>
+              <h3 className="font-display text-3xl mb-3 text-white uppercase tracking-wide">VS Computer AI</h3>
+              <p className="text-sm text-slate-400 mb-6 leading-relaxed">1 human team vs 9 AI teams with personality-driven bidding profiles.</p>
+            </div>
             <Button
-              variant="broadcast"
+              variant="default"
               size="lg"
               onClick={handlePlayWithAI}
-              className="w-full button-attention bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-semibold hover:scale-105 hover:shadow-[0_0_20px_rgba(251,191,36,0.9)] transition-all duration-300"
+              className="w-full text-slate-950 font-bold hover:shadow-[0_0_20px_rgba(0,207,255,0.4)] transition-all duration-300"
             >
               Play VS AI
             </Button>
           </article>
-        </section>
+        </motion.section>
 
-        <section className="flex justify-center gap-6 md:gap-10 mt-12 text-[#FFD700] text-base md:text-lg fade-in" style={{ animationDelay: '0.35s' }}>
-          <div className="flex items-center gap-2">🔥 <span>Live Auctions: {counts.liveAuctions}</span></div>
-          <div className="flex items-center gap-2">👥 <span>Players Online: {counts.playersOnline}</span></div>
-        </section>
+        <motion.section 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.35 }}
+          className="flex justify-center gap-8 md:gap-12 mt-12 text-[#FFD700] text-sm md:text-base font-semibold"
+        >
+          <div className="flex items-center gap-2 bg-[#020714]/65 border border-white/5 px-4 py-2 rounded-full backdrop-blur-sm">🔥 <span>Live Auctions: {counts.liveAuctions}</span></div>
+          <div className="flex items-center gap-2 bg-[#020714]/65 border border-white/5 px-4 py-2 rounded-full backdrop-blur-sm">👥 <span>Players Online: {counts.playersOnline}</span></div>
+        </motion.section>
 
-        <section ref={howItWorksRef} className={`grid md:grid-cols-5 gap-4 md:gap-5 mt-16 text-center w-full max-w-6xl ${showHowItWorks ? 'fade-in' : 'opacity-0'}`}>
+        <motion.section 
+          ref={howItWorksRef}
+          initial={{ opacity: 0, y: 20 }}
+          animate={showHowItWorks ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6, delay: 0.4 }}
+          className="grid grid-cols-2 md:grid-cols-5 gap-4 md:gap-5 mt-16 text-center w-full max-w-6xl relative z-10"
+        >
           {actionButtons.map(({ key, label, icon: Icon, onClick }) => (
             <Button
               key={key}
               variant="broadcast"
               onClick={onClick}
-              className="h-auto min-h-24 w-full flex-col gap-2 rounded-xl border border-[#FFD70044] bg-[#0f172acc] text-[#FFD700] hover:border-[#FFD700aa] hover:bg-[#182848] transition-all duration-300 hover:scale-105"
+              className="h-auto min-h-24 w-full flex-col gap-2 rounded-2xl border border-white/5 bg-[#0f182c]/40 backdrop-blur-md text-[#FFD700] hover:border-yellow-400/40 hover:bg-white/5 transition-all duration-300 hover:scale-105 py-4"
             >
-              <Icon className="h-5 w-5" />
-              <span className="text-sm font-semibold">{label}</span>
+              <Icon className="h-5 w-5 text-yellow-400" />
+              <span className="text-xs font-bold uppercase tracking-wider text-slate-300">{label}</span>
             </Button>
           ))}
-        </section>
+        </motion.section>
       </main>
 
       <Dialog open={rulesModalOpen} onOpenChange={setRulesModalOpen}>

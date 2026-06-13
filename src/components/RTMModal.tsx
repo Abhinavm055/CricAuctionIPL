@@ -42,7 +42,7 @@ export const RTMModal = ({
             <img
               src={player?.image || "https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=256"}
               alt={player?.name || "Player"}
-              className="h-16 w-16 rounded-xl object-cover ring-1 ring-white/10"
+              className="h-16 w-16 rounded-xl object-contain object-center ring-1 ring-white/10"
             />
             <div className="min-w-0 flex-1">
               <p className="truncate text-lg font-semibold text-white">{player?.name || "Player"}</p>

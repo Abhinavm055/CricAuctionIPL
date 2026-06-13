@@ -425,6 +425,8 @@ html {
 }
 
 .retained-player-list {
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
   scrollbar-width: thin;
   scrollbar-color: rgba(250, 204, 21, 0.65) rgba(15, 23, 42, 0.35);
 }
@@ -446,4 +448,96 @@ html {
 
 .retained-player-list::-webkit-scrollbar-thumb:hover {
   box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+}
+
+@keyframes timerUrgent {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.45));
+  }
+  100% {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 35px rgba(239, 68, 68, 0.9));
+  }
+}
+
+/* Premium Broadcast Design System Additions */
+@layer components {
+  .glass-panel {
+    background: rgba(8, 20, 42, 0.5);
+    backdrop-filter: blur(14px) saturate(160%);
+    -webkit-backdrop-filter: blur(14px) saturate(160%);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 12px 32px 0 rgba(0, 0, 0, 0.4);
+  }
+
+  .glass-panel-premium {
+    background: linear-gradient(135deg, rgba(15, 30, 60, 0.55) 0%, rgba(6, 14, 32, 0.45) 100%);
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 
+      0 20px 50px rgba(0, 0, 0, 0.55),
+      inset 0 1px 2px rgba(255, 255, 255, 0.18),
+      0 0 30px rgba(0, 207, 255, 0.05);
+  }
+
+  .stadium-ambient {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(100px);
+    pointer-events: none;
+    z-index: 0;
+    mix-blend-mode: screen;
+    opacity: 0.7;
+    transition: all 0.8s ease-in-out;
+  }
+
+  .stadium-ambient-cyan {
+    background: radial-gradient(circle, rgba(0, 207, 255, 0.18) 0%, rgba(0, 0, 0, 0) 70%);
+  }
+
+  .stadium-ambient-gold {
+    background: radial-gradient(circle, rgba(250, 204, 21, 0.12) 0%, rgba(0, 0, 0, 0) 70%);
+  }
+
+  .spotlight-hover {
+    position: relative;
+  }
+
+  .spotlight-hover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: radial-gradient(
+      400px circle at var(--x, 0px) var(--y, 0px),
+      rgba(255, 255, 255, 0.05),
+      transparent 80%
+    );
+    z-index: 10;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+  }
+
+  .spotlight-hover:hover::before {
+    opacity: 1;
+  }
+
+  .f1-accent-line {
+    height: 3px;
+    background: linear-gradient(90deg, #FFD700 0%, #00CFFF 60%, transparent 100%);
+    box-shadow: 0 0 10px rgba(0, 207, 255, 0.3);
+  }
+
+  .podium-winner-glow {
+    box-shadow: 0 0 40px rgba(250, 204, 21, 0.18), inset 0 1px 2px rgba(255, 255, 255, 0.25);
+    border-color: rgba(250, 204, 21, 0.6);
+  }
+
+  .podium-runner-glow {
+    box-shadow: 0 0 30px rgba(148, 163, 184, 0.12), inset 0 1px 2px rgba(255, 255, 255, 0.15);
+    border-color: rgba(148, 163, 184, 0.4);
+  }
 }
