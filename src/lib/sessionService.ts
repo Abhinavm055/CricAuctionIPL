@@ -27,6 +27,7 @@ import {
   SQUAD_CONSTRAINTS,
   AI_STRATEGIES,
   TEAM_NEEDS_TEMPLATE,
+  MIN_PLAYER_BASE_PRICE,
 } from "@/lib/constants";
 import { RetentionEngine } from "@/engine/retentionEngine";
 import { AuctionEngine } from "@/engine/auctionEngine";
@@ -141,6 +142,27 @@ const getPlayerOverseasFlag = (playerData: any) => Boolean(playerData?.overseas 
 const getPlayerPreviousTeamId = (playerData: any) => String(playerData?.previousTeamId ?? playerData?.previousTeam ?? "").toLowerCase();
 const getPlayerRating = (playerData: any) => Number(playerData?.rating ?? playerData?.starRating ?? 0);
 
+const getSquadSize = (teamData: any) => Number(teamData?.squadSize ?? ((teamData?.players || []).length + (teamData?.retainedPlayers || []).length));
+
+const getProtectedAuctionBudget = (teamData: any) => {
+  const squadSize = getSquadSize(teamData);
+  const remainingSlots = Math.max(0, SQUAD_CONSTRAINTS.MAX_SQUAD - squadSize);
+  const reserveNeeded = remainingSlots * MIN_PLAYER_BASE_PRICE;
+  return Math.max(0, Number(teamData?.purseRemaining || 0) - reserveNeeded);
+};
+
+const canProtectPurseAfterBid = (teamData: any, bidAmount: number) => {
+  const squadSize = getSquadSize(teamData);
+  const remainingSlots = Math.max(0, SQUAD_CONSTRAINTS.MAX_SQUAD - squadSize);
+  const reserveNeeded = remainingSlots * MIN_PLAYER_BASE_PRICE;
+  return Number(teamData?.purseRemaining || 0) - bidAmount >= reserveNeeded;
+};
+
+const isAiControlledTeam = (teamId: string, teamData: any, sessionData: any) => {
+  const assignedController = String(sessionData?.selectedTeams?.[teamId] || '');
+  return assignedController.startsWith('AI-') || Boolean(teamData?.isAI);
+};
+
 const buildRecentPurchases = (existing: Array<{ playerId: string; price: number; teamId: string }>, purchase: { playerId: string; price: number; teamId: string }) => {
   return [purchase, ...(existing || [])];
 };
@@ -159,6 +181,102 @@ const deriveTeamNeeds = (currentNeeds: Record<string, number> | undefined, playe
   nextNeeds[roleKey] = Math.max(0, Number(nextNeeds[roleKey] || 0) - 1);
   return nextNeeds;
 };
+
+
+const roundToBidIncrement = (amount: number) => {
+  const increment = amount >= 50000000 ? 2500000 : amount >= 20000000 ? 2000000 : amount >= 10000000 ? 1000000 : 500000;
+  return Math.max(increment, Math.round(amount / increment) * increment);
+};
+
+const getRoleNeedScore = (teamData: any, playerRole: string | undefined) => {
+  const roleKey = normalizeRoleKey(playerRole);
+  const needs = { ...TEAM_NEEDS_TEMPLATE, ...(teamData?.teamNeeds || {}) } as Record<string, number>;
+  return Number(needs[roleKey] || 0);
+};
+
+const pickRealisticSkipOutcome = (
+  playerData: any,
+  teams: Array<{ id: string; data: any }>,
+) => {
+  const playerId = String(playerData?.id || '');
+  const basePrice = Number(playerData?.basePrice || 0);
+  const rating = Math.max(0, Math.min(5, getPlayerRating(playerData)));
+  const isOverseas = getPlayerOverseasFlag(playerData);
+  const role = String(playerData?.role || '');
+  const previousTeamId = getPlayerPreviousTeamId(playerData);
+
+  const eligibleTeams = teams
+    .filter(({ data }) => Number(data?.purseRemaining || 0) >= basePrice)
+    .filter(({ data }) => canProtectPurseAfterBid(data, basePrice))
+    .filter(({ data }) => getSquadSize(data) < SQUAD_CONSTRAINTS.MAX_SQUAD)
+    .filter(({ data }) => !isOverseas || Number(data?.overseasCount || 0) < SQUAD_CONSTRAINTS.MAX_OVERSEAS)
+    .map((team) => {
+      const needScore = getRoleNeedScore(team.data, role);
+      const squadSize = getSquadSize(team.data);
+      const purseCr = getProtectedAuctionBudget(team.data) / 10000000;
+      const formerTeamBoost = previousTeamId && team.id === previousTeamId ? 1.2 : 0;
+      const randomDemand = Math.random() * 1.8;
+      return {
+        ...team,
+        demandScore: rating * 1.7 + needScore * 1.15 + Math.min(4, purseCr / 12) + Math.max(0, 22 - squadSize) * 0.18 + formerTeamBoost + randomDemand,
+      };
+    })
+    .sort((a, b) => b.demandScore - a.demandScore);
+
+  if (!eligibleTeams.length || basePrice <= 0) return { sold: false as const, playerId };
+
+  const scarcityBoost = eligibleTeams[0]?.demandScore || 0;
+  const completionNeedBoost = Math.max(0, 22 - getSquadSize(eligibleTeams[0]?.data)) * 0.025;
+  const sellChance = Math.max(0.18, Math.min(0.96, 0.22 + rating * 0.13 + scarcityBoost * 0.045 + completionNeedBoost));
+  if (Math.random() > sellChance) return { sold: false as const, playerId };
+
+  const topSlice = eligibleTeams.slice(0, Math.min(4, eligibleTeams.length));
+  const winningTeam = topSlice[Math.floor(Math.random() * topSlice.length)];
+  const starMultiplier = rating >= 4.5 ? 4.5 + Math.random() * 5.5 : rating >= 3.5 ? 2.2 + Math.random() * 3.6 : rating >= 2.5 ? 1.2 + Math.random() * 2.2 : 1 + Math.random() * 1.2;
+  const demandMultiplier = 1 + Math.min(1.8, winningTeam.demandScore / 9);
+  const ceiling = getProtectedAuctionBudget(winningTeam.data);
+  const realisticCap = rating >= 4.5 ? 240000000 : rating >= 4 ? 160000000 : rating >= 3 ? 90000000 : 45000000;
+  const price = Math.min(ceiling, realisticCap, roundToBidIncrement(basePrice * starMultiplier * demandMultiplier));
+
+  if (price < basePrice || !canProtectPurseAfterBid(winningTeam.data, price)) return { sold: false as const, playerId };
+
+  return {
+    sold: true as const,
+    playerId,
+    teamId: winningTeam.id,
+    price: Math.max(basePrice, price),
+    isOverseas,
+    role,
+  };
+};
+
+const applySilentSkipSaleToLocalTeam = (
+  teamData: any,
+  playerId: string,
+  price: number,
+  isOverseas: boolean,
+  role: string,
+) => {
+  const players = (teamData.players || []) as string[];
+  return {
+    ...teamData,
+    players: [...players, playerId],
+    purseRemaining: Math.max(0, Number(teamData.purseRemaining || 0) - price),
+    squadSize: Number(teamData.squadSize ?? ((teamData.retainedPlayers || []).length + players.length)) + 1,
+    overseasCount: Number(teamData.overseasCount || 0) + (isOverseas ? 1 : 0),
+    teamNeeds: deriveTeamNeeds(teamData.teamNeeds, role),
+    playerPurchasePrices: { ...(teamData.playerPurchasePrices || {}), [playerId]: price },
+  };
+};
+
+const buildSilentSkipHistoryRecord = (outcome: any, source = 'AI_SKIP') => ({
+  playerId: outcome.playerId,
+  teamId: outcome.sold ? outcome.teamId : null,
+  price: outcome.sold ? outcome.price : 0,
+  status: outcome.sold ? 'SOLD' : 'UNSOLD',
+  source,
+  createdAt: Timestamp.fromMillis(Date.now()),
+});
 
 const DEFAULT_AUCTION_STATE = {
   activePlayerId: null,
@@ -183,6 +301,8 @@ const DEFAULT_AUCTION_STATE = {
   rtmResultMessage: null,
   lastEvent: null,
 };
+
+const HOST_RECONNECT_GRACE_MS = 30_000;
 
 const retentionEngine = new RetentionEngine();
 const auctionEngine = new AuctionEngine();
@@ -291,11 +411,16 @@ export const leaveGame = async (gameCode: string, userId: string) => {
     const teamId = Object.entries(selectedTeams).find(([_, uid]) => uid === userId)?.[0] || null;
 
     if (session.hostId === userId) {
+      const reconnectDeadline = Timestamp.fromMillis(Date.now() + HOST_RECONNECT_GRACE_MS);
       tx.update(sessionRef, {
-        phase: "ENDED",
+        hostReconnect: {
+          hostId: userId,
+          startedAt: Timestamp.fromMillis(Date.now()),
+          deadlineAt: reconnectDeadline,
+          status: "PENDING",
+        },
         [`disconnectedPlayers.${userId}`]: true,
         playersJoined: arrayRemove(userId),
-        currentAuction: DEFAULT_AUCTION_STATE,
       });
       return;
     }
@@ -325,6 +450,55 @@ export const leaveGame = async (gameCode: string, userId: string) => {
   });
 };
 
+export const resolveHostReconnectTimeout = async (gameCode: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) return;
+
+    const session = sessionSnap.data() as any;
+    const hostReconnect = session?.hostReconnect as any;
+    if (!hostReconnect || hostReconnect.status !== "PENDING") return;
+
+    const deadlineMs = typeof hostReconnect?.deadlineAt?.toMillis === "function" ? hostReconnect.deadlineAt.toMillis() : 0;
+    if (!deadlineMs || Date.now() < deadlineMs) return;
+
+    const disconnectedPlayers = (session?.disconnectedPlayers || {}) as Record<string, boolean>;
+    const previousHostId = String(session?.hostId || "");
+    const stillDisconnected = Boolean(disconnectedPlayers?.[previousHostId]);
+    if (!stillDisconnected) {
+      tx.update(sessionRef, { hostReconnect: deleteField() });
+      return;
+    }
+
+    const joinedPlayers = (session?.playersJoined || []) as string[];
+    const nextHostId = joinedPlayers.find((id) => id && id !== previousHostId && !disconnectedPlayers[id]) || null;
+
+    if (nextHostId) {
+      tx.update(sessionRef, {
+        hostId: nextHostId,
+        hostReconnect: {
+          ...hostReconnect,
+          status: "TRANSFERRED",
+          resolvedAt: Timestamp.fromMillis(Date.now()),
+          newHostId: nextHostId,
+        },
+      });
+      return;
+    }
+
+    tx.update(sessionRef, {
+      phase: "AUCTION_COMPLETE",
+      currentAuction: DEFAULT_AUCTION_STATE,
+      hostReconnect: {
+        ...hostReconnect,
+        status: "NO_HOST_AVAILABLE",
+        resolvedAt: Timestamp.fromMillis(Date.now()),
+      },
+    });
+  });
+};
+
 export const rejoinGame = async (gameCode: string, userId: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
   await runTransaction(db, async (tx) => {
@@ -341,6 +515,7 @@ export const rejoinGame = async (gameCode: string, userId: string) => {
     tx.update(sessionRef, {
       [`disconnectedPlayers.${userId}`]: deleteField(),
       playersJoined: arrayUnion(userId),
+      ...(session.hostId === userId ? { hostReconnect: deleteField() } : {}),
     });
 
     tx.update(doc(db, "sessions", gameCode, "teams", teamId), {
@@ -977,32 +1152,120 @@ export const resolveRtmTimeout = async (gameCode: string) => {
 
 
 
-export const skipCurrentPlayer = async (gameCode: string) => {
+export const skipCurrentPlayer = async (gameCode: string, options: { aiResolve?: boolean; restrictedTeamIds?: string[] } = {}) => {
   const sessionRef = doc(db, "sessions", gameCode);
   await runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef);
     if (!sessionSnap.exists()) throw new Error("Session not found");
-    const auction = sessionSnap.data().currentAuction;
+    const sessionData = sessionSnap.data();
+    const auction = sessionData.currentAuction;
     if (!auction?.activePlayerId) throw new Error("No active player");
 
-    const playerSnap = await tx.get(doc(db, "players", auction.activePlayerId));
-    const basePrice = Number(playerSnap.data()?.basePrice || 0);
-    if (auction.currentBidderId || Number(auction.currentBid || 0) > basePrice) {
-      throw new Error("Cannot skip after bidding starts");
+    const queue = (sessionData.auctionQueue || []) as string[];
+    const queueIndex = Number(sessionData.queueIndex ?? -1);
+    const nextIndex = queueIndex + 1;
+    const playerRef = doc(db, "players", auction.activePlayerId);
+    const playerSnap = await tx.get(playerRef);
+    const nextPlayerRef = nextIndex < queue.length ? doc(db, "players", queue[nextIndex]) : null;
+    const nextPlayerSnap = nextPlayerRef ? await tx.get(nextPlayerRef) : null;
+    const teamRefs = IPL_TEAMS.map((t) => doc(db, "sessions", gameCode, "teams", t.id));
+    const teamSnaps = options.aiResolve ? await Promise.all(teamRefs.map((ref) => tx.get(ref))) : [];
+
+    if (!options.aiResolve) {
+      const basePrice = Number(playerSnap.data()?.basePrice || 0);
+      if (auction.currentBidderId || Number(auction.currentBid || 0) > basePrice) {
+        throw new Error("Cannot skip after bidding starts");
+      }
+
+      const unsold = [...((sessionData.unsoldPlayers || []) as string[]), auction.activePlayerId];
+      tx.update(sessionRef, {
+        unsoldPlayers: unsold,
+        currentAuction: {
+          activePlayerId: auction.activePlayerId,
+          currentBid: Number(auction.currentBid || 0),
+          currentBidderId: null,
+          timerEndsAt: null,
+          status: "UNSOLD",
+          auctionState: "NEXT_READY",
+          isAuctionLocked: false,
+          timerMode: "NONE",
+          rtmStage: "NONE",
+          rtmTeamId: null,
+          rtmWinningTeamId: null,
+          rtmPlayerId: null,
+          rtmFinalBid: 0,
+          rtmCounterBid: 0,
+          rtmExpiresAt: null,
+          soldToTeamId: null,
+          soldPrice: 0,
+          soldAt: null,
+          soldPlayerId: null,
+          rtmResultMessage: null,
+          lastEvent: {
+            type: "player-unsold",
+            playerId: auction.activePlayerId,
+            createdAt: Timestamp.fromMillis(Date.now()),
+          },
+        },
+      });
+      return;
     }
 
-    const unsold = [...((sessionSnap.data().unsoldPlayers || []) as string[]), auction.activePlayerId];
+    const allTeamState = teamSnaps.map((snap, index) => ({ id: IPL_TEAMS[index].id, ref: teamRefs[index], data: snap.data() || {} }));
+    const restrictedIds = new Set((options.restrictedTeamIds || []).map((id) => String(id)));
+    const eligibleTeamState = restrictedIds.size
+      ? allTeamState.filter((team) => restrictedIds.has(team.id))
+      : allTeamState;
+    const outcome = pickRealisticSkipOutcome({ id: auction.activePlayerId, ...(playerSnap.data() || {}) }, eligibleTeamState);
+    const historyRecord = buildSilentSkipHistoryRecord(outcome);
+    const unsoldPlayers = [...((sessionData.unsoldPlayers || []) as string[])];
+    let recentPurchases = [...((sessionData.recentPurchases || []) as any[])];
+
+    if (outcome.sold) {
+      const target = allTeamState.find((team) => team.id === outcome.teamId);
+      if (target) {
+        target.data = applySilentSkipSaleToLocalTeam(target.data, outcome.playerId, outcome.price, outcome.isOverseas, outcome.role);
+        tx.update(target.ref, {
+          players: target.data.players,
+          purseRemaining: target.data.purseRemaining,
+          squadSize: target.data.squadSize,
+          overseasCount: target.data.overseasCount,
+          teamNeeds: target.data.teamNeeds,
+          [`playerPurchasePrices.${outcome.playerId}`]: outcome.price,
+        });
+        recentPurchases = buildRecentPurchases(recentPurchases, { playerId: outcome.playerId, price: outcome.price, teamId: outcome.teamId });
+      }
+    } else {
+      unsoldPlayers.push(outcome.playerId);
+    }
+
+    if (nextIndex >= queue.length) {
+      tx.update(sessionRef, {
+        phase: "AUCTION_COMPLETE",
+        queueIndex: queue.length,
+        unsoldPlayers,
+        recentPurchases,
+        auctionHistory: arrayUnion(historyRecord),
+        currentAuction: DEFAULT_AUCTION_STATE,
+      });
+      return;
+    }
+
     tx.update(sessionRef, {
-      unsoldPlayers: unsold,
+      queueIndex: nextIndex,
+      unsoldPlayers,
+      recentPurchases,
+      auctionHistory: arrayUnion(historyRecord),
+      pendingRtm: null,
       currentAuction: {
-        activePlayerId: auction.activePlayerId,
-        currentBid: Number(auction.currentBid || 0),
+        activePlayerId: queue[nextIndex],
+        currentBid: Number(nextPlayerSnap?.data()?.basePrice || 0),
         currentBidderId: null,
-        timerEndsAt: null,
-        status: "UNSOLD",
-        auctionState: "NEXT_READY",
+        timerEndsAt: Timestamp.fromMillis(Date.now() + (sessionData.isAcceleratedRound ? BID_RESET_TIMER : AUCTION_TIMER) * 1000),
+        status: "RUNNING",
+        auctionState: "BIDDING",
         isAuctionLocked: false,
-        timerMode: "NONE",
+        timerMode: "AUCTION",
         rtmStage: "NONE",
         rtmTeamId: null,
         rtmWinningTeamId: null,
@@ -1016,8 +1279,123 @@ export const skipCurrentPlayer = async (gameCode: string) => {
         soldPlayerId: null,
         rtmResultMessage: null,
         lastEvent: {
-          type: "player-unsold",
-          playerId: auction.activePlayerId,
+          type: "ai-skip-next-player",
+          skippedPlayerId: auction.activePlayerId,
+          playerId: queue[nextIndex],
+          createdAt: Timestamp.fromMillis(Date.now()),
+        },
+      },
+    });
+  });
+};
+
+export const skipRemainingSet = async (gameCode: string, options: { aiResolve?: boolean; restrictedTeamIds?: string[] } = { aiResolve: true }) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) throw new Error("Session not found");
+    const sessionData = sessionSnap.data();
+    const auction = sessionData.currentAuction;
+    const queue = (sessionData.auctionQueue || []) as string[];
+    const queueIndex = Number(sessionData.queueIndex ?? -1);
+    if (!auction?.activePlayerId || queueIndex < 0) throw new Error("No active set");
+
+    const auctionSets = (sessionData.auctionSets || []) as Array<{ key: string; playerIds?: string[] }>;
+    const activeSet = auctionSets.find((set) => (set.playerIds || []).includes(auction.activePlayerId));
+    const activeSetIds = new Set(activeSet?.playerIds || [auction.activePlayerId]);
+    const shouldAiResolve = options.aiResolve !== false && String(sessionData.mode || '').toUpperCase() === 'VS_AI';
+    const startIndex = !shouldAiResolve && ['SOLD', 'UNSOLD'].includes(String(auction.status || '')) ? queueIndex + 1 : queueIndex;
+    let endIndex = queueIndex;
+    while (endIndex + 1 < queue.length && activeSetIds.has(queue[endIndex + 1])) endIndex += 1;
+    const idsToProcess = queue.slice(startIndex, endIndex + 1);
+    const nextIndex = endIndex + 1;
+
+    const playerSnaps = await Promise.all(idsToProcess.map((id) => tx.get(doc(db, "players", id))));
+    const nextPlayerSnap = nextIndex < queue.length ? await tx.get(doc(db, "players", queue[nextIndex])) : null;
+    const teamRefs = IPL_TEAMS.map((t) => doc(db, "sessions", gameCode, "teams", t.id));
+    const teamSnaps = await Promise.all(teamRefs.map((ref) => tx.get(ref)));
+    const teamState = teamSnaps.map((snap, index) => ({ id: IPL_TEAMS[index].id, ref: teamRefs[index], data: snap.data() || {} }));
+    const restrictedIds = new Set((options.restrictedTeamIds || []).map((id) => String(id)));
+    const eligibleTeamState = restrictedIds.size
+      ? teamState.filter((team) => restrictedIds.has(team.id))
+      : teamState;
+
+    let unsoldPlayers = [...((sessionData.unsoldPlayers || []) as string[])];
+    let recentPurchases = [...((sessionData.recentPurchases || []) as any[])];
+    const historyRecords: any[] = [];
+
+    idsToProcess.forEach((playerId, index) => {
+      const outcome = options.aiResolve === false
+        ? { sold: false as const, playerId }
+        : pickRealisticSkipOutcome({ id: playerId, ...(playerSnaps[index].data() || {}) }, eligibleTeamState);
+      historyRecords.push(buildSilentSkipHistoryRecord(outcome));
+
+      if (outcome.sold) {
+        const target = teamState.find((team) => team.id === outcome.teamId);
+        if (target) {
+          target.data = applySilentSkipSaleToLocalTeam(target.data, outcome.playerId, outcome.price, outcome.isOverseas, outcome.role);
+          recentPurchases = buildRecentPurchases(recentPurchases, { playerId: outcome.playerId, price: outcome.price, teamId: outcome.teamId });
+          return;
+        }
+      }
+      unsoldPlayers = [...unsoldPlayers, playerId];
+    });
+
+    teamState.forEach((team) => {
+      tx.update(team.ref, {
+        players: team.data.players || [],
+        purseRemaining: Number(team.data.purseRemaining || 0),
+        squadSize: Number(team.data.squadSize ?? ((team.data.retainedPlayers || []).length + (team.data.players || []).length)),
+        overseasCount: Number(team.data.overseasCount || 0),
+        teamNeeds: team.data.teamNeeds || TEAM_NEEDS_TEMPLATE,
+        playerPurchasePrices: team.data.playerPurchasePrices || {},
+      });
+    });
+
+    if (nextIndex >= queue.length) {
+      tx.update(sessionRef, {
+        phase: "AUCTION_COMPLETE",
+        queueIndex: queue.length,
+        unsoldPlayers,
+        recentPurchases,
+        auctionHistory: arrayUnion(...historyRecords),
+        currentAuction: DEFAULT_AUCTION_STATE,
+      });
+      return;
+    }
+
+    tx.update(sessionRef, {
+      queueIndex: nextIndex,
+      unsoldPlayers,
+      recentPurchases,
+      auctionHistory: arrayUnion(...historyRecords),
+      pendingRtm: null,
+      currentAuction: {
+        activePlayerId: queue[nextIndex],
+        currentBid: Number(nextPlayerSnap?.data()?.basePrice || 0),
+        currentBidderId: null,
+        timerEndsAt: Timestamp.fromMillis(Date.now() + (sessionData.isAcceleratedRound ? BID_RESET_TIMER : AUCTION_TIMER) * 1000),
+        status: "RUNNING",
+        auctionState: "BIDDING",
+        isAuctionLocked: false,
+        timerMode: "AUCTION",
+        rtmStage: "NONE",
+        rtmTeamId: null,
+        rtmWinningTeamId: null,
+        rtmPlayerId: null,
+        rtmFinalBid: 0,
+        rtmCounterBid: 0,
+        rtmExpiresAt: null,
+        soldToTeamId: null,
+        soldPrice: 0,
+        soldAt: null,
+        soldPlayerId: null,
+        rtmResultMessage: null,
+        lastEvent: {
+          type: "ai-skip-set-complete",
+          skippedSetKey: activeSet?.key || null,
+          skippedPlayerIds: idsToProcess,
+          playerId: queue[nextIndex],
           createdAt: Timestamp.fromMillis(Date.now()),
         },
       },
@@ -1103,6 +1481,22 @@ export const skipAcceleratedRound = async (gameCode: string) => {
     phase: "AUCTION_COMPLETE",
     acceleratedRoundSkipped: true,
     currentAuction: DEFAULT_AUCTION_STATE,
+  });
+};
+
+export const endGameByHost = async (gameCode: string, userId: string) => {
+  const sessionRef = doc(db, "sessions", gameCode);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(sessionRef);
+    if (!snap.exists()) throw new Error("Session not found");
+    const session = snap.data() as any;
+    if (session.hostId !== userId) throw new Error("Only host can end game");
+
+    tx.update(sessionRef, {
+      phase: "AUCTION_COMPLETE",
+      currentAuction: DEFAULT_AUCTION_STATE,
+      hostReconnect: deleteField(),
+    });
   });
 };
 

@@ -97,15 +97,16 @@ export const SQUAD_CONSTRAINTS = {
 export const AI_STRATEGIES = ['aggressive', 'balanced', 'budget', 'starHunter', 'roleFocused'] as const;
 
 export const TEAM_NEEDS_TEMPLATE = {
-  batter: 5,
-  bowler: 5,
-  allRounder: 3,
+  batter: 6,
+  bowler: 6,
+  allRounder: 4,
   wicketkeeper: 2,
 } as const;
 
 export const AUCTION_TIMER = 30;
 export const BID_RESET_TIMER = 10;
 export const RTM_TIMER = 30;
+export const MIN_PLAYER_BASE_PRICE = 2000000;
 
 export const formatPrice = (price: number): string => {
   if (price >= 10000000) return `₹${(price / 10000000).toFixed(2)} Cr`;

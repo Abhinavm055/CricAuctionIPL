@@ -5,7 +5,7 @@ import { IPL_TEAMS } from '@/lib/constants';
 import { cn } from '@/lib/utils';
 import { Users, ArrowLeft, Copy, Check, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { selectTeam, listenSession, startRetention } from '@/lib/sessionService';
+import { selectTeam, listenSession, startRetention, resolveHostReconnectTimeout } from '@/lib/sessionService';
 import { TeamLogo } from '@/components/TeamLogo';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
@@ -59,6 +59,7 @@ const Lobby = () => {
 
   const [session, setSession] = useState<any>(null);
   const [copied, setCopied] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const [draftTeam, setDraftTeam] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [managerName, setManagerName] = useState(localStorage.getItem('managerName') || '');
@@ -99,6 +100,15 @@ const Lobby = () => {
   }, [gameCode]);
 
   useEffect(() => {
+    if (!gameCode || session?.hostReconnect?.status !== 'PENDING') return;
+    resolveHostReconnectTimeout(gameCode).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      resolveHostReconnectTimeout(gameCode).catch(() => undefined);
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [gameCode, session?.hostReconnect?.status, session?.hostReconnect?.deadlineAt]);
+
+  useEffect(() => {
     if (session?.phase === 'AUCTION') navigate(`/auction/${gameCode}`);
     if (session?.phase === 'RETENTION') navigate(`/retention/${gameCode}`);
     if (session?.phase === 'ENDED') navigate(`/auction/${gameCode}`);
@@ -119,8 +129,30 @@ const Lobby = () => {
   const persistManagerPreference = async (value: string) => {
     const normalized = value.trim();
     localStorage.setItem('managerName', normalized);
-    if (!authUid || !normalized) return;
-    await setDoc(doc(db, 'users', authUid), { uid: authUid, managerName: normalized }, { merge: true });
+  };
+
+  const upsertLeaderboardPlayerAfterJoin = async (finalManagerName: string) => {
+    if (!authUid) return;
+    const userRef = doc(db, 'users', authUid);
+    const existing = await getDoc(userRef);
+    if (existing.exists()) {
+      await setDoc(userRef, { managerName: finalManagerName }, { merge: true });
+      return;
+    }
+
+    await setDoc(
+      userRef,
+      {
+        uid: authUid,
+        name: finalManagerName,
+        managerName: finalManagerName,
+        email: auth.currentUser?.email || '',
+        auctionsPlayed: 0,
+        auctionsWon: 0,
+        createdAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
   };
 
   const renderTeamCard = (team: (typeof IPL_TEAMS)[number], index: number, showSelectedBadge = true) => {
@@ -181,6 +213,7 @@ const Lobby = () => {
       const finalManagerName = managerName.trim();
       await selectTeam(gameCode, draftTeam, userId, finalManagerName);
       await persistManagerPreference(finalManagerName);
+      await upsertLeaderboardPlayerAfterJoin(finalManagerName);
 
       if (authUid) {
         await addDoc(collection(db, 'sessions'), {
@@ -212,6 +245,14 @@ const Lobby = () => {
     toast({ title: 'Room code copied' });
     setTimeout(() => setCopied(false), 1500);
   };
+  const inviteLink = typeof window !== 'undefined' ? `${window.location.origin}/join/${gameCode || ''}` : '';
+  const copyInviteLink = () => {
+    if (!inviteLink) return;
+    navigator.clipboard.writeText(inviteLink);
+    setInviteCopied(true);
+    toast({ title: 'Invite link copied' });
+    setTimeout(() => setInviteCopied(false), 1500);
+  };
 
   return (
     <div className="min-h-screen p-6 relative overflow-hidden" style={{ background: 'radial-gradient(circle at center, #0b1f4d, #020617)' }}>
@@ -221,10 +262,17 @@ const Lobby = () => {
           <Button variant="ghost" onClick={() => navigate('/')} className="text-muted-foreground"><ArrowLeft className="w-4 h-4 mr-2" /> Back</Button>
           <h1 className="font-display text-3xl tracking-tighter text-primary">{isVsAI ? 'AI AUCTION MODE' : 'MULTIPLAYER AUCTION LOBBY'}</h1>
           {isVsAI ? <div className="w-28" /> : (
-            <div className="flex items-center gap-2 rounded-xl border border-white/15 bg-card/70 px-3 py-2">
-              <span className="text-xs text-muted-foreground">Room Code:</span>
-              <code className="font-mono font-bold text-yellow-400">{gameCode}</code>
-              <button onClick={copyCode} className="ml-1 text-primary hover:text-yellow-300 transition-colors" aria-label="Copy room code">{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</button>
+            <div className="flex flex-col gap-2 rounded-xl border border-white/15 bg-card/70 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Room Code:</span>
+                <code className="font-mono font-bold text-yellow-400">{gameCode}</code>
+                <button onClick={copyCode} className="ml-1 text-primary hover:text-yellow-300 transition-colors" aria-label="Copy room code">{copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</button>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Invite:</span>
+                <code className="font-mono text-xs text-yellow-200">{inviteLink}</code>
+                <button onClick={copyInviteLink} className="ml-1 text-primary hover:text-yellow-300 transition-colors" aria-label="Copy invite link">{inviteCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}</button>
+              </div>
             </div>
           )}
         </header>

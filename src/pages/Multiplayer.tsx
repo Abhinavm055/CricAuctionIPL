@@ -46,7 +46,7 @@ const Multiplayer = () => {
     const formattedCode = joinCode.trim().toUpperCase();
 
     if (formattedCode.length < 5) {
-      setError("Enter a valid game code (e.g., CAIPL1234)");
+      setError("Invalid Room Code");
       return;
     }
 
@@ -58,7 +58,7 @@ const Multiplayer = () => {
       // Navigate to the lobby
       navigate(`/lobby/${formattedCode}`);
     } catch (err: any) {
-      setError(err.message || "Room not found");
+      setError("Invalid Room Code");
     }
   };
 

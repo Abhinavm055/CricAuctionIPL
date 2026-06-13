@@ -1,10 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { listenSession, listenTeams, startAuction } from '@/lib/sessionService';
 import { IPL_TEAMS, formatPrice } from '@/lib/constants';
 import { useGameData } from '@/contexts/GameDataContext';
-import { User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, User } from 'lucide-react';
 import { TeamLogo } from '@/components/TeamLogo';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +28,9 @@ const RetentionReview = () => {
   const [teams, setTeams] = useState<any[]>([]);
   const [starting, setStarting] = useState(false);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  const [retentionSlideIndex, setRetentionSlideIndex] = useState<Record<string, number>>({});
+  const [retentionTransitioning, setRetentionTransitioning] = useState<Record<string, boolean>>({});
+  const retentionTransitionTimersRef = useRef<Record<string, number>>({});
   const { masterPlayerList } = useGameData();
   const userId = localStorage.getItem('uid');
 
@@ -46,6 +49,29 @@ const RetentionReview = () => {
   useEffect(() => {
     if (session?.phase === 'AUCTION') navigate(`/auction/${gameCode}`);
   }, [session?.phase, gameCode, navigate]);
+
+  useEffect(() => () => {
+    Object.values(retentionTransitionTimersRef.current).forEach((timerId) => window.clearTimeout(timerId));
+  }, []);
+
+  const openTeamCard = (teamId: string) => {
+    setExpandedTeamId(teamId);
+  };
+
+  const moveRetainedPlayer = (teamId: string, activeIndex: number, playerCount: number, direction: -1 | 1) => {
+    if (playerCount <= 1 || retentionTransitioning[teamId]) return;
+
+    window.clearTimeout(retentionTransitionTimersRef.current[teamId]);
+    setRetentionTransitioning((prev) => ({ ...prev, [teamId]: true }));
+
+    retentionTransitionTimersRef.current[teamId] = window.setTimeout(() => {
+      setRetentionSlideIndex((prev) => ({
+        ...prev,
+        [teamId]: (activeIndex + direction + playerCount) % playerCount,
+      }));
+      setRetentionTransitioning((prev) => ({ ...prev, [teamId]: false }));
+    }, 520);
+  };
 
   const playerById = useMemo(() => new Map(masterPlayerList.map((p) => [p.id, p])), [masterPlayerList]);
 
@@ -70,7 +96,9 @@ const RetentionReview = () => {
                 key={team.id} 
                 className="group relative h-[320px] rounded-xl cursor-pointer"
                 style={{ perspective: '1000px' }}
-                onClick={() => setExpandedTeamId(expandedTeamId === team.id ? null : team.id)}
+                onClick={() => {
+                  if (expandedTeamId !== team.id) setExpandedTeamId(team.id);
+                }}
               >
                 <div 
                   className={cn(
@@ -110,31 +138,105 @@ const RetentionReview = () => {
                   <div 
                     className="absolute inset-0 border border-yellow-500/50 bg-[#0B1C3D] rounded-xl p-4 overflow-hidden"
                     style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+                    onClick={(event) => event.stopPropagation()}
                   >
-                    <h3 className="text-yellow-400 font-display text-lg mb-3 border-b border-white/10 pb-1 sticky top-0 bg-[#0B1C3D] z-10">
-                      Retained Players
-                    </h3>
-                    <div
-                      className="retained-player-list h-[238px] overflow-y-auto overscroll-contain pr-1 scroll-smooth custom-scrollbar"
-                      onWheel={(event) => event.stopPropagation()}
-                      onTouchMove={(event) => event.stopPropagation()}
-                    >
-                      {retainedPlayers.length === 0 ? (
-                        <p className="text-sm text-muted-foreground mt-4 text-center">No players retained</p>
-                      ) : (
-                        <div className="grid grid-cols-2 gap-2 pb-1">
-                          {retainedPlayers.map((p) => (
-                            <div key={p.id} className="rounded-lg border border-white/10 bg-[#111c34] p-2 flex flex-col items-center text-center transition-all duration-200 hover:-translate-y-0.5 hover:border-yellow-400/40 hover:bg-[#16213c]">
-                              <div className="w-16 h-16 rounded-full bg-[#06122b] flex items-center justify-center overflow-hidden mb-2 border border-white/5">
-                                {(p.image || p.imageUrl) ? <img src={p.image || p.imageUrl} alt={p.name} className="w-full h-full object-cover" /> : <User className="w-6 h-6 text-muted-foreground" />}
-                              </div>
-                              <p className="text-xs font-semibold truncate w-full">{p.name}</p>
-                              <p className="text-[11px] text-yellow-400">{formatPrice(prices[p.id] || 0)}</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                    <div className="mb-3 flex items-center justify-between border-b border-white/10 pb-1">
+                      <h3 className="text-yellow-400 font-display text-lg">Retained Players</h3>
+                      <div className="flex items-center gap-2">
+                        {retainedPlayers.length > 0 && (
+                          <span className="rounded-full border border-yellow-400/30 px-2 py-0.5 text-[11px] text-yellow-200">
+                            {(retentionSlideIndex[team.id] || 0) + 1}/{retainedPlayers.length}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          className="inline-flex h-7 items-center gap-1 rounded-full border border-white/15 bg-black/20 px-2 text-[11px] text-white transition hover:border-yellow-400/60 hover:text-yellow-200"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            setExpandedTeamId(null);
+                          }}
+                          aria-label={`Show ${team.shortName} team details`}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Details
+                        </button>
+                      </div>
                     </div>
+                    {retainedPlayers.length === 0 ? (
+                      <div className="flex h-[238px] items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/10">
+                        <p className="text-sm text-muted-foreground text-center">No players retained</p>
+                      </div>
+                    ) : (() => {
+                      const activeIndex = Math.min(retentionSlideIndex[team.id] || 0, retainedPlayers.length - 1);
+                      const activePlayer = retainedPlayers[activeIndex];
+                      const retentionPrice = prices[activePlayer.id] || 0;
+                      const moveSlide = (direction: -1 | 1) => {
+                        setRetentionSlideIndex((prev) => {
+                          const current = Math.min(prev[team.id] || 0, retainedPlayers.length - 1);
+                          const next = current + direction;
+                          if (next < 0 || next > retainedPlayers.length - 1) return prev;
+                          return { ...prev, [team.id]: next };
+                        });
+                      };
+                      const canGoLeft = activeIndex > 0;
+                      const canGoRight = activeIndex < retainedPlayers.length - 1;
+
+                      return (
+                        <div className="relative h-[238px] overflow-hidden rounded-xl border border-white/10 bg-gradient-to-b from-[#111c34] to-[#071229] p-3">
+                          {isPlayerTransitioning ? (
+                            <div className="flex h-full flex-col items-center justify-center text-center" aria-live="polite" aria-label="Changing retained player">
+                              <div className="relative h-28 w-28 rounded-full border border-yellow-300/30 bg-yellow-400/5 shadow-[0_0_40px_rgba(250,204,21,0.30)] animate-pulse">
+                                <div className="absolute inset-3 rounded-full border border-yellow-300/40 animate-ping" />
+                                <div className="absolute inset-8 rounded-full bg-yellow-300/30 blur-lg" />
+                              </div>
+                              <div className="mt-5 h-1 w-32 overflow-hidden rounded-full bg-white/10">
+                                <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-transparent via-yellow-300 to-transparent animate-[retentionSlideIn_0.52s_ease-out]" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div key={activePlayer.id} className="flex h-full flex-col items-center justify-center text-center animate-[retentionSlideIn_0.35s_ease-out]">
+                              <div className="relative mb-3 h-28 w-28 overflow-hidden rounded-full border-2 border-yellow-400/50 bg-[#06122b] shadow-[0_0_24px_rgba(250,204,21,0.20)]">
+                                {(activePlayer.image || activePlayer.imageUrl) ? (
+                                  <img src={activePlayer.image || activePlayer.imageUrl} alt={activePlayer.name} className="h-full w-full object-cover transition-transform duration-500 hover:scale-110" />
+                                ) : (
+                                  <div className="flex h-full w-full items-center justify-center"><User className="h-10 w-10 text-muted-foreground" /></div>
+                                )}
+                              </div>
+                              <p className="w-full truncate text-base font-bold text-white">{activePlayer.name}</p>
+                              <p className="mt-1 text-xs uppercase tracking-[0.2em] text-muted-foreground">{activePlayer.role || activePlayer.category || 'Retained Player'}</p>
+                              <div className="mt-3 grid w-full grid-cols-2 gap-2 text-xs">
+                                <div className="rounded-lg bg-black/20 px-2 py-1.5">
+                                  <p className="text-muted-foreground">Price</p>
+                                  <p className="font-semibold text-yellow-400">{formatPrice(retentionPrice)}</p>
+                                </div>
+                                <div className="rounded-lg bg-black/20 px-2 py-1.5">
+                                  <p className="text-muted-foreground">Rating</p>
+                                  <p className="font-semibold text-emerald-300">{activePlayer.rating || activePlayer.starRating || '—'}</p>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                          <button
+                            type="button"
+                            className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white transition hover:scale-110 hover:border-yellow-400/60 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:border-white/10 disabled:hover:bg-black/35"
+                            onClick={(event) => { event.stopPropagation(); moveSlide(-1); }}
+                            disabled={!canGoLeft}
+                            aria-label={`Show previous retained ${team.shortName} player`}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-white/10 bg-black/35 text-white transition hover:scale-110 hover:border-yellow-400/60 hover:bg-yellow-400/20 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100 disabled:hover:border-white/10 disabled:hover:bg-black/35"
+                            onClick={(event) => { event.stopPropagation(); moveSlide(1); }}
+                            disabled={!canGoRight}
+                            aria-label={`Show next retained ${team.shortName} player`}
+                          >
+                            <ChevronRight className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
 
                 </div>
