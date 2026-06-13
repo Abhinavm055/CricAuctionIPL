@@ -6,8 +6,9 @@ import { listenSession, lockRetention } from '@/lib/sessionService';
 import type { Player } from '@/lib/samplePlayers';
 import { useGameData } from '@/contexts/GameDataContext';
 import { TeamLogo } from '@/components/TeamLogo';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Shield, Sparkles, User, Coins } from 'lucide-react';
 import { RETENTION_ROLE_ORDER, groupPlayersByRetentionRole } from '@/lib/playerSorting';
+import { motion } from 'framer-motion';
 
 const roleBadge = (role: string) => {
   if (role.toLowerCase().includes('wicket')) return 'WK';
@@ -104,110 +105,166 @@ const Retention = () => {
     setSelected((prev) => [...prev, playerId]);
   };
 
-  if (!session || !myTeam) return <p className="p-6">Loading retention…</p>;
+  if (!session || !myTeam) return (
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#020617] text-white">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-400" />
+      <p className="font-display tracking-widest text-xl text-yellow-400 mt-4 animate-pulse uppercase">LOADING RETENTIONS...</p>
+    </div>
+  );
 
   const team = IPL_TEAMS.find((t) => t.id === myTeam);
 
   return (
-    <div className="min-h-screen p-6 bg-[#020617]">
-      <div className="max-w-[1500px] mx-auto">
-        <section className="text-center mb-8 fade-in">
-          <div className="mx-auto mb-3 w-fit">
+    <div className="min-h-screen p-6 relative overflow-hidden" style={{ background: 'radial-gradient(circle at center, #071739 0%, #020617 100%)' }}>
+      {/* Stadium-inspired atmospheric lighting */}
+      <div className="stadium-ambient stadium-ambient-cyan -top-40 -left-40 w-[600px] h-[600px]" />
+      <div className="stadium-ambient stadium-ambient-gold -bottom-40 -right-40 w-[600px] h-[600px]" />
+
+      <div className="relative z-10 max-w-[1500px] mx-auto space-y-8">
+        <motion.section 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-center"
+        >
+          <div className="mx-auto mb-4 w-fit bg-[#030712]/50 border border-white/10 p-2 rounded-full backdrop-blur-md">
             <TeamLogo teamId={myTeam} logo={(team as any)?.logo} shortName={team?.shortName} size="lg" />
           </div>
-          <h1 className="font-display text-4xl text-primary">{team?.name}</h1>
-          <p className="text-muted-foreground">Manager: <span className="text-yellow-400">{managerName}</span></p>
-        </section>
-
-        <section className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8 slide-up">
-          <div className="rounded-xl border border-yellow-400/50 bg-[#0f172a] p-4 glow-primary">
-            <p className="text-xs text-muted-foreground">Retention</p>
-            <p className="text-2xl font-bold text-yellow-400">{selected.length} / 6</p>
+          <div className="flex items-center gap-1.5 justify-center mb-1">
+            <Sparkles className="h-4 w-4 text-yellow-400 animate-pulse" />
+            <span className="text-[10px] font-black tracking-[0.2em] text-yellow-400 uppercase">RETENTION PORTAL</span>
           </div>
-          <div className="rounded-xl border border-yellow-400/30 bg-[#0f172a] p-4">
-            <p className="text-xs text-muted-foreground">Capped</p>
-            <p className="text-2xl font-bold">{cappedCount} / 5</p>
-          </div>
-          <div className="rounded-xl border border-yellow-400/30 bg-[#0f172a] p-4">
-            <p className="text-xs text-muted-foreground">Uncapped</p>
-            <p className="text-2xl font-bold">{uncappedCount} / 2</p>
-          </div>
-          <div className="rounded-xl border border-yellow-400/30 bg-[#0f172a] p-4">
-            <p className="text-xs text-muted-foreground">RTM Cards</p>
-            <p className="text-2xl font-bold">{rtmCards}</p>
-          </div>
-          <div className="rounded-xl border border-yellow-400/50 bg-[#0f172a] p-4 glow-primary">
-            <p className="text-xs text-muted-foreground">Purse</p>
-            <p className="text-2xl font-bold text-yellow-400">{formatPrice(remainingPurse)}</p>
-          </div>
-        </section>
+          <h1 className="font-display text-4xl md:text-5xl font-black text-white uppercase tracking-wide leading-none">{team?.name}</h1>
+          <p className="text-sm text-slate-400 mt-2">Franchise Manager: <span className="text-yellow-400 font-bold">{managerName}</span></p>
+        </motion.section>
 
-        <section className="slide-up" style={{ animationDelay: '0.2s' }}>
-          <div className="max-h-[74vh] overflow-y-auto pr-2 space-y-8">
-            {RETENTION_ROLE_ORDER.map((roleGroup) => (
-              <div key={roleGroup.key} className="rounded-2xl border border-yellow-400/15 bg-[#07142d]/70 p-4 md:p-5 shadow-[0_0_24px_rgba(15,23,42,0.45)]">
-                <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/10 pb-3">
-                  <h2 className="font-display text-2xl text-yellow-400">{roleGroup.label}</h2>
-                  <span className="rounded-full border border-yellow-400/25 bg-yellow-400/10 px-3 py-1 text-xs font-semibold text-yellow-100">
-                    {(groupedSquad[roleGroup.key] || []).length} Players
-                  </span>
-                </div>
+        {/* Dashboard Statistics Widget Grid */}
+        <motion.section 
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ duration: 0.5, delay: 0.1 }}
+          className="grid grid-cols-2 md:grid-cols-5 gap-4"
+        >
+          <div className="rounded-2xl border border-yellow-400/30 bg-[#0f172a]/20 backdrop-blur-xl p-5 shadow-2xl flex flex-col justify-between">
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Retention Count</p>
+            <p className="text-3xl font-black text-yellow-400 font-mono mt-1">{selected.length} <span className="text-xs text-slate-500 font-normal">/ 6</span></p>
+          </div>
+          <div className="rounded-2xl border border-white/5 bg-[#0f172a]/20 backdrop-blur-xl p-5 shadow-xl flex flex-col justify-between">
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Capped Players</p>
+            <p className="text-3xl font-black text-white font-mono mt-1">{cappedCount} <span className="text-xs text-slate-500 font-normal">/ 5 Slots</span></p>
+          </div>
+          <div className="rounded-2xl border border-white/5 bg-[#0f172a]/20 backdrop-blur-xl p-5 shadow-xl flex flex-col justify-between">
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Uncapped Players</p>
+            <p className="text-3xl font-black text-white font-mono mt-1">{uncappedCount} <span className="text-xs text-slate-500 font-normal">/ 2 Slots</span></p>
+          </div>
+          <div className="rounded-2xl border border-white/5 bg-[#0f172a]/20 backdrop-blur-xl p-5 shadow-xl flex flex-col justify-between">
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-black">RTM Cards Available</p>
+            <p className="text-3xl font-black text-white font-mono mt-1">{rtmCards} <span className="text-xs text-slate-500 font-normal">RTM</span></p>
+          </div>
+          <div className="rounded-2xl border border-yellow-400/30 bg-[#0f172a]/20 backdrop-blur-xl p-5 shadow-2xl flex flex-col justify-between">
+            <p className="text-[10px] uppercase tracking-widest text-slate-400 font-black">Remaining Purse</p>
+            <p className="text-3xl font-black text-yellow-400 font-mono mt-1">{formatPrice(remainingPurse)}</p>
+          </div>
+        </motion.section>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-5">
-                  {(groupedSquad[roleGroup.key] || []).map((player: any) => {
-                    const isSelected = selected.includes(player.id);
-                    const role = roleBadge(player.role || '');
-                    const cost = isSelected ? Number(costById[player.id] || 0) : undefined;
-                    return (
-                      <button
-                        key={player.id}
-                        onClick={() => handleToggle(player.id)}
-                        className={cn(
-                          'relative text-left rounded-xl border p-3 bg-[#0f172a] transition-all duration-300',
-                          'hover:scale-[1.02] hover:shadow-[0_0_18px_rgba(251,191,36,0.45)]',
-                          isSelected ? 'border-yellow-400 shadow-[0_0_22px_rgba(251,191,36,0.6)]' : 'border-white/10',
-                        )}
-                      >
-                        {isSelected && (
-                          <>
-                            <div className="absolute left-2 top-2 text-[11px] text-yellow-400 font-semibold">- {formatPrice(cost || 0)}</div>
-                            <div className="absolute right-2 bottom-2 flex items-center gap-1 text-xs text-yellow-400">
-                              <CheckCircle2 className="w-4 h-4" /> Retained
-                            </div>
-                          </>
-                        )}
+        {/* Squad Selection Section */}
+        <motion.section 
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="space-y-8"
+        >
+          <div className="max-h-[66vh] overflow-y-auto pr-2 space-y-8 scrollbar-thin">
+            {RETENTION_ROLE_ORDER.map((roleGroup) => {
+              const rolePlayers = groupedSquad[roleGroup.key] || [];
+              if (rolePlayers.length === 0) return null;
+              
+              return (
+                <div key={roleGroup.key} className="rounded-3xl border border-white/5 bg-[#07142d]/30 backdrop-blur-md p-6 shadow-2xl">
+                  <div className="mb-6 flex items-center justify-between gap-3 border-b border-white/5 pb-4">
+                    <h2 className="font-display text-2xl font-black text-yellow-400 uppercase tracking-wide">{roleGroup.label}</h2>
+                    <span className="rounded-full border border-yellow-400/25 bg-yellow-400/10 px-3.5 py-1 text-xs font-extrabold text-yellow-300">
+                      {rolePlayers.length} Players Available
+                    </span>
+                  </div>
 
-                        <span className="absolute right-2 top-2 text-[10px] rounded-md border border-yellow-400/50 px-2 py-0.5 text-yellow-400">{role}</span>
-
-                        <div className="w-full aspect-square rounded-md bg-secondary flex items-center justify-center overflow-hidden mb-3 mt-2">
-                          {player.imageUrl || player.image ? (
-                            <img src={player.imageUrl || player.image} alt={player.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <span className="text-muted-foreground text-xs">No image</span>
+                  <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-6">
+                    {rolePlayers.map((player: any) => {
+                      const isSelected = selected.includes(player.id);
+                      const role = roleBadge(player.role || '');
+                      const cost = isSelected ? Number(costById[player.id] || 0) : undefined;
+                      return (
+                        <motion.button
+                          key={player.id}
+                          onClick={() => handleToggle(player.id)}
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.98 }}
+                          className={cn(
+                            'relative text-left rounded-2xl border p-4 bg-[#0f172a]/30 backdrop-blur-md transition-all duration-300 flex flex-col justify-between select-none outline-none h-[230px]',
+                            isSelected 
+                              ? 'border-yellow-400 shadow-[0_0_25px_rgba(250,204,21,0.22)] bg-yellow-500/5' 
+                              : 'border-white/5 hover:border-yellow-400/40 hover:shadow-[0_8px_25px_rgba(250,204,21,0.12)]',
                           )}
-                        </div>
+                        >
+                          <div className="w-full flex items-center justify-between z-10">
+                            {isSelected ? (
+                              <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-1">
+                                - {formatPrice(cost || 0)}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                                {player.isCapped ? 'Capped' : 'Uncapped'}
+                              </span>
+                            )}
+                            <span className="text-[9px] rounded-md border border-cyan-500/30 bg-cyan-500/5 px-2 py-0.5 text-cyan-400 font-bold uppercase tracking-widest">{role}</span>
+                          </div>
 
-                        <p className="font-semibold truncate">{player.name}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{player.isCapped ? 'Capped' : 'Uncapped'}</p>
-                      </button>
-                    );
-                  })}
+                          <div className="w-full h-28 rounded-xl bg-slate-950/45 border border-white/5 flex items-center justify-center overflow-hidden my-3 relative shrink-0">
+                            {player.imageUrl || player.image ? (
+                              <img src={player.imageUrl || player.image} alt={player.name} className="h-full w-full object-contain object-center scale-[1.03] transition-transform duration-500 hover:scale-[1.1]" />
+                            ) : (
+                              <div className="flex flex-col items-center justify-center">
+                                <User className="h-8 w-8 text-slate-600 mb-1" />
+                                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">No Image</span>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="w-full space-y-1 z-10 shrink-0">
+                            <p className="font-extrabold text-white truncate text-sm leading-tight uppercase">{player.name}</p>
+                            {isSelected ? (
+                              <div className="flex items-center gap-1 text-[9px] text-yellow-400 font-bold uppercase tracking-wider mt-0.5">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Retained
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-slate-400 font-medium">{player.isCapped ? 'Capped' : 'Uncapped'}</p>
+                            )}
+                          </div>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </section>
+        </motion.section>
 
-        <section className="mt-8 flex flex-wrap justify-center gap-4">
+        {/* Action Controls Section */}
+        <motion.section 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="flex justify-center border-t border-white/5 pt-6"
+        >
           <Button
             variant="gold"
             size="xl"
             onClick={handleFinalize}
-            className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-semibold hover:scale-105 hover:shadow-[0_0_20px_rgba(251,191,36,0.8)] transition-all"
+            className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-extrabold hover:scale-105 hover:shadow-[0_0_30px_rgba(250,204,21,0.6)] transition-all cursor-pointer px-14 tracking-widest uppercase h-14"
           >
             FINALIZE RETENTIONS
           </Button>
-        </section>
+        </motion.section>
       </div>
     </div>
   );

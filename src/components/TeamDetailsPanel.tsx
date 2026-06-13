@@ -15,7 +15,7 @@ interface TeamDetailsPanelProps {
 const PlayerRow = ({ player, price, type }: { player: Player; price: number; type: "Retained" | "Bought" }) => (
   <div className="flex items-center gap-3 p-2 border rounded-md">
     <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center overflow-hidden">
-      {player.imageUrl ? <img src={player.imageUrl} className="w-full h-full object-cover" /> : <User className="w-5 h-5" />}
+      {player.imageUrl ? <img src={player.imageUrl} className="w-full h-full object-contain object-center" /> : <User className="w-5 h-5" />}
     </div>
     <div className="flex-1">
       <p className="font-medium text-sm">{player.name}</p>

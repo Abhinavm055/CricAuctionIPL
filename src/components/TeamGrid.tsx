@@ -29,7 +29,7 @@ export const TeamGrid = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSe
   });
 
   return (
-    <div className="rounded-2xl border border-yellow-500/35 bg-[#051126]/95 p-4 shadow-[0_12px_40px_rgba(0,0,0,0.5)] flex flex-col h-full max-h-[calc(100vh-140px)]">
+    <div className="rounded-3xl border border-white/5 bg-[#0f172a]/20 backdrop-blur-xl p-4.5 shadow-2xl flex flex-col h-full min-h-0 overflow-hidden">
       <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2.5 shrink-0">
         <p className="text-xs font-display uppercase tracking-widest text-yellow-400 font-semibold">Team Standings & Stats</p>
         <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold font-mono bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded-full">10 Franchises</span>

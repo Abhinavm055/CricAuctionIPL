@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { TeamLogo } from '@/components/TeamLogo';
 import { formatPrice, IPL_TEAM_COLORS } from '@/lib/constants';
 import { Player } from '@/lib/samplePlayers';
+import { cn } from '@/lib/utils';
 
 interface SoldModalProps {
   open: boolean;
@@ -24,6 +25,13 @@ export const SoldModal = ({
   price,
 }: SoldModalProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setImageLoaded(false);
+    }
+  }, [open, player?.id]);
 
   // Set up custom team colors
   const teamColor = teamId ? IPL_TEAM_COLORS[teamId] : null;
@@ -153,8 +161,17 @@ export const SoldModal = ({
               <img
                 src={player?.image || player?.imageUrl || 'https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=256'}
                 alt={player?.name || 'Player'}
-                className="h-full w-full object-cover rounded-xl"
+                className={cn(
+                  "h-full w-full object-contain object-center rounded-xl transition-opacity duration-300",
+                  imageLoaded ? "opacity-100" : "opacity-0"
+                )}
+                onLoad={() => setImageLoaded(true)}
               />
+              {!imageLoaded && (
+                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 rounded-xl">
+                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-400" />
+                </div>
+              )}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/95 to-transparent pt-4 pb-1.5 flex flex-col items-center">
                 <span className="text-[10px] uppercase font-black text-yellow-400 tracking-wider">
                   {player?.role || 'Player'}

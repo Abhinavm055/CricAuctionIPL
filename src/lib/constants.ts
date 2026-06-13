@@ -90,7 +90,7 @@ export const IPL_TEAM_COLORS: Record<string, { primary: string; secondary: strin
 
 export const SQUAD_CONSTRAINTS = {
   MIN_SQUAD: 18,
-  MAX_SQUAD: 25,
+  MAX_SQUAD: 18,
   MAX_OVERSEAS: 8,
 } as const;
 
@@ -124,3 +124,33 @@ export const generateGameCode = (): string => {
   const randomDigits = Array.from({ length: 4 }, () => numbers[Math.floor(Math.random() * numbers.length)]).join('');
   return `CAIPL${randomDigits}`;
 };
+
+// Memory Image Cache and Preloader Engine
+const imageCache = new Map<string, HTMLImageElement>();
+const preloadedUrls = new Set<string>();
+
+export const preloadImage = (url: string): Promise<HTMLImageElement> => {
+  if (!url) return Promise.reject("Empty URL");
+  if (imageCache.has(url)) {
+    return Promise.resolve(imageCache.get(url)!);
+  }
+  
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = url;
+    img.onload = () => {
+      imageCache.set(url, img);
+      preloadedUrls.add(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      // resolve anyway so callers can proceed
+      resolve(img);
+    };
+  });
+};
+
+export const isImagePreloaded = (url: string): boolean => {
+  return preloadedUrls.has(url) || imageCache.has(url);
+};
+
