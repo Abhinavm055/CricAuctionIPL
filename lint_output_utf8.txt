@@ -1,0 +1,268 @@
+﻿
+> vite_react_shadcn_ts@0.0.0 lint
+> eslint .
+
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\BidControls.tsx
+  133:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  134:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  290:48  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  339:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  543:52  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  544:54  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  574:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  575:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\PlayerCard.tsx
+  126:34  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  134:36  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\PlayerEditor.tsx
+  26:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\SessionViewer.tsx
+  4:13  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\TeamDetailsPanel.tsx
+   9:9   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  22:88  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\ui\badge.tsx
+  29:17  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\ui\button.tsx
+  52:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\ui\command.tsx
+  24:11  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\ui\form.tsx
+  129:10  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\ui\navigation-menu.tsx
+  111:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\ui\sidebar.tsx
+  636:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\ui\sonner.tsx
+  27:19  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\ui\textarea.tsx
+  5:18  error  An interface declaring no members is equivalent to its supertype  @typescript-eslint/no-empty-object-type
+
+C:\Users\malay\Projects\CricAuctionIPL\src\components\ui\toggle.tsx
+  37:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\malay\Projects\CricAuctionIPL\src\contexts\AdminContext.tsx
+  39:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\malay\Projects\CricAuctionIPL\src\contexts\GameDataContext.tsx
+  196:14  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+C:\Users\malay\Projects\CricAuctionIPL\src\lib\aiBidEngine.ts
+  68:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\lib\aiEngine.ts
+   14:63  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   14:90  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   15:66  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   15:95  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   34:35  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   35:64  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   94:62  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  149:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\lib\mockFirestore.ts
+   98:33  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   98:39  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  108:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\lib\sessionService.ts
+    36:7    error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+    37:33   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+    48:21   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   121:40   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   145:57   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   146:98   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   146:150  error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   149:64   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   206:58   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   214:44   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   215:46   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   216:38   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   218:33   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   220:46   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   227:44   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   234:55   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   234:73   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   268:37   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   275:15   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   276:36   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   277:16   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   333:13   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   351:48   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   392:51   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   397:65   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   407:38   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   487:43   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   538:43   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   539:53   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   587:43   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   620:38   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   624:76   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   626:132  error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   653:75   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   717:78   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   747:66   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   758:45   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   769:71   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   770:43   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   777:17   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   797:45   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   949:7    error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+   959:42   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  1100:84   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  1171:24   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  1172:36   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  1180:86   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  1214:32   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  1350:71   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  1448:9    error  'unsoldPlayers' is never reassigned. Use 'const' instead  prefer-const
+  1449:71   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  1450:27   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  1451:28   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+  1610:36   error  Unexpected any. Specify a different type                  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\pages\AdminDashboard.tsx
+  571:17  error  Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following line is error-free  @typescript-eslint/ban-ts-comment
+
+C:\Users\malay\Projects\CricAuctionIPL\src\pages\AdminPlayersPage.tsx
+  48:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  49:51  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  50:46  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\pages\Auction.tsx
+    82:35  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   145:32  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   163:38  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   165:79  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   192:42  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   346:37  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   414:91  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   415:68  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   438:43  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   452:42  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   452:74  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   463:45  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   490:6   warning  React Hook useEffect has missing dependencies: 'currentBidderTeam?.id', 'currentBidderTeam?.shortName', 'currentPlayer', 'displayedCurrentBid', and 'displayedPlayer'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+   499:6   warning  React Hook useEffect has missing dependencies: 'currentPlayer' and 'displayedPlayer'. Either include them or remove the dependency array                                                                                   react-hooks/exhaustive-deps
+   514:6   warning  React Hook useEffect has a missing dependency: 'currentAuction'. Either include it or remove the dependency array                                                                                                          react-hooks/exhaustive-deps
+   517:52  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   537:43  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   624:30  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   724:37  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   738:39  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   890:22  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   900:6   warning  React Hook useCallback has missing dependencies: 'canTeamBid' and 'toast'. Either include them or remove the dependency array                                                                                              react-hooks/exhaustive-deps
+   915:26  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   916:59  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   917:34  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   921:31  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   922:33  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   923:33  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   924:42  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   924:75  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   925:46  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   926:45  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   927:45  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   927:80  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   928:40  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   929:44  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   930:48  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+   930:87  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1144:40  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1145:42  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1145:72  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1146:46  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1147:48  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1147:84  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1148:45  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1167:40  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1168:42  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1168:72  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1169:46  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1170:48  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1170:84  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1171:45  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1172:45  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1172:77  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1188:40  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1189:42  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1189:72  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1190:46  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1191:48  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1191:84  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1192:45  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1256:44  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1294:30  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1302:59  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1550:34  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  1969:52  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  2016:58  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  2066:52  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  2107:60  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  2172:32  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  2186:32  error    Unexpected any. Specify a different type                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\pages\Landing.tsx
+   98:49  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  184:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  201:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\pages\Lobby.tsx
+   74:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  209:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  265:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  412:83  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\pages\Profile.tsx
+  10:36   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  56:104  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\pages\Retention.tsx
+   23:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   36:48  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   56:40  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   59:75  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   65:16  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   78:59  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   78:83  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  101:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  130:54  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  191:47  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\pages\RetentionLobby.tsx
+  9:42  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\pages\RetentionReview.tsx
+   54:42   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   55:38   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  113:100  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\src\pages\Summary.tsx
+   41:42   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   51:37   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  199:35   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  621:76   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  623:84   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  666:68   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  668:76   error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  684:189  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\malay\Projects\CricAuctionIPL\tailwind.config.ts
+  113:13  error  A `require()` style import is forbidden  @typescript-eslint/no-require-imports
+
+Γ£û 198 problems (185 errors, 13 warnings)
+  1 error and 0 warnings potentially fixable with the `--fix` option.
+

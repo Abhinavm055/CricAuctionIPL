@@ -1,7 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { doc, onSnapshot, collection } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+
 import { listenSession, listenTeams, restartAuction, updateAuctionStats } from '@/lib/sessionService';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -10,8 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useGameData } from '@/contexts/GameDataContext';
 import { Player } from '@/lib/samplePlayers';
 import { TeamLogo } from '@/components/TeamLogo';
-import { StarRating } from '@/components/StarRating';
-import { Trophy, Award, Coins, Users, Download, RotateCcw, Home, Sparkles, Shield, Compass, TrendingUp, HelpCircle, Info } from 'lucide-react';
+import { Trophy, Coins, Users, Download, RotateCcw, Home, Sparkles, TrendingUp, HelpCircle } from 'lucide-react';
 import { IPL_TEAMS, SQUAD_CONSTRAINTS } from '@/lib/constants';
 import { motion } from 'framer-motion';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, Cell } from 'recharts';

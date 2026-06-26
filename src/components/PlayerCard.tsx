@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, memo } from 'react';
 import { Player } from '@/lib/samplePlayers';
 import { formatPrice, isImagePreloaded } from '@/lib/constants';
 import { TeamLogo } from './TeamLogo';
@@ -122,7 +122,7 @@ const PlayerSilhouette = () => (
   </div>
 );
 
-export const PlayerCard = ({ player, currentBid, currentBidderId, currentBidderName, onImageLoad }: PlayerCardProps) => {
+const PlayerCardComponent = ({ player, currentBid, currentBidderId, currentBidderName, onImageLoad }: PlayerCardProps) => {
   const playerImage = (player as any).image || player.imageUrl;
   const [imageFailed, setImageFailed] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(() => {
@@ -297,18 +297,22 @@ export const PlayerCard = ({ player, currentBid, currentBidderId, currentBidderN
 
             {/* Previous Team Card */}
             <div className="flex items-center gap-2 rounded-xl bg-[#09152b]/40 border border-white/5 px-2.5 py-1 backdrop-blur-md shadow-inner min-w-0">
-              <div className="h-5.5 w-5.5 rounded bg-black/40 border border-white/10 p-0.5 flex items-center justify-center overflow-hidden shrink-0">
-                <TeamLogo 
-                  teamId={prevTeamId} 
-                  shortName={player.previousTeam || 'None'} 
-                  size="sm" 
-                  className="h-full w-full object-contain bg-transparent border-none"
-                />
+              <div className="h-5.5 w-5.5 rounded bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
+                {player.previousTeam && player.previousTeam !== 'None' && player.previousTeam !== 'N/A' ? (
+                  <TeamLogo 
+                    teamId={prevTeamId} 
+                    shortName={player.previousTeam} 
+                    size="sm" 
+                    className="h-full w-full object-contain bg-transparent border-none scale-75"
+                  />
+                ) : (
+                  <Shield className="h-3 w-3 text-slate-500" />
+                )}
               </div>
               <div className="flex flex-col min-w-0 leading-none">
                 <span className="text-[7px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">Prev Team</span>
                 <span className="text-[10px] text-white font-semibold truncate">
-                  {player.previousTeam || 'None'}
+                  {player.previousTeam && player.previousTeam !== 'None' && player.previousTeam !== 'N/A' ? player.previousTeam : 'No Previous IPL Team'}
                 </span>
               </div>
             </div>
@@ -345,3 +349,5 @@ export const PlayerCard = ({ player, currentBid, currentBidderId, currentBidderN
     </Tilt>
   );
 };
+
+export const PlayerCard = memo(PlayerCardComponent);

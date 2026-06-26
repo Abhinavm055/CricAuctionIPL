@@ -2,7 +2,7 @@ const puppeteer = require('puppeteer-core');
 const fs = require('fs');
 const path = require('path');
 
-const ARTIFACT_DIR = 'C:\\Users\\malay\\.gemini\\antigravity\\brain\\2d50e1f8-fadf-44de-b0ac-0f9d720f6ab5';
+const ARTIFACT_DIR = 'C:\\Users\\malay\\.gemini\\antigravity\\brain\\dae50f85-8b57-4eb9-a7ba-8d3cf8a4e207';
 
 (async () => {
   console.log("Starting verification run...");

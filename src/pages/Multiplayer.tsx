@@ -57,7 +57,7 @@ const Multiplayer = () => {
       
       // Navigate to the lobby
       navigate(`/lobby/${formattedCode}`);
-    } catch (err: any) {
+    } catch {
       setError("Invalid Room Code");
     }
   };

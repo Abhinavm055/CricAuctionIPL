@@ -2,15 +2,13 @@ import { memo, useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from './ui/dialog';
-import { Badge } from './ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from './ui/dialog';
 import { formatPrice, getNextBid } from '@/lib/constants';
 
 const formatCrPrice = (amount: number) => `₹${(Number(amount || 0) / 10000000).toFixed(2)} Cr`;
 import { Player } from '@/lib/samplePlayers';
-import { TeamLogo } from './TeamLogo';
 import { StarRating } from './StarRating';
-import { Search, SlidersHorizontal, ArrowUpDown, Award, Flag, Users, CheckCircle, HelpCircle } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowUpDown, Flag, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
 
 interface RecentPurchase {
   playerName: string;
@@ -24,12 +22,10 @@ interface BidControlsProps {
   canBid: boolean;
   onBid: (amount: number) => Promise<void> | void;
   recentPurchases?: RecentPurchase[];
-  upcomingPlayers?: string[]; // Fallback
   remainingPlayers?: Player[];
   unsoldPlayers?: Player[];
   soldPlayers?: (Player & { soldPrice?: number; soldTeamShortName?: string; soldTeamId?: string; isRetained?: boolean })[];
   currentPlayer?: Player | null;
-  currentSetLabel?: string;
   lockedAuctionSets?: Array<{ key: string; label: string; playerIds: string[] }>;
   activeSetKey?: string;
   isSquadComplete?: boolean;
@@ -42,12 +38,10 @@ const BidControlsComponent = ({
   canBid,
   onBid,
   recentPurchases = [],
-  upcomingPlayers = [],
   remainingPlayers = [],
   unsoldPlayers = [],
   soldPlayers = [],
   currentPlayer = null,
-  currentSetLabel,
   lockedAuctionSets = [],
   activeSetKey,
   isSquadComplete = false,
@@ -57,8 +51,8 @@ const BidControlsComponent = ({
   const nextBid = getNextBid(currentBid);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'next' | 'all'>('next');
-  const [subTab, setSubTab] = useState<'remaining' | 'unsold' | 'sold'>('remaining');
+  const [activeTab, setActiveTab] = useState<'sets' | 'sold' | 'unsold'>('sets');
+  const [expandedSetKeys, setExpandedSetKeys] = useState<Record<string, boolean>>({});
   const [showFilters, setShowFilters] = useState(false);
 
   // Search & Filter State
@@ -94,7 +88,7 @@ const BidControlsComponent = ({
     return list
       .filter((p) => {
         if (!p) return false;
-        // Search filter
+        // Search bar
         const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
         
         // Role filter
@@ -145,25 +139,35 @@ const BidControlsComponent = ({
   }, [searchQuery, roleFilter, setFilter, sortBy, sortOrder, lockedAuctionSets, activeSetKey]);
 
   // Processed lists
-  const filteredRemaining = useMemo(() => filterAndSort(remainingPlayers), [remainingPlayers, filterAndSort]);
   const filteredUnsold = useMemo(() => filterAndSort(unsoldPlayers), [unsoldPlayers, filterAndSort]);
-  const filteredSold = useMemo(() => filterAndSort(soldPlayers), [soldPlayers, filterAndSort]);
 
-  const activeList = useMemo(() => {
-    if (activeTab === 'next') {
-      return remainingPlayers.slice(0, 5);
-    }
-    switch (subTab) {
-      case 'remaining':
-        return filteredRemaining;
-      case 'unsold':
-        return filteredUnsold;
-      case 'sold':
-        return filteredSold;
-      default:
-        return [];
-    }
-  }, [activeTab, subTab, remainingPlayers, filteredRemaining, filteredUnsold, filteredSold]);
+  const filteredRecentPurchases = useMemo(() => {
+    return (recentPurchases || []).filter(p => p.playerName.toLowerCase().includes(searchQuery.toLowerCase()));
+  }, [recentPurchases, searchQuery]);
+
+  const soldPlayerMap = useMemo(() => {
+    return new Map((soldPlayers || []).map(p => [p.id, p]));
+  }, [soldPlayers]);
+
+  const unsoldPlayerMap = useMemo(() => {
+    return new Map((unsoldPlayers || []).map(p => [p.id, p]));
+  }, [unsoldPlayers]);
+
+  const allPlayersMap = useMemo(() => {
+    const map = new Map<string, Player>();
+    (remainingPlayers || []).forEach(p => { if (p.id) map.set(p.id, p); });
+    (soldPlayers || []).forEach(p => { if (p.id) map.set(p.id, p); });
+    (unsoldPlayers || []).forEach(p => { if (p.id) map.set(p.id, p); });
+    if (currentPlayer && currentPlayer.id) map.set(currentPlayer.id, currentPlayer);
+    return map;
+  }, [remainingPlayers, soldPlayers, unsoldPlayers, currentPlayer]);
+
+  const toggleSetExpand = useCallback((key: string) => {
+    setExpandedSetKeys(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  }, []);
 
   const normalizeRoleBadge = (role: string) => {
     const norm = String(role || '').toLowerCase();
@@ -208,85 +212,42 @@ const BidControlsComponent = ({
       {/* Upgraded Directory Panel */}
       <div className="flex-1 flex flex-col min-h-0">
         {/* Main Tab Selection */}
-        <div className="grid grid-cols-2 gap-1 bg-[#020d1c]/90 rounded-lg p-1 border border-white/5 shrink-0 mb-2.5 relative">
-          {/* E2E Test Compatibility Proxy Buttons (Visually hidden but interactive) */}
-          <button 
-            onClick={() => { setActiveTab('all'); setSubTab('remaining'); }}
-            style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, overflow: 'hidden' }}
-          >
-            Rem ({remainingPlayers.length})
-          </button>
-          <button 
-            onClick={() => { setActiveTab('all'); setSubTab('unsold'); }}
-            style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, overflow: 'hidden' }}
-          >
-            Unsold ({unsoldPlayers.length})
-          </button>
-          <button 
-            onClick={() => { setActiveTab('all'); setSubTab('sold'); }}
-            style={{ position: 'absolute', width: '1px', height: '1px', opacity: 0, overflow: 'hidden' }}
-          >
-            Sold ({soldPlayers.length})
-          </button>
-
+        <div className="grid grid-cols-3 gap-1 bg-[#020d1c]/90 rounded-lg p-1 border border-white/5 shrink-0 mb-2.5 relative">
           <button
-            onClick={() => setActiveTab('next')}
+            onClick={() => setActiveTab('sets')}
             className={`py-1.5 px-2 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-              activeTab === 'next'
-                ? 'bg-yellow-500 text-slate-950 shadow-md font-extrabold'
-                : 'text-slate-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            ⚡ Up Next
-          </button>
-          <button
-            onClick={() => setActiveTab('all')}
-            className={`py-1.5 px-2 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-              activeTab === 'all'
+              activeTab === 'sets'
                 ? 'bg-[#0066cc] text-white shadow-md font-extrabold'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            All Players ({remainingPlayers.length + unsoldPlayers.length + soldPlayers.length})
+            📋 SETS
+          </button>
+          <button
+            onClick={() => setActiveTab('sold')}
+            className={`py-1.5 px-2 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              activeTab === 'sold'
+                ? 'bg-emerald-500 text-white shadow-md font-extrabold'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            🤝 SOLD
+          </button>
+          <button
+            onClick={() => setActiveTab('unsold')}
+            className={`py-1.5 px-2 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+              activeTab === 'unsold'
+                ? 'bg-rose-500 text-white shadow-md font-extrabold'
+                : 'text-slate-400 hover:text-white hover:bg-white/5'
+            }`}
+          >
+            ❌ UNSOLD
           </button>
         </div>
 
         {/* Directory Controls and Collapsible Filters */}
-        {activeTab === 'all' && (
+        {activeTab !== 'sets' && (
           <div className="shrink-0 space-y-2 mb-2">
-            <div className="flex items-center justify-between gap-1 bg-[#020d1c]/90 rounded-lg p-1 border border-white/5">
-              <button
-                onClick={() => setSubTab('remaining')}
-                className={`flex-1 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  subTab === 'remaining'
-                    ? 'bg-[#0066cc] text-white font-extrabold shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Rem ({remainingPlayers.length})
-              </button>
-              <button
-                onClick={() => setSubTab('unsold')}
-                className={`flex-1 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  subTab === 'unsold'
-                    ? 'bg-rose-500 text-white font-extrabold shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Unsold ({unsoldPlayers.length})
-              </button>
-              <button
-                onClick={() => setSubTab('sold')}
-                className={`flex-1 py-1 rounded text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
-                  subTab === 'sold'
-                    ? 'bg-emerald-500 text-white font-extrabold shadow-sm'
-                    : 'text-slate-400 hover:text-white hover:bg-white/5'
-                }`}
-              >
-                Sold ({soldPlayers.length})
-              </button>
-            </div>
-
             <div className="flex justify-between items-center bg-black/10 p-1.5 rounded-lg border border-white/5 animate-[fadeIn_0.2s_ease]">
               <span className="text-[9px] font-bold text-slate-400 uppercase">Directory Controls</span>
               <Button
@@ -317,191 +278,259 @@ const BidControlsComponent = ({
                   </div>
                 </div>
 
-                {/* Filter options */}
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Filter role */}
-                  <div className="space-y-1">
-                    <span className="text-[9px] uppercase font-bold text-slate-400 flex items-center gap-1 leading-none">Role</span>
-                    <Select
-                      value={roleFilter}
-                      onValueChange={(val: any) => setRoleFilter(val)}
-                    >
-                      <SelectTrigger className="h-7 text-[10px] bg-[#020b17] border-slate-700/60 rounded-md text-white">
-                        <SelectValue placeholder="All Roles" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#051126] border-slate-700 text-white text-[10px]">
-                        <SelectItem value="ALL">All Roles</SelectItem>
-                        <SelectItem value="Batsman">Batsmen</SelectItem>
-                        <SelectItem value="Bowler">Bowlers</SelectItem>
-                        <SelectItem value="All-Rounder">All-Rounders</SelectItem>
-                        <SelectItem value="Wicket-Keeper">Wicket Keepers</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                {activeTab === 'unsold' && (
+                  <>
+                    {/* Filter options */}
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* Filter role */}
+                      <div className="space-y-1">
+                        <span className="text-[9px] uppercase font-bold text-slate-400 flex items-center gap-1 leading-none">Role</span>
+                        <Select
+                          value={roleFilter}
+                          onValueChange={(val: any) => setRoleFilter(val)}
+                        >
+                          <SelectTrigger className="h-7 text-[10px] bg-[#020b17] border-slate-700/60 rounded-md text-white">
+                            <SelectValue placeholder="All Roles" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#051126] border-slate-700 text-white text-[10px]">
+                            <SelectItem value="ALL">All Roles</SelectItem>
+                            <SelectItem value="Batsman">Batsmen</SelectItem>
+                            <SelectItem value="Bowler">Bowlers</SelectItem>
+                            <SelectItem value="All-Rounder">All-Rounders</SelectItem>
+                            <SelectItem value="Wicket-Keeper">Wicket Keepers</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  {/* Filter set */}
-                  <div className="space-y-1">
-                    <span className="text-[9px] uppercase font-bold text-slate-400 flex items-center gap-1 leading-none">Set</span>
-                    <Select
-                      value={setFilter}
-                      onValueChange={(val: string) => setSetFilter(val)}
-                    >
-                      <SelectTrigger className="h-7 text-[10px] bg-[#020b17] border-slate-700/60 rounded-md text-white">
-                        <SelectValue placeholder="All Sets" />
-                      </SelectTrigger>
-                      <SelectContent className="bg-[#051126] border-slate-700 text-white text-[10px] max-h-40 overflow-y-auto">
-                        <SelectItem value="ALL">All Sets</SelectItem>
-                        <SelectItem value="ACTIVE">Current Set Only</SelectItem>
-                        {lockedAuctionSets.map((set) => (
-                          <SelectItem key={set.key} value={set.key}>{set.label}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
+                      {/* Filter set */}
+                      <div className="space-y-1">
+                        <span className="text-[9px] uppercase font-bold text-slate-400 flex items-center gap-1 leading-none">Set</span>
+                        <Select
+                          value={setFilter}
+                          onValueChange={(val: string) => setSetFilter(val)}
+                        >
+                          <SelectTrigger className="h-7 text-[10px] bg-[#020b17] border-slate-700/60 rounded-md text-white">
+                            <SelectValue placeholder="All Sets" />
+                          </SelectTrigger>
+                          <SelectContent className="bg-[#051126] border-slate-700 text-white text-[10px] max-h-40 overflow-y-auto">
+                            <SelectItem value="ALL">All Sets</SelectItem>
+                            <SelectItem value="ACTIVE">Current Set Only</SelectItem>
+                            {lockedAuctionSets.map((set) => (
+                              <SelectItem key={set.key} value={set.key}>{set.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
 
-                {/* Sort options row */}
-                <div className="space-y-1">
-                  <span
-                    onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
-                    className="text-[9px] uppercase font-bold text-slate-400 flex items-center justify-between hover:text-white cursor-pointer select-none"
-                  >
-                    <span className="flex items-center gap-1">
-                      <ArrowUpDown className="h-2.5 w-2.5 text-yellow-400" /> Sort Order
-                    </span>
-                    <span className="text-[8px] font-mono text-yellow-400">({sortOrder.toUpperCase()})</span>
-                  </span>
-                  <Select
-                    value={sortBy}
-                    onValueChange={(val: any) => setSortBy(val)}
-                  >
-                    <SelectTrigger className="h-7 text-[10px] bg-[#020b17] border-slate-700/60 rounded-md text-white">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#051126] border-slate-700 text-white text-[10px]">
-                      <SelectItem value="basePrice">Base Price</SelectItem>
-                      <SelectItem value="name">Name</SelectItem>
-                      <SelectItem value="rating">Rating</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
+                    {/* Sort options row */}
+                    <div className="space-y-1">
+                      <span
+                        onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+                        className="text-[9px] uppercase font-bold text-slate-400 flex items-center justify-between hover:text-white cursor-pointer select-none"
+                      >
+                        <span className="flex items-center gap-1">
+                          <ArrowUpDown className="h-2.5 w-2.5 text-yellow-400" /> Sort Order
+                        </span>
+                        <span className="text-[8px] font-mono text-yellow-400">({sortOrder.toUpperCase()})</span>
+                      </span>
+                      <Select
+                        value={sortBy}
+                        onValueChange={(val: any) => setSortBy(val)}
+                      >
+                        <SelectTrigger className="h-7 text-[10px] bg-[#020b17] border-slate-700/60 rounded-md text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#051126] border-slate-700 text-white text-[10px]">
+                          <SelectItem value="basePrice">Base Price</SelectItem>
+                          <SelectItem value="name">Name</SelectItem>
+                          <SelectItem value="rating">Rating</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
         )}
 
         {/* Scrollable list */}
-        <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-slate-800 bg-[#020b17]/50 p-1 divide-y divide-white/5 space-y-1.5 scrollbar-thin pr-1">
-          {activeList.length ? (
-            activeList.map((player, idx) => {
-              const rating = Number((player as any).starRating ?? player.rating ?? 3) as 1 | 2 | 3 | 4 | 5;
-              const soldDetails = (activeTab === 'all' && subTab === 'sold') ? (player as any) : null;
-              const playerImage = (player as any).image || player.imageUrl;
+        <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-slate-800 bg-[#020b17]/50 p-2 space-y-2.5 scrollbar-thin pr-1">
+          {activeTab === 'sets' && (
+            <div className="space-y-2">
+              {lockedAuctionSets.map((set) => {
+                const isExpanded = expandedSetKeys[set.key];
+                const totalCount = set.playerIds?.length || 0;
+                
+                let soldCount = 0;
+                let unsoldCount = 0;
+                let upcomingCount = 0;
+                
+                set.playerIds?.forEach(id => {
+                  if (id === currentPlayer?.id) {
+                    upcomingCount++;
+                  } else if (soldPlayerMap.has(id)) {
+                    soldCount++;
+                  } else if (unsoldPlayerMap.has(id)) {
+                    unsoldCount++;
+                  } else {
+                    upcomingCount++;
+                  }
+                });
 
-              if (activeTab === 'next') {
                 return (
-                  <div
-                    key={player.id}
-                    onClick={() => setSelectedPlayer(player)}
-                    className="group flex items-center gap-3 p-2 rounded-md hover:bg-slate-800/40 border border-transparent hover:border-white/5 transition-all duration-200 cursor-pointer"
-                  >
-                    <div className="text-[10px] font-black text-slate-500 w-3 text-center shrink-0">
-                      {idx + 1}
-                    </div>
-                    <div className="h-7 w-7 rounded-full overflow-hidden bg-slate-900 border border-slate-700/60 flex items-center justify-center shrink-0">
-                      {playerImage ? (
-                        <img
-                          src={playerImage}
-                          alt={player.name}
-                          className="h-full w-full object-cover"
-                          onError={(e) => {
-                            (e.target as any).src = '';
-                            (e.target as any).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <span className="text-[10px] font-bold text-slate-400">{player.name.charAt(0)}</span>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1 space-y-0.5">
-                      <p className="font-extrabold text-[11px] text-slate-200 group-hover:text-yellow-400 transition-colors uppercase truncate">
-                        {player.name}
-                      </p>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className={`px-1 py-0.2 rounded text-[7px] font-bold border ${getRoleColor(player.role)}`}>
-                          {normalizeRoleBadge(player.role)}
-                        </span>
-                        {player.isOverseas && (
-                          <span className="text-[7px] bg-slate-800 text-slate-300 px-1 py-0.2 rounded border border-white/5">
-                            ✈ Overseas
-                          </span>
-                        )}
+                  <div key={set.key} className="border border-white/5 rounded-xl bg-slate-950/25 overflow-hidden transition-all duration-200">
+                    <button
+                      onClick={() => toggleSetExpand(set.key)}
+                      className="w-full flex items-center justify-between p-3 text-left hover:bg-white/5 transition-all cursor-pointer"
+                    >
+                      <div className="space-y-1">
+                        <h4 className="font-extrabold text-xs uppercase tracking-wider text-slate-100 flex items-center gap-1.5">
+                          {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-yellow-400" /> : <ChevronRight className="h-3.5 w-3.5 text-slate-400" />}
+                          {set.label}
+                        </h4>
+                        <div className="flex gap-2.5 text-[9px] font-mono text-slate-400 pl-5">
+                          <span>Tot: {totalCount}</span>
+                          {soldCount > 0 && <span className="text-emerald-400 font-bold">S: {soldCount}</span>}
+                          {unsoldCount > 0 && <span className="text-rose-400 font-bold">U: {unsoldCount}</span>}
+                          {upcomingCount > 0 && <span className="text-yellow-400/80">R: {upcomingCount}</span>}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="font-extrabold text-[10px] text-slate-300">
-                        {formatCrPrice(player.basePrice)}
-                      </p>
-                      <span className="text-[7px] text-slate-500 font-medium uppercase tracking-wider block">
-                        Base Price
-                      </span>
-                    </div>
-                  </div>
-                );
-              }
+                    </button>
 
-              return (
-                <div
-                  key={player.id}
-                  onClick={() => setSelectedPlayer(player)}
-                  className="group flex items-center justify-between p-2 rounded-md hover:bg-slate-800/40 border border-transparent hover:border-white/5 transition-all duration-200 cursor-pointer"
-                >
-                  <div className="min-w-0 pr-2 space-y-1">
-                    <p className="font-bold text-[11px] text-slate-200 group-hover:text-yellow-400 transition-colors truncate">
-                      {player.name}
-                    </p>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${getRoleColor(player.role)}`}>
-                        {normalizeRoleBadge(player.role)}
-                      </span>
-                      <span className="text-[9px] font-medium text-slate-400">
-                        Rating: {rating}★
-                      </span>
-                      {player.isOverseas && (
-                        <span className="text-[8px] bg-slate-800 text-slate-300 px-1 py-0.2 rounded border border-white/5">
-                          ✈ Overseas
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                    {isExpanded && (
+                      <div className="border-t border-white/5 p-2.5 bg-[#020b17]/40 space-y-2 divide-y divide-white/5 max-h-[250px] overflow-y-auto scrollbar-thin">
+                        {set.playerIds?.map(playerId => {
+                          const player = allPlayersMap.get(playerId);
+                          if (!player) return null;
+                          
+                          const isPlayerActive = playerId === currentPlayer?.id;
+                          const soldPlayer = soldPlayerMap.get(playerId);
+                          const unsoldPlayer = unsoldPlayerMap.get(playerId);
+                          
+                          let statusBadge = null;
+                          if (isPlayerActive) {
+                            statusBadge = (
+                              <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-yellow-400/10 text-yellow-400 border border-yellow-400/30 animate-pulse">
+                                ⚡ ACTIVE
+                              </span>
+                            );
+                          } else if (soldPlayer) {
+                            statusBadge = (
+                              <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 whitespace-nowrap">
+                                {soldPlayer.isRetained ? 'RETAINED' : 'SOLD'} ({soldPlayer.soldTeamShortName} - {formatCrPrice(soldPlayer.soldPrice || 0)})
+                              </span>
+                            );
+                          } else if (unsoldPlayer) {
+                            statusBadge = (
+                              <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-400 border border-rose-500/25">
+                                UNSOLD
+                              </span>
+                            );
+                          } else {
+                            statusBadge = (
+                              <span className="px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700">
+                                UPCOMING
+                              </span>
+                            );
+                          }
 
-                  <div className="text-right shrink-0">
-                    {soldDetails ? (
-                      <>
-                        <p className="font-black text-xs text-emerald-400">
-                          {formatCrPrice(soldDetails.soldPrice || 0)}
-                        </p>
-                        <span className="text-[8px] bg-emerald-500/10 text-emerald-300 font-extrabold uppercase px-1 py-0.5 rounded border border-emerald-500/25">
-                          {soldDetails.isRetained ? 'Retained' : soldDetails.soldTeamShortName || 'SOLD'}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <p className="font-extrabold text-[10px] text-slate-300">
-                          {formatCrPrice(player.basePrice)}
-                        </p>
-                        <span className="text-[8px] text-slate-500 font-medium uppercase tracking-wider block">
-                          Base Price
-                        </span>
-                      </>
+                          return (
+                            <div 
+                              key={playerId} 
+                              onClick={() => setSelectedPlayer(player)}
+                              className="flex items-center justify-between pt-2 first:pt-0 hover:bg-white/5 p-1 rounded transition-colors cursor-pointer"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <p className="font-extrabold text-[10.5px] text-slate-200 truncate uppercase">
+                                  {player.name}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[7.5px] text-slate-400 uppercase font-black">{normalizeRoleBadge(player.role)}</span>
+                                  <span className="text-[8px] text-slate-500 font-mono">Base: {formatPrice(player.basePrice)}</span>
+                                </div>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                {statusBadge}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
+                );
+              })}
+            </div>
+          )}
+
+          {activeTab === 'sold' && (
+            <div className="space-y-2">
+              {filteredRecentPurchases.length ? (
+                filteredRecentPurchases.map((purchase, index) => {
+                  const pl = allPlayersMap.get(purchase.playerId || '');
+                  return (
+                    <div 
+                      key={`${purchase.playerName}-${index}`} 
+                      onClick={() => pl && setSelectedPlayer(pl)}
+                      className="flex items-center justify-between p-2.5 rounded-lg bg-[#051126]/60 border border-slate-800 hover:border-slate-700/60 transition-colors cursor-pointer"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <p className="font-extrabold text-[11px] text-slate-200 uppercase truncate">
+                          {purchase.playerName}
+                        </p>
+                        <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.5 rounded border border-emerald-500/20 font-bold uppercase mt-1 inline-block">
+                          SOLD to {purchase.teamShortName}
+                        </span>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="text-xs font-black text-yellow-400 block font-mono">
+                          {formatCrPrice(purchase.price)}
+                        </span>
+                        <span className="text-[7px] text-slate-500 font-bold uppercase block mt-0.5">Sold Price</span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-8 text-slate-500 text-xs">
+                  No sold players found.
                 </div>
-              );
-            })
-          ) : (
-            <div className="py-8 text-center text-slate-500 text-xs">
-              No players found matching your criteria.
+              )}
+            </div>
+          )}
+
+          {activeTab === 'unsold' && (
+            <div className="space-y-2">
+              {filteredUnsold.length ? (
+                filteredUnsold.map((player) => (
+                  <div 
+                    key={player.id} 
+                    onClick={() => setSelectedPlayer(player)}
+                    className="flex items-center justify-between p-2.5 rounded-lg bg-[#051126]/60 border border-slate-800 hover:border-slate-700/60 transition-colors cursor-pointer"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <p className="font-extrabold text-[11px] text-slate-200 uppercase truncate">
+                        {player.name}
+                      </p>
+                      <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border mt-1 inline-block ${getRoleColor(player.role)}`}>
+                        {normalizeRoleBadge(player.role)}
+                      </span>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-xs font-black text-yellow-400 block font-mono">
+                        {formatPrice(player.basePrice)}
+                      </span>
+                      <span className="text-[7px] text-slate-500 font-bold uppercase block mt-0.5">Base Price</span>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-slate-500 text-xs">
+                  No unsold players found.
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -513,8 +542,8 @@ const BidControlsComponent = ({
           {selectedPlayer && (() => {
             const playerImage = (selectedPlayer as any).image || selectedPlayer.imageUrl;
             const rating = Number((selectedPlayer as any).starRating ?? selectedPlayer.rating ?? 3) as 1 | 2 | 3 | 4 | 5;
-            const soldDetails = (activeTab === 'all' && subTab === 'sold') ? (selectedPlayer as any) : null;
-            const isUnsold = (activeTab === 'all' && subTab === 'unsold');
+            const soldDetails = soldPlayerMap.get(selectedPlayer.id);
+            const isUnsold = unsoldPlayerMap.has(selectedPlayer.id);
 
             return (
               <div className="space-y-4">

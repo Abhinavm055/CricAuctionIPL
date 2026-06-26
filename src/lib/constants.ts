@@ -90,9 +90,16 @@ export const IPL_TEAM_COLORS: Record<string, { primary: string; secondary: strin
 
 export const SQUAD_CONSTRAINTS = {
   MIN_SQUAD: 18,
-  MAX_SQUAD: 18,
+  MAX_SQUAD: 25,
   MAX_OVERSEAS: 8,
 } as const;
+
+export const COMMENTARY_VOICE_CONFIG = {
+  gender: 'female',
+  preferredNames: ['microsoft zira', 'samantha', 'karen', 'google us english female', 'sally', 'hazel', 'victoria'],
+  rate: 1.05,
+  pitch: 1.05,
+};
 
 export const AI_STRATEGIES = ['aggressive', 'balanced', 'budget', 'starHunter', 'roleFocused'] as const;
 

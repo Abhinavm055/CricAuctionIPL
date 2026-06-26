@@ -125,12 +125,42 @@
   }
 
   .landing-page {
-    background:
-      radial-gradient(circle at center, #0b1f4d, #020617),
-      url('/stadium.jpg');
+    background-image: url('/background.png');
     background-size: cover;
     background-position: center;
-    background-blend-mode: overlay;
+    background-repeat: no-repeat;
+  }
+
+  .hero-logo {
+    height: 180px; /* Mobile */
+    width: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 0 25px rgba(34, 211, 238, 0.25));
+    transition: all 0.3s ease-in-out;
+  }
+
+  @media (min-width: 768px) {
+    .hero-logo {
+      height: 250px; /* Tablet */
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .hero-logo {
+      height: 320px; /* Desktop */
+    }
+  }
+
+  .btn-multiplayer-purple {
+    background: linear-gradient(90deg, #7C3AED 0%, #A855F7 100%) !important;
+    box-shadow: 0 0 20px rgba(124,58,237,0.35) !important;
+    color: #ffffff !important;
+    border: none !important;
+  }
+
+  .btn-multiplayer-purple:hover {
+    filter: brightness(1.1) !important;
+    box-shadow: 0 0 25px rgba(124,58,237,0.55) !important;
   }
 
   .glow-title {

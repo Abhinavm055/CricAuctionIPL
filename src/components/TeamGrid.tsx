@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { TeamCard } from './TeamCard';
 import { IPL_TEAMS } from '@/lib/constants';
 
@@ -20,13 +21,15 @@ interface TeamGridProps {
   onSelectTeam: (teamId: string) => void;
 }
 
-export const TeamGrid = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSelectTeam }: TeamGridProps) => {
+const TeamGridComponent = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSelectTeam }: TeamGridProps) => {
   // Sort teams in a stable, consistent order matching the official IPL_TEAMS definition
-  const orderedTeams = [...teams].sort((a, b) => {
-    const idxA = IPL_TEAMS.findIndex((t) => t.id === a.id);
-    const idxB = IPL_TEAMS.findIndex((t) => t.id === b.id);
-    return idxA - idxB;
-  });
+  const orderedTeams = useMemo(() => {
+    return [...teams].sort((a, b) => {
+      const idxA = IPL_TEAMS.findIndex((t) => t.id === a.id);
+      const idxB = IPL_TEAMS.findIndex((t) => t.id === b.id);
+      return idxA - idxB;
+    });
+  }, [teams]);
 
   return (
     <div className="rounded-3xl border border-white/5 bg-[#0f172a]/20 backdrop-blur-xl p-4.5 shadow-2xl flex flex-col h-full min-h-0 overflow-hidden">
@@ -57,3 +60,5 @@ export const TeamGrid = ({ teams, myTeamId, currentBidderId, glowingTeamId, onSe
     </div>
   );
 };
+
+export const TeamGrid = memo(TeamGridComponent);

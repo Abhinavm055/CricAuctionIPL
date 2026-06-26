@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { collection, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 
@@ -16,8 +16,8 @@ const Leaderboard = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const load = async () => {
-      const snap = await getDocs(query(collection(db, 'users'), orderBy('auctionsWon', 'desc')));
+    const q = query(collection(db, 'users'), orderBy('auctionsWon', 'desc'));
+    const unsubscribe = onSnapshot(q, (snap) => {
       const parsed = snap.docs.map((doc) => ({
         id: doc.id,
         name: String(doc.data().name || 'Manager'),
@@ -26,9 +26,12 @@ const Leaderboard = () => {
       }));
       setRows(parsed);
       setLoading(false);
-    };
+    }, (error) => {
+      console.error("Leaderboard fetch failed: ", error);
+      setLoading(false);
+    });
 
-    load();
+    return () => unsubscribe();
   }, []);
 
   return (

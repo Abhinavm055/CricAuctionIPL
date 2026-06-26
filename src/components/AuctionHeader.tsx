@@ -14,7 +14,6 @@ export const AuctionHeader = ({
   totalPlayers,
 }: AuctionHeaderProps) => {
   const currentPoolIndex = POOL_ORDER.indexOf(currentPool as typeof POOL_ORDER[number]);
-  const progress = ((totalPlayers - playersRemaining) / totalPlayers) * 100;
 
   return (
     <header className="w-full px-6 py-4 bg-secondary/50 backdrop-blur-md border-b border-border/50">

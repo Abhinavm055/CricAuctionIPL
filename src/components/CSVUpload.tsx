@@ -50,7 +50,7 @@ export const CSVUpload = () => {
       }
 
       toast({ title: 'CSV imported', description: `Added ${created}, skipped ${skipped} duplicate players.` });
-    } catch (error) {
+    } catch {
       toast({ title: 'CSV import failed', description: 'Check CSV header order and values.', variant: 'destructive' });
     } finally {
       setImporting(false);

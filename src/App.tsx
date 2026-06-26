@@ -22,6 +22,7 @@ const Auction = lazy(() => import("./pages/Auction"));
 const Retention = lazy(() => import("./pages/Retention"));
 const Leaderboard = lazy(() => import("./pages/Leaderboard"));
 const Summary = lazy(() => import("./pages/Summary"));
+const Tournament = lazy(() => import("./pages/Tournament"));
 
 const queryClient = new QueryClient();
 
@@ -48,6 +49,7 @@ const App = () => (
                   <Route path="/summary/:gameCode" element={<Summary />} />
                   <Route path="/feedback" element={<Feedback />} />
                   <Route path="/profile" element={<Profile />} />
+                  <Route path="/tournament" element={<Tournament />} />
                   <Route path="/admin" element={<AdminPage />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>

@@ -6,7 +6,7 @@ import { listenSession, lockRetention } from '@/lib/sessionService';
 import type { Player } from '@/lib/samplePlayers';
 import { useGameData } from '@/contexts/GameDataContext';
 import { TeamLogo } from '@/components/TeamLogo';
-import { CheckCircle2, Shield, Sparkles, User, Coins } from 'lucide-react';
+import { CheckCircle2, Sparkles, User } from 'lucide-react';
 import { RETENTION_ROLE_ORDER, groupPlayersByRetentionRole } from '@/lib/playerSorting';
 import { motion } from 'framer-motion';
 

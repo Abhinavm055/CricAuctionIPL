@@ -141,7 +141,7 @@ const Lobby = () => {
   const isVsAI = session.mode === 'VS_AI';
   const selectedTeams = session.selectedTeams || {};
   const managerNames = session.managerNames || {};
-  const myConfirmedTeam = Object.entries(selectedTeams).find(([_, uid]) => uid === userId)?.[0];
+  const myConfirmedTeam = Object.entries(selectedTeams).find(([, uid]) => uid === userId)?.[0];
   const confirmedTeamsCount = Object.keys(selectedTeams).length;
   const canStartRetention = confirmedTeamsCount >= 1;
 
@@ -199,27 +199,31 @@ const Lobby = () => {
         transition={{ duration: 0.4, delay: index * 0.05 }}
         whileHover={!myConfirmedTeam && (!isTaken || isMine) ? { scale: 1.05, y: -4 } : {}}
         className={cn(
-          'group relative p-5 rounded-2xl border transition-all duration-300 text-left h-44 overflow-hidden',
+          'group relative p-4 rounded-2xl border transition-all duration-300 text-left h-44 flex flex-col justify-between overflow-hidden w-full',
           'glass-panel backdrop-blur-md border-white/5 shadow-lg',
           isSelected ? `${glowCfg.border} ${glowCfg.shadow} ${glowCfg.glow}` : 'hover:border-yellow-400/40 hover:shadow-[0_8px_30px_rgba(250,204,21,0.15)]',
           isTaken && !isMine && 'opacity-40 cursor-not-allowed grayscale border-white/5 shadow-none',
         )}
       >
-        <div className={cn('transition-opacity duration-300 relative z-10', isSelected ? 'opacity-0' : 'opacity-100')}>
-          <TeamLogo teamId={team.id} logo={(team as any).logo} shortName={team.shortName} size="md" className="mb-2" />
-          <div className="font-display text-2xl font-extrabold tracking-wide leading-none mb-1 text-white">{team.shortName}</div>
-          <div className="text-[10px] uppercase text-slate-400 font-bold tracking-widest truncate">{team.name}</div>
-        </div>
+        <div className="relative w-full flex-1 min-h-0">
+          {/* Default view */}
+          <div className={cn('transition-all duration-300 flex flex-col justify-start h-full', isSelected ? 'opacity-0 scale-95 pointer-events-none absolute inset-0' : 'opacity-100 scale-100')}>
+            <TeamLogo teamId={team.id} logo={(team as any).logo} shortName={team.shortName} size="md" className="mb-2 shrink-0" />
+            <div className="font-display text-2xl font-extrabold tracking-wide leading-none mb-1 text-white truncate">{team.shortName}</div>
+            <div className="text-[10px] uppercase text-slate-400 font-bold tracking-widest truncate">{team.name}</div>
+          </div>
 
-        <div className={cn('absolute inset-4 transition-opacity duration-300 flex flex-col justify-center relative z-10', isSelected ? 'opacity-100' : 'opacity-0 pointer-events-none')}>
-          <div className="text-sm font-black text-yellow-400 mb-1">Captain: {insight.captain}</div>
-          <div className="text-xs text-slate-300 mb-0.5 font-medium">Home: {insight.home}</div>
-          <div className="text-xs text-slate-300 leading-tight">
-            Titles: <span className="text-yellow-400 font-extrabold">{insight.titles}</span> {insight.titleYears && <span className="opacity-80 block mt-0.5 font-mono">({insight.titleYears})</span>}
+          {/* Details view when selected */}
+          <div className={cn('transition-all duration-300 flex flex-col justify-center h-full', isSelected ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none absolute inset-0')}>
+            <div className="text-xs font-black text-yellow-400 mb-0.5 truncate">Captain: {insight.captain}</div>
+            <div className="text-[10px] text-slate-300 mb-0.5 font-medium truncate">Home: {insight.home}</div>
+            <div className="text-[10px] text-slate-300 leading-tight">
+              Titles: <span className="text-yellow-400 font-extrabold">{insight.titles}</span> {insight.titleYears && <span className="opacity-80 block mt-0.5 font-mono text-[9px]">({insight.titleYears})</span>}
+            </div>
           </div>
         </div>
 
-        <div className="absolute bottom-4 left-5 right-5 flex items-center justify-between border-t border-white/5 pt-2 z-10">
+        <div className="w-full flex items-center justify-between border-t border-white/5 pt-2 mt-auto shrink-0 z-10">
           <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Manager</p>
           <p className={cn("text-[10px] uppercase tracking-wider font-extrabold truncate max-w-[65%]", isSelected ? "text-yellow-400" : "text-slate-300")}>{managerLabel}</p>
         </div>
@@ -373,24 +377,44 @@ const Lobby = () => {
           </motion.div>
         )}
 
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 mb-8">
           {IPL_TEAMS.map((team, index) => renderTeamCard(team, index, false))}
         </div>
 
-        <div className="flex flex-col items-center gap-5 py-8 border-t border-white/5">
-          <div className={cn("transition-all duration-300", !myConfirmedTeam && draftTeam ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4 pointer-events-none h-0 overflow-hidden")}>
-            <Button variant="gold" size="xl" className="px-14 text-slate-950 font-black tracking-widest uppercase cursor-pointer" onClick={handleConfirmTeam} disabled={isSubmitting}>{isSubmitting ? 'Locking...' : `Confirm Team`}</Button>
-          </div>
-          {isHost && myConfirmedTeam && (
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              className="fade-in"
-            >
-              <Button variant="gold" size="xl" disabled={!canStartRetention} onClick={() => startRetention(gameCode!)} className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-extrabold hover:scale-105 hover:shadow-[0_0_30px_rgba(250,204,21,0.5)] transition-all cursor-pointer tracking-widest uppercase px-14 h-14">Retention Round</Button>
-            </motion.div>
+        <div className="flex flex-col items-center justify-center min-h-[80px] gap-4 py-8 border-t border-white/5 w-full">
+          {!myConfirmedTeam ? (
+            <div className="h-14 flex items-center justify-center">
+              {draftTeam ? (
+                <Button
+                  variant="gold"
+                  size="xl"
+                  className="px-14 text-slate-950 font-black tracking-widest uppercase cursor-pointer h-14"
+                  onClick={handleConfirmTeam}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Locking...' : `Confirm Team`}
+                </Button>
+              ) : (
+                <p className="text-slate-400 font-bold uppercase tracking-wider text-xs animate-pulse">Select a franchise to confirm your team</p>
+              )}
+            </div>
+          ) : (
+            <div className="h-14 flex items-center justify-center">
+              {isHost ? (
+                <Button
+                  variant="gold"
+                  size="xl"
+                  disabled={!canStartRetention}
+                  onClick={() => startRetention(gameCode!)}
+                  className="bg-gradient-to-r from-yellow-400 to-yellow-500 text-black font-extrabold hover:scale-105 hover:shadow-[0_0_30px_rgba(250,204,21,0.5)] transition-all cursor-pointer tracking-widest uppercase px-14 h-14"
+                >
+                  Retention Round
+                </Button>
+              ) : (
+                <p className="text-slate-400 font-bold uppercase tracking-wider text-xs animate-pulse">Waiting for host to start the retention round...</p>
+              )}
+            </div>
           )}
-          {!isHost && myConfirmedTeam && <p className="text-slate-400 font-bold uppercase tracking-wider text-xs animate-pulse">Waiting for the host to start the retention round...</p>}
         </div>
 
         {insightTeamId && (

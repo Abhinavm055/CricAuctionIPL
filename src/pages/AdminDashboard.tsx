@@ -13,7 +13,6 @@ import {
   Database, 
   Settings, 
   Play, 
-  Pause, 
   SkipForward,
   RefreshCcw,
   Edit,
@@ -58,7 +57,6 @@ const AdminDashboard = () => {
     masterPlayerList,
     updateTeamPurse, 
     resetSessionToLobby, 
-    forcePlayerSold,
     skipToNextPlayer,
     triggerAcceleratedRound,
     deleteSession 

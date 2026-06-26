@@ -4,9 +4,9 @@ import { useToast } from "@/hooks/use-toast";
 import { PlayerCard } from "@/components/PlayerCard";
 import { Player } from "@/lib/samplePlayers";
 import { useGameData } from "@/contexts/GameDataContext";
-import { getNextBid, IPL_TEAMS, SQUAD_CONSTRAINTS, AUCTION_TIMER, BID_RESET_TIMER, preloadImage, isImagePreloaded } from "@/lib/constants";
+import { getNextBid, IPL_TEAMS, SQUAD_CONSTRAINTS, AUCTION_TIMER, BID_RESET_TIMER, preloadImage, isImagePreloaded, COMMENTARY_VOICE_CONFIG } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Award } from "lucide-react";
 import {
   resolveAuction,
   listenSession,
@@ -193,13 +193,11 @@ const Auction = () => {
   const [teams, setTeams] = useState<TeamState[]>([]);
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [pendingRtm, setPendingRtm] = useState<PendingRtmState | null>(null);
-  const [commentary, setCommentary] = useState<string[]>([]);
   const [banner, setBanner] = useState<{ kind: 'SOLD' | 'UNSOLD'; price?: number; team?: string } | null>(null);
   const [optimisticBid, setOptimisticBid] = useState<number | null>(null);
   const [optimisticBidderId, setOptimisticBidderId] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState<number>(Date.now());
   const [glowingTeamId, setGlowingTeamId] = useState<string | null>(null);
-  const [aiThinkingTeamId, setAiThinkingTeamId] = useState<string | null>(null);
   const [teamDrawerOpen, setTeamDrawerOpen] = useState(false);
   const [rtmSubmissionLocked, setRtmSubmissionLocked] = useState(false);
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
@@ -239,13 +237,27 @@ const Auction = () => {
       gain.connect(ctx.destination);
 
       if (type === 'tick') {
+        const osc2 = ctx.createOscillator();
+        const gain2 = ctx.createGain();
+        osc2.connect(gain2);
+        gain2.connect(ctx.destination);
+
         osc.type = 'sine';
-        osc.frequency.setValueAtTime(800, t);
-        osc.frequency.exponentialRampToValueAtTime(300, t + 0.1);
-        gain.gain.setValueAtTime(0.3, t);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+        osc.frequency.setValueAtTime(1500, t);
+        osc.frequency.exponentialRampToValueAtTime(800, t + 0.15);
+        gain.gain.setValueAtTime(0.25, t);
+        gain.gain.exponentialRampToValueAtTime(0.005, t + 0.15);
+
+        osc2.type = 'sine';
+        osc2.frequency.setValueAtTime(950, t);
+        osc2.frequency.exponentialRampToValueAtTime(500, t + 0.15);
+        gain2.gain.setValueAtTime(0.18, t);
+        gain2.gain.exponentialRampToValueAtTime(0.005, t + 0.15);
+
         osc.start(t);
-        osc.stop(t + 0.1);
+        osc.stop(t + 0.15);
+        osc2.start(t);
+        osc2.stop(t + 0.15);
       } else if (type === 'bid') {
         osc.type = 'square';
         osc.frequency.setValueAtTime(400, t);
@@ -285,12 +297,35 @@ const Auction = () => {
   }, []);
 
   const speakLine = useCallback((line: string) => {
-    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
-    const utterance = new SpeechSynthesisUtterance(line);
-    utterance.rate = 0.95;
-    utterance.pitch = 0.9;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(utterance);
+    try {
+      if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+      const utterance = new SpeechSynthesisUtterance(line);
+      utterance.rate = COMMENTARY_VOICE_CONFIG.rate;
+      utterance.pitch = COMMENTARY_VOICE_CONFIG.pitch;
+
+      const voices = window.speechSynthesis.getVoices();
+      let matchedVoice = null;
+      for (const name of COMMENTARY_VOICE_CONFIG.preferredNames) {
+        const v = voices.find(voice => voice.name.toLowerCase().includes(name));
+        if (v) {
+          matchedVoice = v;
+          break;
+        }
+      }
+
+      if (!matchedVoice && voices.length) {
+        matchedVoice = voices.find(voice => voice.name.toLowerCase().includes('female')) || voices[0];
+      }
+
+      if (matchedVoice) {
+        utterance.voice = matchedVoice;
+      }
+
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    } catch (err) {
+      console.warn("[Announcer] TTS failed to play:", err);
+    }
   }, []);
 
 
@@ -337,7 +372,7 @@ const Auction = () => {
 
   const isHost = session?.hostId === userId;
   const queueLength = (session?.auctionQueue || []).length;
-  const myTeamId = Object.entries(session?.selectedTeams || {}).find(([_, uid]) => uid === userId)?.[0] as string | undefined;
+  const myTeamId = Object.entries(session?.selectedTeams || {}).find(([, uid]) => uid === userId)?.[0] as string | undefined;
   const userTeam = teams.find((team) => team.id === myTeamId);
 
   useEffect(() => {
@@ -394,78 +429,6 @@ const Auction = () => {
   const [displayedPlayerBidderName, setDisplayedPlayerBidderName] = useState<string | null>(null);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
 
-  // Effect 1: Handle player transitions (only triggers when the active player ID changes)
-  useEffect(() => {
-    if (!currentPlayer) {
-      setDisplayedPlayer(null);
-      setIsTransitioning(false);
-      return;
-    }
-
-    // If no player is displayed yet, set it immediately
-    if (!displayedPlayer) {
-      setDisplayedPlayer(currentPlayer as any);
-      setDisplayedPlayerBid(displayedCurrentBid);
-      setDisplayedPlayerBidderId(currentBidderTeam?.id || null);
-      setDisplayedPlayerBidderName(currentBidderTeam?.shortName || 'BID');
-      setIsTransitioning(false);
-      return;
-    }
-
-    // If the player changed, start transition
-    if (displayedPlayer.id !== currentPlayer.id) {
-      setIsTransitioning(true);
-      const startTime = performance.now();
-      console.log(`[Transition Timing] Started transition to player ${currentPlayer.name} (${currentPlayer.id})`);
-
-      const imageUrl = (currentPlayer as any).image || (currentPlayer as any).imageUrl;
-      let resolved = false;
-      let imgLoadTime = -1;
-
-      const finishTransition = () => {
-        if (resolved) return;
-        resolved = true;
-        
-        const transitionDuration = performance.now() - startTime;
-        console.log(`[Transition Timing] Player Reveal Time: ${transitionDuration.toFixed(1)}ms | Image Load Time: ${imgLoadTime >= 0 ? `${imgLoadTime.toFixed(1)}ms` : 'TIMEOUT/N/A'}`);
-
-        setDisplayedPlayer(currentPlayer as any);
-        setIsTransitioning(false);
-      };
-
-      if (imageUrl) {
-        if (isImagePreloaded(imageUrl)) {
-          imgLoadTime = 0;
-          finishTransition();
-        } else {
-          const img = new Image();
-          img.src = imageUrl;
-          img.onload = () => {
-            imgLoadTime = performance.now() - startTime;
-            finishTransition();
-          };
-          img.onerror = () => {
-            finishTransition();
-          };
-          const t = setTimeout(() => {
-            finishTransition();
-          }, 800);
-          return () => clearTimeout(t);
-        }
-      } else {
-        finishTransition();
-      }
-    }
-  }, [currentPlayer?.id]);
-
-  // Effect 2: Synchronize bid & bidder data for the displayed player
-  useEffect(() => {
-    if (displayedPlayer && currentPlayer && displayedPlayer.id === currentPlayer.id) {
-      setDisplayedPlayerBid(displayedCurrentBid);
-      setDisplayedPlayerBidderId(currentBidderTeam?.id || null);
-      setDisplayedPlayerBidderName(currentBidderTeam?.shortName || 'BID');
-    }
-  }, [displayedPlayer?.id, currentPlayer?.id, displayedCurrentBid, currentBidderTeam]);
 
   const nextBid = getNextBid(displayedCurrentBid || 0);
   const timerEndsAtMs = currentAuction?.timerEndsAt?.toMillis?.() || 0;
@@ -477,9 +440,7 @@ const Auction = () => {
       return;
     }
 
-    if (timerEndsAtMs > prevTimerEndsAtRef.current + 500) {
-      setCommentary((prev) => ['Timer reset for fresh bid action.', ...prev].slice(0, 14));
-    }
+
 
     prevTimerEndsAtRef.current = timerEndsAtMs;
   }, [timerEndsAtMs, currentAuction?.status, currentAuction?.activePlayerId]);
@@ -500,7 +461,7 @@ const Auction = () => {
   const aiOnlyTeamIds = useMemo(() => {
     const selectedTeams = (session?.selectedTeams || {}) as Record<string, string>;
     return Object.entries(selectedTeams)
-      .filter(([_, uid]) => String(uid || "").startsWith("AI-"))
+      .filter(([, uid]) => String(uid || "").startsWith("AI-"))
       .map(([teamId]) => teamId);
   }, [session?.selectedTeams]);
   const hasBidActivity = useMemo(() => {
@@ -520,9 +481,8 @@ const Auction = () => {
   const canSkipSet = useMemo(() => {
     if (!isHost || !gameCode || !currentAuction?.activePlayerId) return false;
     if (pendingRtm) return false;
-    if (isAIMode) return true;
-    return ['SOLD', 'UNSOLD'].includes(String(currentAuction?.status || ''));
-  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.status, pendingRtm, isAIMode]);
+    return ['RUNNING', 'SOLD', 'UNSOLD'].includes(String(currentAuction?.status || ''));
+  }, [isHost, gameCode, currentAuction?.activePlayerId, currentAuction?.status, pendingRtm]);
 
   const lockedAuctionSets = useMemo(() => {
     const storedSets = (session?.auctionSets || []) as Array<{ key: string; label?: string; playerIds?: string[] }>;
@@ -583,6 +543,86 @@ const Auction = () => {
       : timerSeconds;
   }, [isSetIntroActive, timerSeconds, session?.isAcceleratedRound]);
 
+  // Effect 1: Handle player transitions (only triggers when the active player ID changes or pool transition changes)
+  useEffect(() => {
+    if (showPoolTransition) {
+      setDisplayedPlayer(null);
+      setIsTransitioning(false);
+      return;
+    }
+
+    if (!currentPlayer) {
+      setDisplayedPlayer(null);
+      setIsTransitioning(false);
+      return;
+    }
+
+    // If the displayed player is already the current player, do not restart transition
+    if (displayedPlayer && displayedPlayer.id === currentPlayer.id) {
+      return;
+    }
+
+    // Start transition
+    setIsTransitioning(true);
+    setDisplayedPlayer(null);
+    setDisplayedPlayerBid(0);
+    setDisplayedPlayerBidderId(null);
+    setDisplayedPlayerBidderName(null);
+
+    const startTime = performance.now();
+    console.log(`[Transition Timing] Started transition to player ${currentPlayer.name} (${currentPlayer.id})`);
+
+    const imageUrl = (currentPlayer as any).image || (currentPlayer as any).imageUrl;
+    let resolved = false;
+    let imgLoadTime = -1;
+
+    const finishTransition = () => {
+      if (resolved) return;
+      resolved = true;
+      
+      const transitionDuration = performance.now() - startTime;
+      console.log(`[Transition Timing] Player Reveal Time: ${transitionDuration.toFixed(1)}ms | Image Load Time: ${imgLoadTime >= 0 ? `${imgLoadTime.toFixed(1)}ms` : 'TIMEOUT/N/A'}`);
+
+      setDisplayedPlayer(currentPlayer as any);
+      setDisplayedPlayerBid(displayedCurrentBid);
+      setDisplayedPlayerBidderId(currentBidderTeam?.id || null);
+      setDisplayedPlayerBidderName(currentBidderTeam?.shortName || 'BID');
+      setIsTransitioning(false);
+    };
+
+    if (imageUrl) {
+      if (isImagePreloaded(imageUrl)) {
+        imgLoadTime = 0;
+        finishTransition();
+      } else {
+        const img = new Image();
+        img.src = imageUrl;
+        img.onload = () => {
+          imgLoadTime = performance.now() - startTime;
+          finishTransition();
+        };
+        img.onerror = () => {
+          finishTransition();
+        };
+        const t = setTimeout(() => {
+          finishTransition();
+        }, 800);
+        return () => clearTimeout(t);
+      }
+    } else {
+      finishTransition();
+    }
+  }, [currentPlayer?.id, showPoolTransition]);
+
+  // Effect 2: Synchronize bid & bidder data for the displayed player
+  useEffect(() => {
+    if (displayedPlayer && currentPlayer && displayedPlayer.id === currentPlayer.id) {
+      setDisplayedPlayerBid(displayedCurrentBid);
+      setDisplayedPlayerBidderId(currentBidderTeam?.id || null);
+      setDisplayedPlayerBidderName(currentBidderTeam?.shortName || 'BID');
+    }
+  }, [displayedPlayer?.id, currentPlayer?.id, displayedCurrentBid, currentBidderTeam]);
+
   const nextPlayers = useMemo(() => {
     const queue = (session?.auctionQueue || []) as string[];
     const queueIndex = Number(session?.queueIndex ?? -1);
@@ -637,6 +677,7 @@ const Auction = () => {
 
   const canTeamBid = useCallback((team: TeamState | undefined, player: Player | null, amount: number) => {
     if (!team || !player) return false;
+    if (isTransitioning) return false;
     if (currentAuction?.status !== "RUNNING") return false;
     if (currentAuction?.isAuctionLocked) return false;
     if (isSetIntroActive) return false;
@@ -648,14 +689,15 @@ const Auction = () => {
     if (squadSize >= SQUAD_CONSTRAINTS.MAX_SQUAD) return false;
     if (isOverseasPlayer(player) && overseasCount >= SQUAD_CONSTRAINTS.MAX_OVERSEAS) return false;
     return true;
-  }, [currentAuction?.status, currentAuction?.isAuctionLocked, isSetIntroActive, displayedCurrentBidderId, teamPlayersResolved]);
+  }, [currentAuction?.status, currentAuction?.isAuctionLocked, isSetIntroActive, displayedCurrentBidderId, teamPlayersResolved, isTransitioning]);
 
 
   const setProgress = useMemo(() => {
     const queue = (session?.auctionQueue || []) as string[];
     const queueIndex = Number(session?.queueIndex ?? -1);
-    const activeSetLabel = activeLockedSet?.label || SET_LABELS[resolveSetKey(currentPlayer)] || 'General';
-    const currentSetIndex = activeLockedSet ? lockedAuctionSets.findIndex((set) => set.key === activeLockedSet.key) : SET_ORDER.indexOf(resolveSetKey(currentPlayer));
+    const targetPlayer = displayedPlayer || currentPlayer;
+    const activeSetLabel = activeLockedSet?.label || SET_LABELS[resolveSetKey(targetPlayer)] || 'General';
+    const currentSetIndex = activeLockedSet ? lockedAuctionSets.findIndex((set) => set.key === activeLockedSet.key) : SET_ORDER.indexOf(resolveSetKey(targetPlayer));
 
     const completedSetsCount = lockedAuctionSets.filter(set => {
       return set.playerIds.every(id => {
@@ -671,30 +713,21 @@ const Auction = () => {
     const remainingInSet = activeLockedSet.playerIds.filter((id) => remainingQueueIds.has(id)).length;
 
     return { activeSetLabel, playersRemainingInSet: Math.max(0, remainingInSet), currentSetIndex, completedSetsCount };
-  }, [session?.auctionQueue, session?.queueIndex, currentPlayer, activeLockedSet, lockedAuctionSets]);
+  }, [session?.auctionQueue, session?.queueIndex, displayedPlayer, currentPlayer, activeLockedSet, lockedAuctionSets]);
 
-  const remainingSetPlayers = useMemo(() => {
-    const queue = (session?.auctionQueue || []) as string[];
-    const queueIndex = Number(session?.queueIndex ?? -1);
-    const startIndex = Math.max(0, queueIndex);
-    const remainingQueueIds = new Set(queue.slice(startIndex));
-    const setIds = activeLockedSet?.playerIds || [];
 
-    return setIds
-      .filter((id) => remainingQueueIds.has(id) && playerById.has(id))
-      .map((id) => String((playerById.get(id) as any)?.name || id))
-      .slice(0, 25);
-  }, [session?.auctionQueue, session?.queueIndex, activeLockedSet, playerById]);
 
   const remainingPlayersList = useMemo(() => {
     const queue = (session?.auctionQueue || []) as string[];
     const queueIndex = Number(session?.queueIndex ?? -1);
     const activePlayerId = currentAuction?.activePlayerId;
     const startIndex = Math.max(0, queueIndex + 1);
+    const activeSetIds = activeLockedSet ? new Set(activeLockedSet.playerIds) : new Set<string>();
     return queue.slice(startIndex)
+      .filter((id) => activeSetIds.has(id))
       .map((id) => playerById.get(id))
       .filter((p): p is Player => p !== undefined && p.id !== undefined && p.id !== activePlayerId);
-  }, [session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, playerById]);
+  }, [session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, activeLockedSet, playerById]);
 
   // Effect: Preload images for upcoming players in active queue and current set
   useEffect(() => {
@@ -762,6 +795,39 @@ const Auction = () => {
     return list;
   }, [teams, playerById]);
 
+  const isLastInSet = useMemo(() => {
+    if (!activeLockedSet || !currentAuction?.activePlayerId) return false;
+    const playerIds = activeLockedSet.playerIds;
+    return playerIds[playerIds.length - 1] === currentAuction.activePlayerId;
+  }, [activeLockedSet, currentAuction?.activePlayerId]);
+
+  const showSetCompletedOverlay = useMemo(() => {
+    if (!isLastInSet) return false;
+    if (!['SOLD', 'UNSOLD'].includes(currentAuction?.status || '')) return false;
+    const resolvedTimeMs = currentAuction?.soldAt?.toMillis?.() || currentAuction?.lastEvent?.createdAt?.toMillis?.() || 0;
+    const elapsedMs = resolvedTimeMs ? Math.max(0, nowMs - resolvedTimeMs) : 0;
+    return elapsedMs < 10000;
+  }, [isLastInSet, currentAuction?.status, currentAuction?.soldAt, currentAuction?.lastEvent, nowMs]);
+
+  const setSummaryPlayers = useMemo(() => {
+    if (!activeLockedSet) return [];
+    return activeLockedSet.playerIds.map(id => {
+      const player = playerById.get(id);
+      const sold = soldPlayersList.find(p => p.id === id);
+      const unsold = unsoldPlayersList.find(p => p.id === id);
+      return {
+        id,
+        name: player?.name || 'Unknown',
+        role: player?.role || 'Batsman',
+        basePrice: player?.basePrice || 0,
+        soldPrice: sold?.soldPrice,
+        soldTeamShortName: sold?.soldTeamShortName,
+        soldTeamId: sold?.soldTeamId,
+        isUnsold: !!unsold,
+      };
+    });
+  }, [activeLockedSet, playerById, soldPlayersList, unsoldPlayersList]);
+
   const handleAdvancePlayer = useCallback(async () => {
     if (!gameCode || !isHost || !currentPlayer || !currentAuction?.activePlayerId) return;
 
@@ -784,6 +850,22 @@ const Auction = () => {
     const currentQueueIndex = Number(session?.queueIndex ?? -1);
     if (currentQueueIndex < 0) return;
 
+    const currentSet = activeLockedSet?.label || "Unknown";
+    const currentSetIndex = activeLockedSet ? lockedAuctionSets.findIndex((s) => s.key === activeLockedSet.key) : -1;
+    const nextSet = currentSetIndex !== -1 && currentSetIndex + 1 < lockedAuctionSets.length 
+      ? lockedAuctionSets[currentSetIndex + 1].label 
+      : "None";
+    const remainingInSet = activeLockedSet ? activeLockedSet.playerIds.filter(id => {
+      const idx = session.auctionQueue.indexOf(id);
+      return idx !== -1 && idx >= currentQueueIndex;
+    }).length : 0;
+
+    console.log(`[SKIP SET TRIGGERED]
+      - Current set: ${currentSet}
+      - Next set: ${nextSet}
+      - Remaining players: ${remainingInSet}
+      - Transition triggered: true`);
+
     if (isAIMode) {
       suppressSoldBannerRef.current = true;
       try {
@@ -794,7 +876,7 @@ const Auction = () => {
       return;
     }
 
-    if (!['SOLD', 'UNSOLD'].includes(String(currentAuction?.status || ''))) return;
+    if (!['RUNNING', 'SOLD', 'UNSOLD'].includes(String(currentAuction?.status || ''))) return;
 
     suppressSoldBannerRef.current = true;
     try {
@@ -802,7 +884,7 @@ const Auction = () => {
     } finally {
       suppressSoldBannerRef.current = false;
     }
-  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, currentAuction?.status, isAIMode, aiOnlyTeamIds]);
+  }, [gameCode, isHost, session?.auctionQueue, session?.queueIndex, currentAuction?.activePlayerId, currentAuction?.status, isAIMode, aiOnlyTeamIds, activeLockedSet, lockedAuctionSets]);
 
   const handleBid = useCallback((amount: number) => {
     if (!gameCode || !myTeamId || !userTeam || !currentPlayer) return;
@@ -830,11 +912,7 @@ const Auction = () => {
     });
   }, [gameCode, myTeamId, userTeam, currentPlayer, currentAuction?.isAuctionLocked, currentAuction?.currentBid]);
 
-  const handleFinalize = useCallback(async () => {
-    if (!gameCode || !isHost) return;
-    playSound('hammer');
-    await resolveAuction(gameCode);
-  }, [gameCode, isHost, playSound]);
+
 
   useEffect(() => {
     if (!isHost || !gameCode || !currentPlayer) return;
@@ -870,18 +948,15 @@ const Auction = () => {
 
     if (!aiDecision) return;
 
-    setAiThinkingTeamId(aiDecision.teamId);
     const thinkingDelay = Math.max(1000, Math.min(2000, Number(aiDecision.delayMs || 1200)));
 
     const timer = setTimeout(() => {
       placeBid(gameCode, aiDecision.teamId, aiDecision.bid)
-        .catch(() => undefined)
-        .finally(() => setAiThinkingTeamId(null));
+        .catch(() => undefined);
     }, thinkingDelay);
 
     return () => {
       clearTimeout(timer);
-      setAiThinkingTeamId(null);
     };
   }, [isHost, gameCode, teams, currentPlayer, currentAuction?.status, currentAuction?.currentBid, currentAuction?.currentBidderId, aiEngine]);
 
@@ -908,10 +983,6 @@ const Auction = () => {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
       const amount = formatCrPrice(Number(currentAuction.currentBid || 0));
 
-      const line = prevBidderRef.current
-        ? `${team?.shortName || "Team"} raises bid to ${amount}!`
-        : `${team?.shortName || "Team"} bids ${amount}`;
-      setCommentary((prev) => [line, ...prev].slice(0, 14));
       playSound('bid');
 
       // Set active bid flash overlay
@@ -929,7 +1000,6 @@ const Auction = () => {
 
     if (currentAuction.status === "SOLD" && prevStatusRef.current !== "SOLD") {
       const team = teams.find((t) => t.id === currentAuction.currentBidderId);
-      setCommentary((prev) => [`${currentPlayer?.name || 'Player'} SOLD to ${team?.shortName || 'TEAM'} for ${formatCrPrice(Number(currentAuction.currentBid || 0))}!`, ...prev].slice(0, 14));
       setActiveBidOverlay(null); // Clear active bid overlay on sale
       if (!suppressSoldBannerRef.current) {
         setBanner({ kind: 'SOLD', price: Number(currentAuction.currentBid || 0), team: team?.shortName || 'TEAM' });
@@ -965,7 +1035,9 @@ const Auction = () => {
     autoAdvanceKeyRef.current = key;
     if (autoAdvanceHostTimeoutRef.current) window.clearTimeout(autoAdvanceHostTimeoutRef.current);
 
-    const delayMs = currentAuction.status === 'SOLD'
+    const delayMs = isLastInSet
+      ? 10000
+      : currentAuction.status === 'SOLD'
       ? (currentAuction?.rtmResultMessage ? 5000 : 4000)
       : 2000;
 
@@ -978,14 +1050,13 @@ const Auction = () => {
 
       loadNextPlayer(gameCode).catch(() => undefined);
     }, delayMs);
-  }, [isHost, gameCode, currentAuction, pendingRtm]);
+  }, [isHost, gameCode, currentAuction, pendingRtm, isLastInSet]);
 
 
   useEffect(() => {
-    if (!currentPlayer?.name || !currentAuction?.activePlayerId) return;
-    if (prevStatusRef.current === 'IDLE') return;
-    speakLine(`Next player ${currentPlayer.name}`);
-  }, [currentAuction?.activePlayerId, currentPlayer?.name, speakLine]);
+    if (!displayedPlayer?.name) return;
+    speakLine(`Next player ${displayedPlayer.name}`);
+  }, [displayedPlayer?.id, speakLine]);
 
   useEffect(() => {
     if (!currentAuction?.activePlayerId || currentAuction?.status !== "RUNNING" || isSetIntroDelayActive) return;
@@ -1016,10 +1087,10 @@ const Auction = () => {
     if (!isHost || !gameCode) return;
     if (effectiveTimerSeconds !== 0) return;
     if (currentAuction?.status !== 'RUNNING') return;
-    if (isSetIntroDelayActive) return;
+    if (isSetIntroDelayActive || showPoolTransition || isTransitioning || optimisticBid !== null) return;
 
     resolveAuction(gameCode).catch(() => undefined);
-  }, [isHost, gameCode, effectiveTimerSeconds, currentAuction?.status, isSetIntroDelayActive]);
+  }, [isHost, gameCode, effectiveTimerSeconds, currentAuction?.status, isSetIntroDelayActive, showPoolTransition, isTransitioning, optimisticBid]);
 
 
   useEffect(() => {
@@ -1064,18 +1135,7 @@ const Auction = () => {
 
     if (prevPendingRtmStatusRef.current === pendingRtm.status) return;
 
-    if (pendingRtm.status === 'AWAIT_ORIGINAL') {
-      setCommentary((prev) => [`${rtmOriginalTeam?.shortName || 'Original Team'} can use RTM now.`, ...prev].slice(0, 14));
-    }
 
-    if (pendingRtm.status === 'AWAIT_WINNER_COUNTER') {
-      setCommentary((prev) => [`${rtmOriginalTeam?.shortName || 'Original Team'} uses RTM! ${rtmWinningTeam?.shortName || 'Bid Team'} can counter.`, ...prev].slice(0, 14));
-    }
-
-    if (pendingRtm.status === 'AWAIT_ORIGINAL_MATCH') {
-      const counterAmount = formatCrPrice(Number(pendingRtm.counterBid || pendingRtm.finalBid || 0));
-      setCommentary((prev) => [`${rtmWinningTeam?.shortName || 'Bid Team'} raises counter bid to ${counterAmount}.`, ...prev].slice(0, 14));
-    }
 
     prevPendingRtmStatusRef.current = pendingRtm.status;
   }, [pendingRtm?.status, pendingRtm?.counterBid, pendingRtm?.finalBid, rtmOriginalTeam?.shortName, rtmWinningTeam?.shortName]);
@@ -1215,12 +1275,7 @@ const Auction = () => {
     });
   }, [recentPurchases, masterPlayerList, teams]);
 
-  const showAcceleratedButton = useMemo(() => {
-    if (!isHost) return false;
-    const queueIndex = Number(session?.queueIndex ?? -1);
-    const endedQueue = queueLength > 0 && queueIndex >= queueLength;
-    return endedQueue && Number((session?.unsoldPlayers || []).length) > 0 && !session?.isAcceleratedRound;
-  }, [isHost, session?.queueIndex, session?.unsoldPlayers, session?.isAcceleratedRound, queueLength]);
+
 
   const leaderboard = useMemo(() => buildLeaderboard(teams, teamPlayersResolved), [teams, teamPlayersResolved]);
 
@@ -1282,10 +1337,117 @@ const Auction = () => {
         onMenuClick={() => setTeamDrawerOpen(true)}
         onLeaveGame={() => setLeaveConfirmOpen(true)}
         onEndGame={gameCode && isHost ? async () => {
-          await endGameByHost(gameCode, userId);
-          navigate(`/summary/${gameCode}`);
+          console.log("[End Game CTA] Clicked. gameCode:", gameCode, "userId:", userId);
+          try {
+            await endGameByHost(gameCode!, userId);
+            console.log("[End Game CTA] Successfully updated DB. Navigating to summary...");
+            navigate(`/summary/${gameCode}`);
+          } catch (e: any) {
+            console.error("[End Game CTA] Error in endGameByHost:", e.message || e);
+          }
         } : undefined}
       />
+
+      {showSetCompletedOverlay && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-slate-950/95 backdrop-blur-md p-6 animate-[fadeIn_0.3s_ease]">
+          {/* Ambient glow backgrounds */}
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-cyan-500/10 rounded-full blur-[120px] pointer-events-none" />
+          <div className="absolute bottom-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-yellow-500/5 rounded-full blur-[120px] pointer-events-none" />
+          
+          <div className="w-full max-w-3xl border border-yellow-500/30 rounded-3xl bg-gradient-to-b from-[#071a3a]/90 via-[#05142c]/95 to-[#020b17]/98 shadow-[0_20px_60px_rgba(0,0,0,0.8)] relative overflow-hidden p-6 md:p-8 flex flex-col items-center max-h-[85vh]">
+            {/* Top gold glow bar */}
+            <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 z-10" />
+            
+            {(() => {
+              const resolvedTimeMs = currentAuction?.soldAt?.toMillis?.() || currentAuction?.lastEvent?.createdAt?.toMillis?.() || 0;
+              const elapsedMs = resolvedTimeMs ? Math.max(0, nowMs - resolvedTimeMs) : 0;
+              
+              if (elapsedMs < 4000) {
+                return (
+                  /* Slide 1: Set Completed Title Screen (0-4s) */
+                  <div className="flex-1 flex flex-col items-center justify-center text-center space-y-6 py-8 animate-[resultPop_0.4s_ease-out] w-full">
+                    <div className="h-24 w-24 rounded-full bg-yellow-500/10 border border-yellow-500/40 flex items-center justify-center shadow-[0_0_30px_rgba(234,179,8,0.2)]">
+                      <Award className="h-12 w-12 text-yellow-400 animate-[pulse_2s_infinite]" />
+                    </div>
+                    <div className="space-y-2">
+                      <span className="text-xs font-black tracking-[0.3em] uppercase text-yellow-400">STAGE COMPLETE</span>
+                      <h1 className="text-4xl md:text-5xl font-display font-black uppercase text-white tracking-wider text-shadow-glow">
+                        {activeLockedSet?.label}
+                      </h1>
+                      <p className="text-sm text-slate-400 max-w-md mx-auto">
+                        All players in this category have been presented. Reviewing set outcomes...
+                      </p>
+                    </div>
+                    <div className="flex gap-2 justify-center">
+                      <div className="h-1.5 w-12 rounded bg-yellow-400 animate-pulse" />
+                      <div className="h-1.5 w-1.5 rounded-full bg-slate-700" />
+                      <div className="h-1.5 w-1.5 rounded-full bg-slate-700" />
+                    </div>
+                  </div>
+                );
+              }
+              
+              return (
+                /* Slide 2: Set Summary Screen (4-10s) */
+                <div className="flex-1 flex flex-col w-full min-h-0 space-y-6 animate-[resultPop_0.4s_ease-out] w-full">
+                  {/* Header */}
+                  <div className="text-center space-y-1">
+                    <span className="text-[10px] font-black tracking-[0.2em] uppercase text-slate-400">SET SUMMARY</span>
+                    <h2 className="text-2xl font-display font-black uppercase text-yellow-400">
+                      {activeLockedSet?.label}
+                    </h2>
+                  </div>
+                  
+                  {/* Player List Table */}
+                  <div className="flex-1 overflow-y-auto pr-1.5 border border-white/5 rounded-2xl bg-slate-950/45 p-4 scrollbar-thin min-h-[200px]">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-white/10 text-[9px] uppercase tracking-wider text-slate-400 font-bold">
+                          <th className="pb-2">Player</th>
+                          <th className="pb-2">Role</th>
+                          <th className="pb-2 text-right">Base Price</th>
+                          <th className="pb-2 text-right">Sold Price</th>
+                          <th className="pb-2 text-right">Purchaser</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-white/5 text-xs text-slate-200">
+                        {setSummaryPlayers.map((player) => (
+                          <tr key={player.id} className="hover:bg-white/5 transition-colors">
+                            <td className="py-2.5 font-bold text-slate-100 uppercase">{player.name}</td>
+                            <td className="py-2.5 text-slate-400 uppercase font-semibold text-[10px]">{player.role}</td>
+                            <td className="py-2.5 text-right font-mono text-[11px] text-slate-400">{formatCrPrice(player.basePrice)}</td>
+                            <td className="py-2.5 text-right font-mono text-[11px] font-black text-yellow-400">
+                              {player.soldPrice ? formatCrPrice(player.soldPrice) : '—'}
+                            </td>
+                            <td className="py-2.5 text-right">
+                              {player.soldTeamShortName ? (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-black bg-[#0066cc]/10 text-cyan-400 border border-[#0066cc]/30">
+                                  {player.soldTeamShortName}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                                  UNSOLD
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  {/* Progress indicator */}
+                  <div className="flex justify-center gap-2 items-center">
+                    <div className="h-1.5 w-1.5 rounded-full bg-slate-700" />
+                    <div className="h-1.5 w-12 rounded bg-yellow-400 animate-pulse" />
+                    <div className="h-1.5 w-1.5 rounded-full bg-slate-700" />
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      )}
 
       {showPoolTransition && activeLockedSet && activePlayerId && (
         <PoolTransition
@@ -1403,7 +1565,7 @@ const Auction = () => {
 
       <SoldModal
         open={showSoldModal}
-        player={currentPlayer as any}
+        player={displayedPlayer as any}
         teamId={soldTeam?.id || currentAuction?.soldToTeamId}
         teamName={soldTeam?.name}
         teamShortName={soldTeam?.shortName}
@@ -1814,44 +1976,57 @@ const Auction = () => {
                     </div>
                   </div>
 
-                  {displayedPlayer && !isSetIntroActive && (
-                    <div
-                      key={displayedPlayer.id}
-                      className={`h-full relative isolate transition-all duration-300 ${
-                        isTransitioning ? "scale-95 opacity-50 blur-[1.5px]" : "scale-100 opacity-100 blur-0"
-                      }`}
-                    >
-                      <PlayerCard
-                        player={displayedPlayer as any}
-                        currentBid={displayedPlayerBid}
-                        currentBidderId={displayedPlayerBidderId}
-                        currentBidderName={displayedPlayerBidderName}
-                        onImageLoad={handlePlayerImageLoad}
-                      />
-                      
-                      {/* Smooth loading overlay */}
-                      {isTransitioning && (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/65 rounded-2xl backdrop-blur-sm z-30">
-                          <div className="relative flex items-center justify-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-400" />
-                            <div className="absolute h-6 w-6 rounded-full bg-yellow-400/20 animate-ping" />
+                  {/* Stable Card Wrapper */}
+                  <div className="flex-1 min-h-0 w-full relative mt-2">
+                    {displayedPlayer && !isSetIntroActive ? (
+                      <div
+                        key={displayedPlayer.id}
+                        className={`h-full w-full relative isolate transition-all duration-300 ${
+                          isTransitioning ? "scale-95 opacity-50 blur-[1.5px]" : "scale-100 opacity-100 blur-0"
+                        }`}
+                      >
+                        <PlayerCard
+                          player={displayedPlayer as any}
+                          currentBid={displayedPlayerBid}
+                          currentBidderId={displayedPlayerBidderId}
+                          currentBidderName={displayedPlayerBidderName}
+                          onImageLoad={handlePlayerImageLoad}
+                        />
+                        
+                        {/* Smooth loading overlay */}
+                        {isTransitioning && (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/65 rounded-2xl backdrop-blur-sm z-30">
+                            <div className="relative flex items-center justify-center">
+                              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-400" />
+                              <div className="absolute h-6 w-6 rounded-full bg-yellow-400/20 animate-ping" />
+                            </div>
+                            <p className="text-xs font-black tracking-widest text-yellow-400 mt-4 animate-pulse uppercase">REVEALING NEXT PLAYER...</p>
                           </div>
-                          <p className="text-xs font-black tracking-widest text-yellow-400 mt-4 animate-pulse uppercase">REVEALING NEXT PLAYER...</p>
-                        </div>
-                      )}
-                      
-                      {/* Bidding activity overlay flash */}
-                      {activeBidOverlay && (
-                        <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none animate-[bidFlash_0.35s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
-                          <div className="bg-[#051126]/95 border-2 border-yellow-400 px-6 py-2.5 rounded-2xl shadow-[0_0_30px_rgba(250,204,21,0.6)] flex items-center gap-2">
-                            <span className="font-display text-lg text-yellow-400 font-extrabold animate-pulse">{activeBidOverlay.teamShortName}</span>
-                            <span className="text-xs text-white uppercase tracking-wider font-bold">BID</span>
-                            <span className="font-display text-lg text-emerald-400 font-extrabold">{activeBidOverlay.amountStr}</span>
+                        )}
+                        
+                        {/* Bidding activity overlay flash */}
+                        {activeBidOverlay && (
+                          <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 z-30 pointer-events-none animate-[bidFlash_0.35s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
+                            <div className="bg-[#051126]/95 border-2 border-yellow-400 px-6 py-2.5 rounded-2xl shadow-[0_0_30px_rgba(250,204,21,0.6)] flex items-center gap-2">
+                              <span className="font-display text-lg text-yellow-400 font-extrabold animate-pulse">{activeBidOverlay.teamShortName}</span>
+                              <span className="text-xs text-white uppercase tracking-wider font-bold">BID</span>
+                              <span className="font-display text-lg text-emerald-400 font-extrabold">{activeBidOverlay.amountStr}</span>
+                            </div>
                           </div>
+                        )}
+                      </div>
+                    ) : !isSetIntroActive && (
+                      /* Card Placeholder / Skeleton to prevent layout jumps */
+                      <div className="h-full w-full rounded-2xl bg-slate-950/40 border border-white/5 flex flex-col items-center justify-center p-6 text-center space-y-4">
+                        <div className="animate-pulse flex flex-col items-center space-y-4 w-full">
+                          <div className="rounded-full bg-slate-800/80 h-28 w-28 md:h-32 md:w-32 animate-pulse" />
+                          <div className="h-4 bg-slate-800/80 rounded w-1/3 animate-pulse" />
+                          <div className="h-3 bg-slate-800/80 rounded w-1/2 animate-pulse" />
+                          <div className="h-8 bg-slate-800/80 rounded w-1/4 mt-4 animate-pulse" />
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
+                  </div>
 
                   {currentAuction?.status === 'PAUSED' && <p className="text-lg font-semibold text-yellow-400 mt-6 text-center">Auction Paused by Host</p>}
 
@@ -1866,7 +2041,7 @@ const Auction = () => {
               <div className="h-full min-h-0 overflow-hidden">
                 <BidControls
                   currentBid={displayedCurrentBid}
-                  canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
+                  canBid={canTeamBid(userTeam, displayedPlayer, nextBid)}
                   onBid={handleBid}
                   recentPurchases={recentPurchases.map((p) => {
                     const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
@@ -1878,12 +2053,10 @@ const Auction = () => {
                       timestamp: p.timestamp,
                     };
                   })}
-                  upcomingPlayers={remainingSetPlayers}
                   remainingPlayers={remainingPlayersList}
                   unsoldPlayers={unsoldPlayersList}
                   soldPlayers={soldPlayersList}
-                  currentPlayer={currentPlayer}
-                  currentSetLabel={setProgress.activeSetLabel}
+                  currentPlayer={displayedPlayer}
                   lockedAuctionSets={lockedAuctionSets}
                   activeSetKey={activeLockedSet?.key || undefined}
                   isSquadComplete={userTeam ? ((teamPlayersResolved[userTeam.id]?.retained?.length || 0) + (teamPlayersResolved[userTeam.id]?.bought?.length || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD) : false}
@@ -1934,11 +2107,13 @@ const Auction = () => {
                         </div>
                       )}
                     </div>
-                  ) : !displayedPlayer && currentAuction?.activePlayerId ? (
-                    <div className="h-full grid place-items-center text-xs text-slate-300">
-                      <div className="text-center space-y-2">
-                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-400 mx-auto" />
-                        <p className="text-xs text-slate-400">Loading player details...</p>
+                  ) : !isSetIntroActive ? (
+                    /* Stable skeleton/loading placeholder for mobile */
+                    <div className="h-full w-full rounded-xl bg-slate-950/40 border border-white/5 flex flex-col items-center justify-center p-3 text-center space-y-2">
+                      <div className="animate-pulse flex flex-col items-center space-y-2 w-full animate-[pulse_2s_infinite]">
+                        <div className="rounded-full bg-slate-800/80 h-16 w-16" />
+                        <div className="h-3 bg-slate-800/80 rounded w-1/2" />
+                        <div className="h-2 bg-slate-800/80 rounded w-2/3" />
                       </div>
                     </div>
                   ) : isSetIntroActive ? (
@@ -1959,7 +2134,7 @@ const Auction = () => {
                 <div className="h-full min-h-0 overflow-hidden">
                   <BidControls
                     currentBid={displayedCurrentBid}
-                    canBid={canTeamBid(userTeam, currentPlayer, nextBid)}
+                    canBid={canTeamBid(userTeam, displayedPlayer, nextBid)}
                     onBid={handleBid}
                     recentPurchases={recentPurchases.map((p) => {
                       const pl = masterPlayerList.find((x: any) => x.id === p.playerId);
@@ -1971,12 +2146,10 @@ const Auction = () => {
                         timestamp: p.timestamp,
                       };
                     })}
-                    upcomingPlayers={remainingSetPlayers}
                     remainingPlayers={remainingPlayersList}
                     unsoldPlayers={unsoldPlayersList}
                     soldPlayers={soldPlayersList}
-                    currentPlayer={currentPlayer}
-                    currentSetLabel={setProgress.activeSetLabel}
+                    currentPlayer={displayedPlayer}
                     lockedAuctionSets={lockedAuctionSets}
                     activeSetKey={activeLockedSet?.key || undefined}
                     isSquadComplete={userTeam ? ((teamPlayersResolved[userTeam.id]?.retained?.length || 0) + (teamPlayersResolved[userTeam.id]?.bought?.length || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD) : false}

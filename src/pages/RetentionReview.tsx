@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { listenSession, listenTeams, startAuction } from '@/lib/sessionService';
 import { IPL_TEAMS, formatPrice } from '@/lib/constants';
 import { useGameData } from '@/contexts/GameDataContext';
-import { ChevronLeft, ChevronRight, RotateCcw, User, Shield, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw, User, Sparkles } from 'lucide-react';
 import { TeamLogo } from '@/components/TeamLogo';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';

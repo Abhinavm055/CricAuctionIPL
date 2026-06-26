@@ -39,16 +39,7 @@ const getRoleNeed = (team: AITeam, player: Player | null, teamSquad: Player[]) =
   return Math.max(0, Math.max(remainingNeed, configuredNeed));
 };
 
-const STAR_PLAYERS = [
-  'Virat Kohli',
-  'Rohit Sharma',
-  'Jasprit Bumrah',
-  'Hardik Pandya',
-  'Shubman Gill',
-  'Rishabh Pant',
-  'Suryakumar Yadav',
-  'Heinrich Klaasen',
-];
+
 
 const TEAM_PERSONALITIES: Record<string, string> = {
   mi: 'aggressive',
