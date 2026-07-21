@@ -4,6 +4,7 @@ import { formatPrice, isImagePreloaded } from '@/lib/constants';
 import { TeamLogo } from './TeamLogo';
 import { StarRating } from './StarRating';
 import { cn } from '@/lib/utils';
+import { PlayerInitialsAvatar } from './PlayerInitialsAvatar';
 import Tilt from 'react-parallax-tilt';
 import { Sparkles, Target, Zap, Award, Shield } from 'lucide-react';
 
@@ -210,13 +211,13 @@ const PlayerCardComponent = ({ player, currentBid, currentBidderId, currentBidde
                   )}
                 </div>
               ) : (
-                <div className="relative h-full w-full flex items-center justify-center">
-                  <PlayerSilhouette />
-                  <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 z-20">
-                    <span className="text-[7px] uppercase font-black tracking-widest text-slate-500 bg-slate-950/65 px-1.5 py-0.5 rounded border border-white/5 whitespace-nowrap">
-                      No Image Available
-                    </span>
-                  </div>
+                <div className="relative h-[115%] w-[115%] flex items-center justify-center animate-float-avatar">
+                  <PlayerInitialsAvatar
+                    name={player.name}
+                    role={player.role}
+                    isOverseas={player.isOverseas}
+                    size="xl"
+                  />
                 </div>
               )}
             </div>

@@ -25,9 +25,15 @@ const path = require('path');
       console.error('[BROWSER PAGE ERROR]', err);
     });
 
-    console.log("Navigating to http://localhost:8081 ...");
-    await page.goto('http://localhost:8081', { waitUntil: 'networkidle2' });
+    console.log("Navigating to http://localhost:8082 ...");
+    await page.goto('http://localhost:8082', { waitUntil: 'networkidle2' });
     
+    // Save state
+    const earlyBody = await page.evaluate(() => document.body.innerHTML);
+    fs.writeFileSync('lobby_body.html', earlyBody);
+    await page.screenshot({ path: 'lobby_loaded.png' });
+    console.log("Saved early state to lobby_body.html and lobby_loaded.png");
+
     // Wait for the Play VS AI button to be visible
     console.log("Waiting for 'Play VS AI' button...");
     await page.waitForSelector('button', { timeout: 10000 });

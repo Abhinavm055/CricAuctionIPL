@@ -93,6 +93,14 @@
     --gradient-card: linear-gradient(180deg, rgba(10, 24, 48, 0.85) 0%, rgba(4, 12, 28, 0.8) 100%);
     --gradient-gold: linear-gradient(135deg, #0b1d3a 0%, #00cfff 100%);
     --gradient-hero: linear-gradient(180deg, transparent 0%, rgba(2, 8, 23, 0.86) 100%);
+    --theme-btn-from: #0B1D3A;
+    --theme-btn-to: #00CFFF;
+    --theme-btn-gold-from: #795b06;
+    --theme-btn-gold-to: #FFD700;
+    --theme-color-primary: #ffd700;
+    --theme-color-accent: #00cfff;
+    --theme-color-glow: rgba(0, 207, 255, 0.15);
+    --theme-color-border: rgba(0, 207, 255, 0.3);
   }
 }
 
@@ -571,3 +579,65 @@ html {
     border-color: rgba(148, 163, 184, 0.4);
   }
 }
+
+/* CricAuctionIPL Mode Theme Classes */
+.theme-multiplayer {
+  --primary: 210 100% 50% !important; /* Blue */
+  --ring: 210 100% 50% !important;
+  --glow-primary: 0 0 24px rgba(59, 130, 246, 0.55) !important;
+  --glow-gold: 0 0 30px rgba(59, 130, 246, 0.45) !important;
+  --theme-btn-from: #0a1b3a !important;
+  --theme-btn-to: #3b82f6 !important;
+  --theme-btn-gold-from: #1e3a8a !important;
+  --theme-btn-gold-to: #60a5fa !important;
+  --theme-color-primary: #3b82f6 !important;
+  --theme-color-accent: #60a5fa !important;
+  --theme-color-glow: rgba(59, 130, 246, 0.18) !important;
+  --theme-color-border: rgba(59, 130, 246, 0.45) !important;
+}
+
+.theme-ai {
+  --primary: 270 100% 60% !important; /* Purple */
+  --ring: 270 100% 60% !important;
+  --glow-primary: 0 0 24px rgba(168, 85, 247, 0.55) !important;
+  --glow-gold: 0 0 30px rgba(168, 85, 247, 0.45) !important;
+  --theme-btn-from: #1e1b4b !important;
+  --theme-btn-to: #a855f7 !important;
+  --theme-btn-gold-from: #581c87 !important;
+  --theme-btn-gold-to: #c084fc !important;
+  --theme-color-primary: #a855f7 !important;
+  --theme-color-accent: #c084fc !important;
+  --theme-color-glow: rgba(168, 85, 247, 0.18) !important;
+  --theme-color-border: rgba(168, 85, 247, 0.45) !important;
+}
+
+.theme-tournament {
+  --primary: 35 100% 50% !important; /* Gold/Orange */
+  --ring: 35 100% 50% !important;
+  --glow-primary: 0 0 24px rgba(245, 158, 11, 0.55) !important;
+  --glow-gold: 0 0 30px rgba(245, 158, 11, 0.45) !important;
+  --theme-btn-from: #2e1505 !important;
+  --theme-btn-to: #f59e0b !important;
+  --theme-btn-gold-from: #7c2d12 !important;
+  --theme-btn-gold-to: #fb923c !important;
+  --theme-color-primary: #f59e0b !important;
+  --theme-color-accent: #fb923c !important;
+  --theme-color-glow: rgba(245, 158, 11, 0.18) !important;
+  --theme-color-border: rgba(245, 158, 11, 0.45) !important;
+}
+
+.theme-classic {
+  --primary: 51 100% 50% !important; /* Yellow */
+  --ring: 191 100% 50% !important;
+  --glow-primary: 0 0 24px #00cfff55 !important;
+  --glow-gold: 0 0 30px #ffd70066 !important;
+  --theme-btn-from: #0B1D3A !important;
+  --theme-btn-to: #00CFFF !important;
+  --theme-btn-gold-from: #795b06 !important;
+  --theme-btn-gold-to: #FFD700 !important;
+  --theme-color-primary: #ffd700 !important;
+  --theme-color-accent: #00cfff !important;
+  --theme-color-glow: rgba(0, 207, 255, 0.15) !important;
+  --theme-color-border: rgba(0, 207, 255, 0.3) !important;
+}
+

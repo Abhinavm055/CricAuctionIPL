@@ -9,6 +9,7 @@ const formatCrPrice = (amount: number) => `₹${(Number(amount || 0) / 10000000)
 import { Player } from '@/lib/samplePlayers';
 import { StarRating } from './StarRating';
 import { Search, SlidersHorizontal, ArrowUpDown, Flag, HelpCircle, ChevronDown, ChevronRight } from 'lucide-react';
+import { PlayerInitialsAvatar } from './PlayerInitialsAvatar';
 
 interface RecentPurchase {
   playerName: string;
@@ -64,6 +65,11 @@ const BidControlsComponent = ({
 
   // Profile Modal State
   const [selectedPlayer, setSelectedPlayer] = useState<Player | null>(null);
+  const [dialogImgFailed, setDialogImgFailed] = useState(false);
+
+  useEffect(() => {
+    setDialogImgFailed(false);
+  }, [selectedPlayer]);
 
   useEffect(() => {
     if (canBid) setIsBidPending(false);
@@ -565,18 +571,20 @@ const BidControlsComponent = ({
                 {/* Main Card Content */}
                 <div className="grid grid-cols-[1.2fr_2fr] gap-4 bg-black/30 p-3 rounded-xl border border-white/5">
                   <div className="aspect-[3/4] rounded-lg border border-slate-700 bg-slate-900 overflow-hidden relative flex items-center justify-center">
-                    {playerImage ? (
+                    {playerImage && !dialogImgFailed ? (
                       <img
                         src={playerImage}
                         alt={selectedPlayer.name}
                         className="h-full w-full object-contain object-center"
-                        onError={(e) => {
-                          (e.target as any).src = '';
-                          (e.target as any).style.display = 'none';
-                        }}
+                        onError={() => setDialogImgFailed(true)}
                       />
                     ) : (
-                      <HelpCircle className="h-10 w-10 text-slate-600 animate-pulse" />
+                      <PlayerInitialsAvatar
+                        name={selectedPlayer.name}
+                        role={selectedPlayer.role}
+                        isOverseas={selectedPlayer.isOverseas}
+                        size="md"
+                      />
                     )}
                   </div>
 

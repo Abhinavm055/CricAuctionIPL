@@ -9,6 +9,8 @@ import { TeamLogo } from '@/components/TeamLogo';
 import { CheckCircle2, Sparkles, User } from 'lucide-react';
 import { RETENTION_ROLE_ORDER, groupPlayersByRetentionRole } from '@/lib/playerSorting';
 import { motion } from 'framer-motion';
+import { useUserId } from '@/hooks/useUserId';
+import { PlayerInitialsAvatar } from '@/components/PlayerInitialsAvatar';
 
 const roleBadge = (role: string) => {
   if (role.toLowerCase().includes('wicket')) return 'WK';
@@ -23,7 +25,7 @@ const Retention = () => {
   const [session, setSession] = useState<any>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const { masterPlayerList } = useGameData();
-  const userId = localStorage.getItem('uid');
+  const userId = useUserId();
 
   useEffect(() => {
     if (!gameCode) return;
@@ -113,9 +115,10 @@ const Retention = () => {
   );
 
   const team = IPL_TEAMS.find((t) => t.id === myTeam);
+  const isVsAI = session?.mode === 'VS_AI';
 
   return (
-    <div className="min-h-screen p-6 relative overflow-hidden" style={{ background: 'radial-gradient(circle at center, #071739 0%, #020617 100%)' }}>
+    <div className={cn("min-h-screen p-6 relative overflow-hidden", isVsAI ? "theme-ai" : "theme-multiplayer")} style={{ background: 'radial-gradient(circle at center, #071739 0%, #020617 100%)' }}>
       {/* Stadium-inspired atmospheric lighting */}
       <div className="stadium-ambient stadium-ambient-cyan -top-40 -left-40 w-[600px] h-[600px]" />
       <div className="stadium-ambient stadium-ambient-gold -bottom-40 -right-40 w-[600px] h-[600px]" />
@@ -218,15 +221,14 @@ const Retention = () => {
                             <span className="text-[9px] rounded-md border border-cyan-500/30 bg-cyan-500/5 px-2 py-0.5 text-cyan-400 font-bold uppercase tracking-widest">{role}</span>
                           </div>
 
-                          <div className="w-full h-28 rounded-xl bg-slate-950/45 border border-white/5 flex items-center justify-center overflow-hidden my-3 relative shrink-0">
-                            {player.imageUrl || player.image ? (
-                              <img src={player.imageUrl || player.image} alt={player.name} className="h-full w-full object-contain object-center scale-[1.03] transition-transform duration-500 hover:scale-[1.1]" />
-                            ) : (
-                              <div className="flex flex-col items-center justify-center">
-                                <User className="h-8 w-8 text-slate-600 mb-1" />
-                                <span className="text-[9px] text-slate-500 font-bold uppercase tracking-widest">No Image</span>
-                              </div>
-                            )}
+                          <div className="w-full h-28 flex items-center justify-center overflow-visible my-3 shrink-0">
+                            <PlayerInitialsAvatar
+                              name={player.name}
+                              role={player.role}
+                              isOverseas={player.isOverseas}
+                              image={player.image || player.imageUrl}
+                              size="md"
+                            />
                           </div>
 
                           <div className="w-full space-y-1 z-10 shrink-0">

@@ -12,6 +12,8 @@ interface PlayerTableProps {
   onDelete: (playerId: string) => Promise<void>;
 }
 
+import { PlayerInitialsAvatar } from './PlayerInitialsAvatar';
+
 export const PlayerTable = ({ players, teamNameByPlayerId, teamIdByPlayerId = {}, onEdit, onDelete }: PlayerTableProps) => {
   return (
     <Table>
@@ -36,11 +38,14 @@ export const PlayerTable = ({ players, teamNameByPlayerId, teamIdByPlayerId = {}
           return (
             <TableRow key={player.id}>
               <TableCell>
-                {player.image ? (
-                  <img src={player.image || "https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=128"} alt={player.name} className="w-9 h-9 rounded object-cover border" onError={(event) => { event.currentTarget.src = "https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=128"; }} />
-                ) : (
-                  <div className="w-9 h-9 rounded bg-muted" />
-                )}
+                <PlayerInitialsAvatar
+                  name={player.name}
+                  role={player.role}
+                  isOverseas={player.overseas}
+                  image={player.image || (player as any).imageUrl}
+                  size="sm"
+                  className="w-9 h-9"
+                />
               </TableCell>
               <TableCell className="font-medium">{player.name}</TableCell>
               <TableCell>{player.role}</TableCell>

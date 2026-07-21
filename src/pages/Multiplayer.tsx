@@ -4,30 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSession, joinSession, generateGameCode } from "@/lib/sessionService";
 import { Users, Gavel } from "lucide-react";
+import { useUserId } from "@/hooks/useUserId";
 
 const Multiplayer = () => {
   const navigate = useNavigate();
+  const userId = useUserId();
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
-
-  /**
-   * 🆔 CONSISTENT USER ID
-   * We get the ID from localStorage. If it doesn't exist, we create one.
-   * This is critical so Firebase knows you are the same person if you refresh.
-   */
-  const getUserId = () => {
-    let id = localStorage.getItem("uid");
-    if (!id) {
-      id = "user-" + Math.random().toString(36).slice(2, 9);
-      localStorage.setItem("uid", id);
-    }
-    return id;
-  };
 
   const handleCreateRoom = async () => {
     setError("");
     try {
-      const userId = getUserId();
       const newGameCode = generateGameCode(); // Generates "CAIPLxxxx"
 
       // Pass the code and the hostId to the service
@@ -42,7 +29,6 @@ const Multiplayer = () => {
   };
 
   const handleJoinRoom = async () => {
-    const userId = getUserId();
     const formattedCode = joinCode.trim().toUpperCase();
 
     if (formattedCode.length < 5) {

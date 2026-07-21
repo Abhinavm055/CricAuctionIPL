@@ -1,9 +1,11 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
+import { useUserId } from "@/hooks/useUserId";
 import { PlayerCard } from "@/components/PlayerCard";
 import { Player } from "@/lib/samplePlayers";
 import { useGameData } from "@/contexts/GameDataContext";
+import { cn } from "@/lib/utils";
 import { getNextBid, IPL_TEAMS, SQUAD_CONSTRAINTS, AUCTION_TIMER, BID_RESET_TIMER, preloadImage, isImagePreloaded, COMMENTARY_VOICE_CONFIG } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { Sparkles, Award } from "lucide-react";
@@ -208,7 +210,7 @@ const Auction = () => {
   const transitionStartRef = useRef<number>(0);
   const lastPlayerIdRef = useRef<string | null>(null);
 
-  const userId = localStorage.getItem("uid") || "";
+  const userId = useUserId();
   const { masterPlayerList } = useGameData();
 
   const prevBidRef = useRef<number>(0);
@@ -1322,7 +1324,7 @@ const Auction = () => {
   if (!session || !userTeam) return <p className="p-6">Loading auction…</p>;
 
   return (
-    <div className="h-screen broadcast-container flex flex-col overflow-hidden">
+    <div className={cn("h-screen broadcast-container flex flex-col overflow-hidden", isAIMode ? "theme-ai" : "theme-multiplayer")}>
       <Header
         gameCode={gameCode!}
         hideGameCode={isAIMode}

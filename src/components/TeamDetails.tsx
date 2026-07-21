@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatPrice, PLAYER_ROLES } from '@/lib/constants';
 import { TeamLogo } from './TeamLogo';
 import { EditablePlayer, PlayerForm } from './PlayerForm';
+import { PlayerInitialsAvatar } from './PlayerInitialsAvatar';
 
 interface TeamRecord {
   id: string;
@@ -187,7 +188,14 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
                   {availablePlayers.map((player) => (
                     <div key={player.id} className="p-3 flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        {player.image ? <img src={player.image} alt={player.name} className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-muted" />}
+                                                <PlayerInitialsAvatar
+                          name={player.name}
+                          role={player.role}
+                          isOverseas={player.overseas}
+                          image={player.image || (player as any).imageUrl}
+                          size="sm"
+                          className="w-8 h-8"
+                        />
                         <div>
                           <p className="text-sm font-medium">{player.name}</p>
                           <p className="text-xs text-muted-foreground">{player.role}</p>
@@ -218,7 +226,14 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
         {teamPlayers.map((player) => (
           <div key={`card-${player.id}`} className="border rounded-xl p-3 space-y-2 bg-card/60">
             <div className="flex items-center gap-2">
-              {player.image ? <img src={player.image} alt={player.name} className="w-14 h-14 rounded object-cover" /> : <div className="w-14 h-14 rounded bg-muted" />}
+                            <PlayerInitialsAvatar
+                name={player.name}
+                role={player.role}
+                isOverseas={player.overseas}
+                image={player.image || (player as any).imageUrl}
+                size="md"
+                className="w-14 h-14"
+              />
               <div>
                 <p className="font-semibold">{player.name}</p>
                 <p className="text-xs text-muted-foreground">{player.role}</p>
@@ -253,7 +268,14 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
             {teamPlayers.map((player) => (
               <TableRow key={player.id}>
                 <TableCell>
-                  {player.image ? <img src={player.image} alt={player.name} className="w-9 h-9 rounded object-cover border" /> : <div className="w-9 h-9 rounded bg-muted" />}
+                                    <PlayerInitialsAvatar
+                    name={player.name}
+                    role={player.role}
+                    isOverseas={player.overseas}
+                    image={player.image || (player as any).imageUrl}
+                    size="sm"
+                    className="w-9 h-9"
+                  />
                 </TableCell>
                 <TableCell className="font-medium">{player.name}</TableCell>
                 <TableCell>{player.role}</TableCell>

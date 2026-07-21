@@ -9,6 +9,7 @@ import { selectTeam, listenSession, startRetention, resolveHostReconnectTimeout 
 import { TeamLogo } from '@/components/TeamLogo';
 import { auth, db } from '@/lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
+import { useUserId } from '@/hooks/useUserId';
 import { addDoc, collection, doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { motion } from 'framer-motion';
 
@@ -80,14 +81,7 @@ const Lobby = () => {
   const [authUid, setAuthUid] = useState<string | null>(null);
   const [insightTeamId, setInsightTeamId] = useState<string | null>(null);
 
-  const userId = useMemo(() => {
-    let uid = localStorage.getItem('uid');
-    if (!uid) {
-      uid = `user-${Math.random().toString(36).slice(2, 9)}`;
-      localStorage.setItem('uid', uid);
-    }
-    return uid;
-  }, []);
+  const userId = useUserId();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -289,7 +283,7 @@ const Lobby = () => {
   };
 
   return (
-    <div className="min-h-screen p-6 relative overflow-hidden" style={{ background: 'radial-gradient(circle at center, #071739 0%, #020617 100%)' }}>
+    <div className={cn("min-h-screen p-6 relative overflow-hidden", isVsAI ? "theme-ai" : "theme-multiplayer")} style={{ background: 'radial-gradient(circle at center, #071739 0%, #020617 100%)' }}>
       {/* Stadium-inspired atmospheric lighting */}
       <div className="stadium-ambient stadium-ambient-cyan -top-40 -left-40 w-[600px] h-[600px]" />
       <div className="stadium-ambient stadium-ambient-gold -bottom-40 -right-40 w-[600px] h-[600px]" />

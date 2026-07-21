@@ -87,7 +87,7 @@ const Tournament = () => {
   const activeStep = TOURNAMENT_STEPS[activeStepIndex];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white relative overflow-hidden flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-white relative overflow-hidden flex flex-col theme-tournament">
       {/* Background ambient lighting */}
       <div className="absolute inset-0 bg-[#020617]/70 backdrop-blur-[1.5px] z-0" />
       <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">

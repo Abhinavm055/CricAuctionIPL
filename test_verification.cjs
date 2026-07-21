@@ -2,7 +2,7 @@ const puppeteer = require('puppeteer-core');
 const fs = require('fs');
 const path = require('path');
 
-const ARTIFACT_DIR = 'C:\\Users\\malay\\.gemini\\antigravity\\brain\\dae50f85-8b57-4eb9-a7ba-8d3cf8a4e207';
+const ARTIFACT_DIR = 'C:\\Users\\malay\\.gemini\\antigravity\\brain\\8d166850-eea3-403c-a0f8-d188c71997fa';
 
 (async () => {
   console.log("Starting verification run...");
@@ -25,8 +25,8 @@ const ARTIFACT_DIR = 'C:\\Users\\malay\\.gemini\\antigravity\\brain\\dae50f85-8b
       console.error('[BROWSER PAGE ERROR]', err);
     });
 
-    console.log("Navigating to http://localhost:8081 ...");
-    await page.goto('http://localhost:8081', { waitUntil: 'networkidle2' });
+    console.log("Navigating to http://localhost:8082 ...");
+    await page.goto('http://localhost:8082', { waitUntil: 'networkidle2' });
 
     console.log("Enabling mock Firebase flag in local storage and reloading...");
     await page.evaluate(() => {

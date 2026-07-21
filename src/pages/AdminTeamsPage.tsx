@@ -5,6 +5,7 @@ import { EditablePlayer } from '@/components/PlayerForm';
 import { formatPrice } from '@/lib/constants';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
+import { PlayerInitialsAvatar } from '@/components/PlayerInitialsAvatar';
 
 interface TeamRecord {
   id: string;
@@ -121,13 +122,15 @@ const AdminTeamsPage = ({ teams, players }: AdminTeamsPageProps) => {
                 onDragEnd={() => setDraggingPlayerId(null)}
                 className={`rounded-xl border p-3 bg-background/40 transition ${draggingPlayerId === player.id ? 'opacity-60 scale-95' : 'hover:scale-[1.02]'}`}
               >
-                {player.image ? (
-                  <img src={player.image} alt={player.name} className="w-full h-[120px] object-contain bg-transparent rounded-md border border-primary/20" />
-                ) : (
-                  <div className="h-[120px] flex items-center justify-center bg-[#0b1c3d] text-[#aaa] rounded-md border border-dashed border-primary/30">
-                    No Image
-                  </div>
-                )}
+                <div className="w-full h-[120px] flex items-center justify-center bg-transparent rounded-md border border-primary/20 overflow-visible py-1">
+                  <PlayerInitialsAvatar
+                    name={player.name}
+                    role={player.role}
+                    isOverseas={player.overseas}
+                    image={player.image || (player as any).imageUrl}
+                    size="md"
+                  />
+                </div>
 
                 <h3 className="mt-2 text-sm font-semibold truncate">{player.name}</h3>
                 <p className="text-xs text-muted-foreground truncate">{player.nationality || 'Unknown'}</p>

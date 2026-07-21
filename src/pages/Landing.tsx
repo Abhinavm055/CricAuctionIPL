@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import { createSession, joinSession } from '@/lib/sessionService';
 import { auth, db } from '@/lib/firebase';
+import { useUserId } from '@/hooks/useUserId';
 import {
   createUserWithEmailAndPassword,
   GoogleAuthProvider,
@@ -20,16 +21,9 @@ import {
 } from 'firebase/auth';
 import { collection, doc, getDoc, getDocs, limit, query, where } from 'firebase/firestore';
 
-const getUserId = () => {
-  const existing = localStorage.getItem('uid');
-  if (existing) return existing;
-  const id = `user-${Math.random().toString(36).slice(2, 9)}`;
-  localStorage.setItem('uid', id);
-  return id;
-};
-
 const Landing = () => {
   const navigate = useNavigate();
+  const userId = useUserId();
   const [searchParams] = useSearchParams();
   const howItWorksRef = useRef<HTMLElement | null>(null);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
@@ -70,8 +64,7 @@ const Landing = () => {
     const joinViaInvite = async () => {
       try {
         setJoiningInvite(true);
-        const uid = getUserId();
-        await joinSession(joinCode, uid);
+        await joinSession(joinCode, userId);
         navigate(`/lobby/${joinCode}`, { replace: true });
       } catch {
         setJoiningInvite(false);
@@ -79,7 +72,7 @@ const Landing = () => {
       }
     };
     joinViaInvite();
-  }, [searchParams, user, navigate, joiningInvite]);
+  }, [searchParams, user, navigate, joiningInvite, userId]);
 
   useEffect(() => {
     if (!user) return;
@@ -159,7 +152,6 @@ const Landing = () => {
 
   const handlePlayWithAI = async () => {
     const code = generateGameCode();
-    const userId = getUserId();
     await createSession(code, userId, 'VS_AI');
     navigate(`/lobby/${code}?host=true&ai=true`);
   };

@@ -9,14 +9,14 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-gradient-to-r from-[#0B1D3A] to-[#00CFFF] text-primary-foreground hover:brightness-110 hover:scale-105 active:scale-95",
+        default: "bg-gradient-to-r from-[var(--theme-btn-from)] to-[var(--theme-btn-to)] text-primary-foreground hover:brightness-110 hover:scale-105 active:scale-95",
         destructive: "bg-gradient-to-r from-[#8d1d1d] to-[#FF4D4D] text-destructive-foreground hover:scale-105",
-        outline: "border border-[#00CFFF66] bg-[#071a36cc] text-white hover:bg-[#0b2348cc] hover:border-[#00CFFF] hover:text-[#e0f9ff] hover:scale-105",
+        outline: "border border-[var(--theme-btn-to)]/40 bg-[#071a36cc] text-white hover:bg-[#0b2348cc] hover:border-[var(--theme-btn-to)] hover:text-[#e0f9ff] hover:scale-105",
         secondary: "bg-[#0f254acc] text-secondary-foreground hover:bg-[#143263cc] hover:scale-105",
         ghost: "hover:bg-[#00CFFF22] hover:text-[#d8f9ff] hover:scale-105",
         link: "text-primary underline-offset-4 hover:underline",
-        gold: "bg-gradient-to-r from-[#795b06] to-[#FFD700] text-[#120d00] font-bold shadow-lg hover:scale-105 active:scale-95",
-        bid: "bg-gradient-to-r from-[#0B1D3A] to-[#00CFFF] text-white font-bold shadow-lg hover:brightness-110 hover:scale-105 active:scale-95",
+        gold: "bg-gradient-to-r from-[var(--theme-btn-gold-from)] to-[var(--theme-btn-gold-to)] text-[#120d00] font-bold shadow-lg hover:scale-105 active:scale-95",
+        bid: "bg-gradient-to-r from-[var(--theme-btn-from)] to-[var(--theme-btn-to)] text-white font-bold shadow-lg hover:brightness-110 hover:scale-105 active:scale-95",
         danger: "bg-gradient-to-r from-[#8d1d1d] to-[#FF4D4D] text-white font-bold shadow-lg hover:brightness-110 hover:scale-105 active:scale-95",
         broadcast: "bg-[#0f254acc] backdrop-blur-md border border-[#00CFFF55] text-foreground hover:bg-[#143263dd] hover:border-[#00CFFFaa] hover:scale-105",
       },

@@ -4,6 +4,7 @@ import { TeamLogo } from '@/components/TeamLogo';
 import { formatPrice, IPL_TEAM_COLORS } from '@/lib/constants';
 import { Player } from '@/lib/samplePlayers';
 import { cn } from '@/lib/utils';
+import { PlayerInitialsAvatar } from './PlayerInitialsAvatar';
 
 interface SoldModalProps {
   open: boolean;
@@ -26,10 +27,12 @@ export const SoldModal = ({
 }: SoldModalProps) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageFailed, setImageFailed] = useState(false);
 
   useEffect(() => {
     if (open) {
       setImageLoaded(false);
+      setImageFailed(false);
     }
   }, [open, player?.id]);
 
@@ -158,19 +161,42 @@ export const SoldModal = ({
               className="relative mx-auto h-40 w-40 overflow-hidden rounded-2xl border-2 bg-slate-950/70 p-1.5 shadow-2xl"
               style={{ borderColor: `${primaryColor}80`, boxShadow: `0 8px 30px ${primaryColor}25` }}
             >
-              <img
-                src={player?.image || player?.imageUrl || 'https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=256'}
-                alt={player?.name || 'Player'}
-                className={cn(
-                  "h-full w-full object-contain object-center rounded-xl transition-opacity duration-300",
-                  imageLoaded ? "opacity-100" : "opacity-0"
-                )}
-                onLoad={() => setImageLoaded(true)}
-              />
-              {!imageLoaded && (
-                <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 rounded-xl">
-                  <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-400" />
-                </div>
+              {player?.image || player?.imageUrl ? (
+                !imageFailed ? (
+                  <>
+                    <img
+                      src={player.image || player.imageUrl}
+                      alt={player.name}
+                      className={cn(
+                        "h-full w-full object-contain object-center rounded-xl transition-opacity duration-300",
+                        imageLoaded ? "opacity-100" : "opacity-0"
+                      )}
+                      onLoad={() => setImageLoaded(true)}
+                      onError={() => setImageFailed(true)}
+                    />
+                    {!imageLoaded && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 rounded-xl">
+                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-yellow-400" />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <PlayerInitialsAvatar
+                    name={player.name}
+                    role={player.role}
+                    isOverseas={player.isOverseas}
+                    size="xl"
+                  />
+                )
+              ) : player ? (
+                <PlayerInitialsAvatar
+                  name={player.name}
+                  role={player.role}
+                  isOverseas={player.isOverseas}
+                  size="xl"
+                />
+              ) : (
+                <div className="h-full w-full bg-slate-900 rounded-xl" />
               )}
               <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950/95 to-transparent pt-4 pb-1.5 flex flex-col items-center">
                 <span className="text-[10px] uppercase font-black text-yellow-400 tracking-wider">

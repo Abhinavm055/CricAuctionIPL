@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { formatPrice } from "@/lib/constants";
 import { Player } from "@/lib/samplePlayers";
+import { PlayerInitialsAvatar } from "./PlayerInitialsAvatar";
 
 interface RTMModalProps {
   open: boolean;
@@ -26,6 +28,11 @@ export const RTMModal = ({
   onPrimary,
   onSecondary,
 }: RTMModalProps) => {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  useEffect(() => {
+    setImgFailed(false);
+  }, [player?.id]);
   return (
     <Dialog open={open}>
       <DialogContent showCloseButton={false} className="max-w-md border border-emerald-400/25 bg-slate-950/95 text-white shadow-[0_25px_80px_rgba(15,23,42,0.65)] backdrop-blur-xl">
@@ -39,11 +46,32 @@ export const RTMModal = ({
 
         <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
           <div className="flex items-center gap-4">
-            <img
-              src={player?.image || "https://ui-avatars.com/api/?name=IPL+Player&background=0f172a&color=ffffff&size=256"}
-              alt={player?.name || "Player"}
-              className="h-16 w-16 rounded-xl object-contain object-center ring-1 ring-white/10"
-            />
+            {player?.imageUrl || player?.image ? (
+              !imgFailed ? (
+                <img
+                  src={player.imageUrl || player.image}
+                  alt={player.name}
+                  className="h-16 w-16 rounded-xl object-contain object-center ring-1 ring-white/10"
+                  onError={() => setImgFailed(true)}
+                />
+              ) : (
+                <PlayerInitialsAvatar
+                  name={player.name}
+                  role={player.role}
+                  isOverseas={player.isOverseas}
+                  size="md"
+                />
+              )
+            ) : player ? (
+              <PlayerInitialsAvatar
+                name={player.name}
+                role={player.role}
+                isOverseas={player.isOverseas}
+                size="md"
+              />
+            ) : (
+              <div className="h-16 w-16 rounded-xl bg-slate-900 ring-1 ring-white/10" />
+            )}
             <div className="min-w-0 flex-1">
               <p className="truncate text-lg font-semibold text-white">{player?.name || "Player"}</p>
               {typeof amount === "number" && <p className="text-sm text-emerald-300">Amount: {formatPrice(amount)}</p>}

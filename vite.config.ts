@@ -5,15 +5,25 @@ import path from "path";
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: "/",
   server: {
     host: "::",
     port: 8080,
+  },
+  build: {
+    outDir: "dist",
+    assetsDir: "assets",
   },
   plugins: [
     react(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["icon.svg"],
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+      },
       manifest: {
         name: "CricAuctionIPL",
         short_name: "Auction",
@@ -43,4 +53,4 @@ export default defineConfig({
       "firebase/firestore": path.resolve(__dirname, "./src/lib/mockFirestore.ts"),
     },
   },
-});
+});

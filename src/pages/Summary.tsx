@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { cn } from '@/lib/utils';
 
 import { listenSession, listenTeams, restartAuction, updateAuctionStats } from '@/lib/sessionService';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,38 @@ import { Trophy, Coins, Users, Download, RotateCcw, Home, Sparkles, TrendingUp, 
 import { IPL_TEAMS, SQUAD_CONSTRAINTS } from '@/lib/constants';
 import { motion } from 'framer-motion';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Legend, Cell } from 'recharts';
+import { useUserId } from '@/hooks/useUserId';
+import { PlayerInitialsAvatar } from '@/components/PlayerInitialsAvatar';
+
+const SummaryPlayerImage = ({ player }: { player: Player }) => {
+  const [failed, setFailed] = useState(false);
+  
+  useEffect(() => {
+    setFailed(false);
+  }, [player.id]);
+
+  const imageUrl = player.imageUrl || (player as any).image;
+
+  if (imageUrl && !failed) {
+    return (
+      <img 
+        src={imageUrl} 
+        alt={player.name} 
+        className="h-full w-full object-contain object-center" 
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <PlayerInitialsAvatar
+      name={player.name}
+      role={player.role}
+      isOverseas={player.isOverseas}
+      size="md"
+    />
+  );
+};
 
 interface TeamState {
   id: string;
@@ -35,7 +68,7 @@ const formatCrPrice = (amount: number) => `₹${(Number(amount || 0) / 10000000)
 const Summary = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
   const navigate = useNavigate();
-  const userId = localStorage.getItem("uid") || "";
+  const userId = useUserId();
   const { masterPlayerList } = useGameData();
 
   const [session, setSession] = useState<any>(null);
@@ -335,7 +368,7 @@ const Summary = () => {
   }, [leaderboard]);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#020617] via-[#051126] to-[#020617] text-white p-4 md:p-8 overflow-y-auto relative">
+    <div className={cn("min-h-screen bg-gradient-to-br from-[#020617] via-[#051126] to-[#020617] text-white p-4 md:p-8 overflow-y-auto relative", session?.mode === 'VS_AI' ? "theme-ai" : "theme-multiplayer")}>
       {/* Stadium-inspired atmospheric lighting */}
       <div className="stadium-ambient stadium-ambient-cyan -top-40 -left-40 w-[600px] h-[600px]" />
       <div className="stadium-ambient stadium-ambient-gold -bottom-40 -right-40 w-[600px] h-[600px]" />
@@ -618,15 +651,7 @@ const Summary = () => {
             <div className="rounded-3xl border border-white/5 bg-[#0f172a]/20 backdrop-blur-xl p-6 shadow-2xl flex flex-col justify-between space-y-4">
               <div className="flex items-center gap-5">
                 <div className="h-20 w-20 rounded-2xl bg-gradient-to-tr from-yellow-500 to-amber-500 border border-yellow-400/30 overflow-hidden relative flex items-center justify-center shadow-lg shrink-0">
-                  {stats.mostExpensive.imageUrl || (stats.mostExpensive as any).image ? (
-                    <img
-                      src={stats.mostExpensive.imageUrl || (stats.mostExpensive as any).image}
-                      alt={stats.mostExpensive.name}
-                      className="h-full w-full object-contain object-center"
-                    />
-                  ) : (
-                    <Sparkles className="h-10 w-10 text-slate-950 animate-pulse" />
-                  )}
+                  <SummaryPlayerImage player={stats.mostExpensive} />
                 </div>
                 <div className="space-y-1 min-w-0 flex-1">
                   <span className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded text-[9px] font-black px-1.5 py-0.5 tracking-widest uppercase inline-block">
@@ -663,15 +688,7 @@ const Summary = () => {
             <div className="rounded-3xl border border-white/5 bg-[#0f172a]/20 backdrop-blur-xl p-6 shadow-2xl flex flex-col justify-between space-y-4">
               <div className="flex items-center gap-5">
                 <div className="h-20 w-20 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-500 border border-emerald-400/30 overflow-hidden relative flex items-center justify-center shadow-lg shrink-0">
-                  {stats.bestValue.imageUrl || (stats.bestValue as any).image ? (
-                    <img
-                      src={stats.bestValue.imageUrl || (stats.bestValue as any).image}
-                      alt={stats.bestValue.name}
-                      className="h-full w-full object-contain object-center"
-                    />
-                  ) : (
-                    <Sparkles className="h-10 w-10 text-slate-950 animate-pulse" />
-                  )}
+                  <SummaryPlayerImage player={stats.bestValue} />
                 </div>
                 <div className="space-y-1 min-w-0 flex-1">
                   <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded text-[9px] font-black px-1.5 py-0.5 tracking-widest uppercase inline-block">

@@ -8,6 +8,38 @@ import { ChevronLeft, ChevronRight, RotateCcw, User, Sparkles } from 'lucide-rea
 import { TeamLogo } from '@/components/TeamLogo';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
+import { useUserId } from '@/hooks/useUserId';
+import { PlayerInitialsAvatar } from '@/components/PlayerInitialsAvatar';
+
+const RetentionPlayerImage = ({ player }: { player: Player }) => {
+  const [failed, setFailed] = useState(false);
+  
+  useEffect(() => {
+    setFailed(false);
+  }, [player.id]);
+
+  const imageUrl = player.image || player.imageUrl;
+
+  if (imageUrl && !failed) {
+    return (
+      <img 
+        src={imageUrl} 
+        alt={player.name} 
+        className="h-full w-full object-contain object-center scale-[1.03] transition-transform duration-500 hover:scale-[1.1] drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]" 
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  return (
+    <PlayerInitialsAvatar
+      name={player.name}
+      role={player.role}
+      isOverseas={player.isOverseas}
+      size="xl"
+    />
+  );
+};
 
 const TEAM_OWNERS: Record<string, string> = {
   pbks: 'Preity Zinta',
@@ -57,7 +89,7 @@ const RetentionReview = () => {
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [retentionSlideIndex, setRetentionSlideIndex] = useState<Record<string, number>>({});
   const { masterPlayerList } = useGameData();
-  const userId = localStorage.getItem('uid');
+  const userId = useUserId();
 
   useEffect(() => {
     if (!gameCode) return;
@@ -87,7 +119,7 @@ const RetentionReview = () => {
   const isHost = session.hostId === userId;
 
   return (
-    <div className="min-h-screen p-6 relative overflow-hidden" style={{ background: 'radial-gradient(circle at center, #071739 0%, #020617 100%)' }}>
+    <div className={cn("min-h-screen p-6 relative overflow-hidden", session?.mode === 'VS_AI' ? "theme-ai" : "theme-multiplayer")} style={{ background: 'radial-gradient(circle at center, #071739 0%, #020617 100%)' }}>
       {/* Stadium-inspired atmospheric lighting */}
       <div className="stadium-ambient stadium-ambient-cyan -top-40 -left-40 w-[600px] h-[600px]" />
       <div className="stadium-ambient stadium-ambient-gold -bottom-40 -right-40 w-[600px] h-[600px]" />
@@ -258,17 +290,7 @@ const RetentionReview = () => {
                                 teamGradient
                               )}>
                                 <div key={activePlayer.id} className="w-full h-full flex items-center justify-center animate-[retentionSlideIn_0.35s_ease-out]">
-                                  {(activePlayer.image || activePlayer.imageUrl) ? (
-                                    <img 
-                                      src={activePlayer.image || activePlayer.imageUrl} 
-                                      alt={activePlayer.name} 
-                                      className="h-full w-full object-contain object-center scale-[1.03] transition-transform duration-500 hover:scale-[1.1] drop-shadow-[0_8px_16px_rgba(0,0,0,0.5)]" 
-                                    />
-                                  ) : (
-                                    <div className="flex h-full w-full items-center justify-center">
-                                      <User className="h-10 w-10 text-slate-500" />
-                                    </div>
-                                  )}
+                                    <RetentionPlayerImage player={activePlayer} />
                                 </div>
 
                                 {/* Vertically centered navigation arrows inside showcase */}

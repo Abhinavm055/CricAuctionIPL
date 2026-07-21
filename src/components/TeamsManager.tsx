@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { TeamLogo } from './TeamLogo';
 import { EditablePlayer } from './PlayerForm';
 import { TeamDetails } from './TeamDetails';
+import { PlayerInitialsAvatar } from './PlayerInitialsAvatar';
 
 interface TeamRecord {
   id: string;
@@ -102,11 +103,14 @@ export const TeamsManager = ({ teams, players, globalSearch = '' }: TeamsManager
                       <div className="space-y-1 max-h-36 overflow-auto">
                         {teamPlayers.map((player) => (
                           <div key={player.id} className="flex items-center gap-2 text-xs">
-                            {player.image ? (
-                              <img src={player.image} alt={player.name} className="w-6 h-6 rounded object-cover border" />
-                            ) : (
-                              <div className="w-6 h-6 rounded bg-muted" />
-                            )}
+                                                        <PlayerInitialsAvatar
+                              name={player.name}
+                              role={player.role}
+                              isOverseas={player.overseas}
+                              image={player.image || (player as any).imageUrl}
+                              size="sm"
+                              className="w-6 h-6"
+                            />
                             <span className="font-medium truncate">{player.name}</span>
                             <span className="text-muted-foreground">• {player.role}</span>
                           </div>

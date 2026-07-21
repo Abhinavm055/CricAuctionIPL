@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { listenSession, startAuction } from '@/lib/sessionService';
+import { useUserId } from '@/hooks/useUserId';
 
 const RetentionLobby = () => {
   const { gameCode } = useParams<{ gameCode: string }>();
@@ -9,14 +10,7 @@ const RetentionLobby = () => {
   const [session, setSession] = useState<any>(null);
   const [starting, setStarting] = useState(false);
 
-  const userId = useMemo(() => {
-    let uid = localStorage.getItem('uid');
-    if (!uid) {
-      uid = `user-${Math.random().toString(36).slice(2, 9)}`;
-      localStorage.setItem('uid', uid);
-    }
-    return uid;
-  }, []);
+  const userId = useUserId();
 
   useEffect(() => {
     if (!gameCode) return;
