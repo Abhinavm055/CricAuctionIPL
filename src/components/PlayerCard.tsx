@@ -1,11 +1,11 @@
 import { useEffect, useState, memo } from 'react';
 import { Player } from '@/lib/samplePlayers';
-import { formatPrice, isImagePreloaded } from '@/lib/constants';
+import { formatPrice, isImagePreloaded, getPlayerPreviousTeam } from '@/lib/constants';
 import { TeamLogo } from './TeamLogo';
 import { StarRating } from './StarRating';
 import { cn } from '@/lib/utils';
 import { PlayerInitialsAvatar } from './PlayerInitialsAvatar';
-import Tilt from 'react-parallax-tilt';
+import { AnimatedBidValue } from './AnimatedBidValue';
 import { Sparkles, Target, Zap, Award, Shield } from 'lucide-react';
 
 interface PlayerCardProps {
@@ -13,6 +13,7 @@ interface PlayerCardProps {
   currentBid: number;
   currentBidderId?: string | null;
   currentBidderName?: string | null;
+  activeBidOverlay?: { teamShortName: string; amountStr: string } | null;
   onImageLoad?: () => void;
 }
 
@@ -26,41 +27,41 @@ const normalizeRoleLabel = (role: string) => {
 
 const getRoleIcon = (role: string) => {
   const r = role.toLowerCase();
-  if (r.includes('wicket')) return <Award className="h-3 w-3 mr-1 shrink-0" />;
-  if (r.includes('all')) return <Sparkles className="h-3 w-3 mr-1 shrink-0" />;
-  if (r.includes('bowl')) return <Target className="h-3 w-3 mr-1 shrink-0" />;
-  return <Zap className="h-3 w-3 mr-1 shrink-0" />;
+  if (r.includes('wicket')) return <Award className="h-3.5 w-3.5 mr-1 shrink-0" />;
+  if (r.includes('all')) return <Sparkles className="h-3.5 w-3.5 mr-1 shrink-0" />;
+  if (r.includes('bowl')) return <Target className="h-3.5 w-3.5 mr-1 shrink-0" />;
+  return <Zap className="h-3.5 w-3.5 mr-1 shrink-0" />;
 };
 
 const getRoleBadgeStyle = (role: string) => {
   const r = role.toLowerCase();
-  if (r.includes('wicket')) return 'from-orange-500/20 to-amber-500/20 border-orange-500/30 text-orange-400';
-  if (r.includes('all')) return 'from-purple-500/20 to-indigo-500/20 border-purple-500/30 text-purple-400';
-  if (r.includes('bowl')) return 'from-blue-500/20 to-cyan-500/20 border-blue-500/30 text-cyan-400';
-  return 'from-emerald-500/20 to-teal-500/20 border-emerald-500/30 text-emerald-400';
+  if (r.includes('wicket')) return 'bg-orange-500/15 border-orange-500/30 text-orange-400';
+  if (r.includes('all')) return 'bg-purple-500/15 border-purple-500/30 text-purple-400';
+  if (r.includes('bowl')) return 'bg-blue-500/15 border-blue-500/30 text-cyan-400';
+  return 'bg-emerald-500/15 border-emerald-500/30 text-emerald-400';
 };
 
-const getCountryFlag = (nationality: string) => {
+const getCountryCode = (nationality: string) => {
   const nat = String(nationality || '').toLowerCase();
-  if (nat.includes('ind')) return '🇮🇳';
-  if (nat.includes('aus')) return '🇦🇺';
-  if (nat.includes('eng')) return '🏴󠁧󠁢󠁥󠁮󠁧󠁿';
-  if (nat.includes('sa') || nat.includes('south africa')) return '🇿🇦';
-  if (nat.includes('wi') || nat.includes('west indies')) return '🌴';
-  if (nat.includes('nz') || nat.includes('new zealand')) return '🇳🇿';
-  if (nat.includes('sl') || nat.includes('sri lanka')) return '🇱🇰';
-  if (nat.includes('afg') || nat.includes('afghanistan')) return '🇦🇫';
-  if (nat.includes('ban') || nat.includes('bangladesh')) return '🇧🇩';
-  if (nat.includes('nep')) return '🇳🇵';
-  if (nat.includes('usa')) return '🇺🇸';
-  if (nat.includes('ire')) return '🇮🇪';
-  if (nat.includes('zim')) return '🇿🇼';
-  if (nat.includes('nam')) return '🇳🇦';
-  if (nat.includes('scot')) return '🏴󠁧󠁢󠁳󠁣󠁴󠁿';
-  if (nat.includes('ned') || nat.includes('netherlands')) return '🇳🇱';
-  if (nat.includes('uae')) return '🇦🇪';
-  if (nat.includes('oma')) return '🇴🇲';
-  return '🏳️';
+  if (nat.includes('ind')) return 'IND';
+  if (nat.includes('aus')) return 'AUS';
+  if (nat.includes('eng')) return 'ENG';
+  if (nat.includes('sa') || nat.includes('south africa')) return 'RSA';
+  if (nat.includes('wi') || nat.includes('west indies')) return 'WI';
+  if (nat.includes('nz') || nat.includes('new zealand')) return 'NZ';
+  if (nat.includes('sl') || nat.includes('sri lanka')) return 'SL';
+  if (nat.includes('afg') || nat.includes('afghanistan')) return 'AFG';
+  if (nat.includes('ban') || nat.includes('bangladesh')) return 'BAN';
+  if (nat.includes('nep')) return 'NEP';
+  if (nat.includes('usa')) return 'USA';
+  if (nat.includes('ire')) return 'IRE';
+  if (nat.includes('zim')) return 'ZIM';
+  if (nat.includes('nam')) return 'NAM';
+  if (nat.includes('scot')) return 'SCO';
+  if (nat.includes('ned') || nat.includes('netherlands')) return 'NED';
+  if (nat.includes('uae')) return 'UAE';
+  if (nat.includes('oma')) return 'OMA';
+  return 'INT';
 };
 
 const getTeamIdFromAnyName = (name: string | null | undefined): string | null => {
@@ -95,35 +96,15 @@ const getFullTeamName = (shortName: string | null | undefined) => {
   return shortName;
 };
 
-const animationsAndStyles = `
-  @keyframes float-avatar {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-5px); }
-  }
-  .animate-float-avatar {
-    animation: float-avatar 3.5s ease-in-out infinite;
-  }
-  @keyframes bidPulse {
-    0%, 100% { border-color: rgba(234, 179, 8, 0.2); box-shadow: 0 0 5px rgba(234, 179, 8, 0.05); }
-    50% { border-color: rgba(234, 179, 8, 0.35); box-shadow: 0 0 10px rgba(234, 179, 8, 0.12); }
-  }
-`;
-
 const PlayerSilhouette = () => (
-  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/15 backdrop-blur-sm rounded-xl overflow-hidden animate-pulse">
-    <div className="absolute inset-0 bg-gradient-to-t from-cyan-950/20 via-transparent to-transparent z-10 pointer-events-none" />
+  <div className="absolute inset-0 flex flex-col items-center justify-center bg-slate-950/20 rounded-xl overflow-hidden animate-pulse">
     <svg className="h-24 w-24 text-slate-800/40 z-0" viewBox="0 0 24 24" fill="currentColor">
       <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
     </svg>
-    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-1.5">
-      <div className="h-1 w-12 bg-cyan-500/20 rounded-full overflow-hidden">
-        <div className="h-full w-full bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent animate-pulse" />
-      </div>
-    </div>
   </div>
 );
 
-const PlayerCardComponent = ({ player, currentBid, currentBidderId, currentBidderName, onImageLoad }: PlayerCardProps) => {
+const PlayerCardComponent = ({ player, currentBid, currentBidderId, currentBidderName, activeBidOverlay, onImageLoad }: PlayerCardProps) => {
   const playerImage = (player as any).image || player.imageUrl;
   const [imageFailed, setImageFailed] = useState(false);
   const [imageLoaded, setImageLoaded] = useState(() => {
@@ -133,7 +114,6 @@ const PlayerCardComponent = ({ player, currentBid, currentBidderId, currentBidde
     return false;
   });
   const rating = Number((player as any).starRating ?? player.rating ?? 3) as 1 | 2 | 3 | 4 | 5;
-  const [coords, setCoords] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     const preloaded = playerImage ? isImagePreloaded(playerImage) : false;
@@ -146,56 +126,39 @@ const PlayerCardComponent = ({ player, currentBid, currentBidderId, currentBidde
     onImageLoad?.();
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    setCoords({
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top
-    });
-  };
-
-  const prevTeamId = getTeamIdFromAnyName(player.previousTeam);
+  const prevTeam = getPlayerPreviousTeam(player);
+  const prevTeamId = getTeamIdFromAnyName(prevTeam);
   const bidActive = Boolean(currentBidderId);
 
   return (
-    <Tilt
-      glareEnable={true}
-      glareMaxOpacity={0.1}
-      glareColor="#ffffff"
-      glarePosition="all"
-      tiltMaxAngleX={4}
-      tiltMaxAngleY={4}
-      perspective={1200}
-      className="h-full w-full select-none"
-    >
-      <style>{animationsAndStyles}</style>
+    <div className="h-full w-full select-none transition-all duration-300">
       <div 
-        onMouseMove={handleMouseMove}
-        style={{ '--x': `${coords.x}px`, '--y': `${coords.y}px` } as React.CSSProperties}
         className={cn(
-          "relative h-full w-full overflow-hidden rounded-2xl border text-white spotlight-hover glass-panel-premium transition-all duration-300",
-          "border-white/10 shadow-[0_12px_30px_rgba(0,0,0,0.5)] flex flex-col p-3 md:p-4 min-h-0 justify-between"
+          "relative h-full w-full overflow-hidden rounded-2xl border text-white transition-all duration-300",
+          "border-white/10 bg-[#040d21] p-3 md:p-3.5 pb-2 shadow-2xl flex flex-col justify-start"
         )}
       >
-        {/* Background gradient grid for sci-fi sports feel */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(11,29,58,0.25)_0%,rgba(2,6,23,0.85)_100%)] z-0 pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(0,207,255,0.06)_0%,transparent_70%)] z-0 pointer-events-none" />
+        {/* Background gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#071838] via-[#040e24] to-[#020714] z-0 pointer-events-none" />
 
-        {/* 1. TOP SHOWCASE (Horizontal Layout - Left 45% Image, Right 55% Info) */}
-        <div className="flex-1 relative min-h-[160px] md:min-h-[220px] overflow-visible z-10 my-1 md:my-2 w-full">
-          {/* Soft stadium spotlight glow behind the player */}
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,207,255,0.15)_0%,transparent_60%)] pointer-events-none z-0" />
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-[38%_62%] gap-3 md:gap-4 items-center h-full min-h-0 w-full">
           
-          <div className="w-full h-full grid grid-cols-[45%_55%] gap-2 items-center relative z-10">
-            {/* Left Column: Player Image (Moved upward by ~50-80px via negative top margins/offsets) */}
-            <div className="relative h-full w-full flex items-center justify-center min-w-0 overflow-visible mt-[-25px] md:mt-[-45px] z-10">
+          {/* ===================================================
+              LEFT COLUMN (~38%)
+              - Large player image (vertically centered)
+             =================================================== */}
+          <div className="flex flex-col items-center justify-center h-full min-h-[170px] md:min-h-[220px] py-0">
+            {/* Vertically centered image container */}
+            <div className="w-full flex items-center justify-center min-h-0 relative">
               {playerImage && !imageFailed ? (
-                <div className="relative h-[125%] w-[125%] flex items-center justify-center animate-float-avatar">
+                <div className="relative h-full w-full max-h-[190px] md:max-h-[220px] flex items-center justify-center">
                   <img
                     src={playerImage}
                     alt={player.name}
+                    loading="eager"
+                    decoding="sync"
                     className={cn(
-                      "max-h-full max-w-full object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.85)] transition-all duration-500 z-10",
+                      "max-h-full max-w-full object-contain drop-shadow-[0_12px_24px_rgba(0,0,0,0.85)] transition-all duration-300 z-10",
                       imageLoaded ? "opacity-100 scale-100" : "opacity-0 scale-95"
                     )}
                     onLoad={handleImageLoad}
@@ -211,7 +174,7 @@ const PlayerCardComponent = ({ player, currentBid, currentBidderId, currentBidde
                   )}
                 </div>
               ) : (
-                <div className="relative h-[115%] w-[115%] flex items-center justify-center animate-float-avatar">
+                <div className="relative h-full w-full flex items-center justify-center">
                   <PlayerInitialsAvatar
                     name={player.name}
                     role={player.role}
@@ -221,133 +184,142 @@ const PlayerCardComponent = ({ player, currentBid, currentBidderId, currentBidde
                 </div>
               )}
             </div>
+          </div>
 
-            {/* Right Column: Player Info & Current Bidder */}
-            <div className="flex flex-col justify-center space-y-2.5 pl-1.5 h-full z-10">
-              {/* Player Name, Role, Rating */}
-              <div className="space-y-1 text-left">
-                <h2 className="text-2xl font-display uppercase tracking-wider text-shadow-glow text-white font-black leading-tight drop-shadow-[0_1px_5px_rgba(255,255,255,0.08)]">
+          {/* ===================================================
+              RIGHT COLUMN (~62%)
+              Exact Order:
+              1. Player Name (largest typography) + Bidding Pop Overlay on right
+              2. Role + Rating badges
+              3. Previous Team card
+              4. Current Bidder card
+              5. Bid Information section (Current Bid Visual Hero)
+              6. Country (bottom, reduced importance)
+             =================================================== */}
+          <div className="flex flex-col justify-between space-y-2 h-full py-0 min-w-0 flex-1">
+            
+            {/* 1. Player Name & Active Bid Pop Overlay on right side */}
+            <div className="space-y-0.5 text-left">
+              <div className="flex items-center justify-between gap-2 min-w-0">
+                <h2 className="text-lg md:text-xl lg:text-2xl font-display uppercase tracking-wider text-white font-black leading-tight drop-shadow-[0_1px_5px_rgba(255,255,255,0.08)] truncate min-w-0 flex-1">
                   {player.name}
                 </h2>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {/* Role Badge */}
-                  <span className={cn(
-                    "inline-flex items-center rounded-full border px-2 py-0.5 text-[8px] font-black tracking-wider uppercase backdrop-blur-md shadow-sm bg-gradient-to-r",
-                    getRoleBadgeStyle(player.role)
-                  )}>
-                    {getRoleIcon(player.role)}
-                    {normalizeRoleLabel(player.role)}
-                  </span>
-                  {/* Star Rating */}
-                  <div className="flex items-center rounded-full bg-black/35 border border-white/5 px-2 py-0.5 backdrop-blur-md shadow-sm">
-                    <StarRating rating={rating} size="sm" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Current Bidder Box */}
-              <div className="bg-[#051126]/85 border border-yellow-500/30 rounded-xl p-2.5 flex flex-col justify-between backdrop-blur-md shadow-[0_8px_20px_rgba(0,0,0,0.5)] space-y-1.5">
-                <div>
-                  <span className="text-[7.5px] uppercase tracking-widest text-slate-400 font-bold block mb-0.5">
-                    Current Bidder
-                  </span>
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="h-6 w-6 rounded-full bg-black/50 border border-white/10 p-0.5 flex items-center justify-center overflow-hidden shrink-0 shadow-inner">
-                      <TeamLogo
-                        teamId={currentBidderId || null}
-                        shortName={currentBidderName || 'BID'}
-                        size="sm"
-                        className="h-full w-full object-contain bg-transparent border-none"
-                      />
+                
+                {/* Active Bid Pop Overlay on the right side of name */}
+                {activeBidOverlay && (
+                  <div className="shrink-0 animate-[bidFlash_0.35s_cubic-bezier(0.175,0.885,0.32,1.275)_forwards]">
+                    <div className="bg-[#051126]/95 border border-yellow-400/80 px-2 py-0.5 rounded-lg shadow-[0_0_12px_rgba(250,204,21,0.5)] flex items-center gap-1">
+                      <span className="font-display text-xs text-yellow-400 font-black animate-pulse">{activeBidOverlay.teamShortName}</span>
+                      <span className="text-[8px] text-slate-300 font-bold uppercase">BID</span>
+                      <span className="font-display text-xs text-emerald-400 font-black">{activeBidOverlay.amountStr}</span>
                     </div>
-                    <span className="font-extrabold text-white text-[10px] md:text-[11px] truncate uppercase tracking-wider leading-tight">
-                      {getFullTeamName(currentBidderName)}
-                    </span>
                   </div>
-                </div>
-
-                <div className="pt-1.5 border-t border-white/5 flex flex-col justify-between">
-                  <span className="text-[7.5px] uppercase tracking-widest text-yellow-400/80 font-bold block mb-0.5">
-                    Current Bid
-                  </span>
-                  <span className="font-black text-yellow-300 text-base md:text-lg leading-none tracking-wide drop-shadow-[0_0_4px_rgba(234,179,8,0.15)]">
-                    {formatPrice(currentBid)}
-                  </span>
-                </div>
+                )}
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 2. BOTTOM DETAILS AREA (Two-row layout: Country | Prev Team, and Base Price | Current Bid) */}
-        <div className="space-y-2 shrink-0 z-10 w-full mt-auto">
-          {/* Row 1: Country Card | Previous Team Card */}
-          <div className="grid grid-cols-2 gap-2">
-            {/* Country Card */}
-            <div className="flex items-center gap-2 rounded-xl bg-[#09152b]/40 border border-white/5 px-2.5 py-1 backdrop-blur-md shadow-inner min-w-0">
-              <span className="text-base shrink-0 leading-none" role="img" aria-label="flag">
-                {getCountryFlag(player.nationality)}
-              </span>
-              <div className="flex flex-col min-w-0 leading-none">
-                <span className="text-[7px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">Country</span>
-                <span className="text-[10px] text-white font-semibold truncate">
-                  {player.nationality}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={cn(
+                  "inline-flex items-center rounded-md border px-2 py-0.5 text-[9px] font-extrabold tracking-wider uppercase",
+                  getRoleBadgeStyle(player.role)
+                )}>
+                  {normalizeRoleLabel(player.role)}
                 </span>
+                <div className="flex items-center rounded-md bg-black/40 border border-white/10 px-2 py-0.5">
+                  <StarRating rating={rating} size="sm" />
+                </div>
               </div>
             </div>
 
-            {/* Previous Team Card */}
-            <div className="flex items-center gap-2 rounded-xl bg-[#09152b]/40 border border-white/5 px-2.5 py-1 backdrop-blur-md shadow-inner min-w-0">
-              <div className="h-5.5 w-5.5 rounded bg-black/40 border border-white/10 flex items-center justify-center overflow-hidden shrink-0">
-                {player.previousTeam && player.previousTeam !== 'None' && player.previousTeam !== 'N/A' ? (
+            {/* 3. Previous Team Card (Compact info card directly below player header) */}
+            <div className="bg-[#081733] border border-white/10 rounded-lg p-2 md:p-2.5 flex items-center gap-2.5 shadow-sm min-w-0">
+              <div className="h-6 w-6 rounded-md bg-black/50 border border-white/10 p-0.5 flex items-center justify-center overflow-hidden shrink-0">
+                {prevTeam ? (
                   <TeamLogo 
                     teamId={prevTeamId} 
-                    shortName={player.previousTeam} 
+                    shortName={prevTeam} 
                     size="sm" 
-                    className="h-full w-full object-contain bg-transparent border-none scale-75"
+                    className="h-full w-full object-contain bg-transparent border-none"
                   />
                 ) : (
-                  <Shield className="h-3 w-3 text-slate-500" />
+                  <Shield className="h-3.5 w-3.5 text-slate-500" />
                 )}
               </div>
               <div className="flex flex-col min-w-0 leading-none">
-                <span className="text-[7px] uppercase tracking-wider text-slate-400 font-bold mb-0.5">Prev Team</span>
-                <span className="text-[10px] text-white font-semibold truncate">
-                  {player.previousTeam && player.previousTeam !== 'None' && player.previousTeam !== 'N/A' ? player.previousTeam : 'No Previous IPL Team'}
+                <span className="text-[7.5px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">
+                  Previous Team
+                </span>
+                <span className="text-xs font-black text-white truncate uppercase tracking-wide">
+                  {getFullTeamName(prevTeam)} ({prevTeam})
                 </span>
               </div>
             </div>
-          </div>
 
-          {/* Row 2: Base Price Card | Current Bid Card */}
-          <div className="grid grid-cols-2 gap-2">
-            {/* Base Price Card */}
-            <div className="flex flex-col justify-between rounded-xl bg-slate-950/40 border border-white/5 px-3 py-1.5 backdrop-blur-md shadow-inner">
-              <span className="text-slate-400 font-semibold uppercase tracking-wider text-[7.5px] mb-0.5 leading-none">Base Price</span>
-              <span className="font-extrabold text-white text-[12.5px] leading-tight">{formatPrice(player.basePrice)}</span>
-            </div>
-
-            {/* Current Bid Card (Subtle pulse glow) */}
+            {/* 4. Current Bidder Card (Premium info card directly above bid section) */}
             <div className={cn(
-              "flex flex-col justify-between rounded-xl border p-1.5 backdrop-blur-md relative overflow-hidden transition-all duration-300 shadow-sm",
+              "border rounded-lg p-2 md:p-2.5 flex items-center justify-between shadow-md transition-all duration-300",
               bidActive 
-                ? "from-[#eab308]/6 via-[#ca8a04]/2 to-[#020617]/70 border-yellow-500/35 shadow-[0_0_8px_rgba(234,179,8,0.12)] animate-[bidPulse_2.5s_infinite]" 
-                : "from-[#071329]/20 to-[#020617]/50 border-white/5"
+                ? "bg-[#091f42] border-yellow-500/40 shadow-[0_0_12px_rgba(234,179,8,0.15)]" 
+                : "bg-[#06142a] border-white/10"
             )}>
-              <div className="absolute top-0 right-0 w-12 h-12 bg-yellow-500/1 rounded-full blur-lg pointer-events-none" />
-              <span className={cn(
-                "font-semibold uppercase tracking-wider text-[7.5px] mb-0.5 leading-none",
-                bidActive ? "text-yellow-400/80" : "text-slate-400"
-              )}>Current Bid</span>
-              <span className={cn(
-                "font-black text-[12.5px] leading-tight",
-                bidActive ? "text-yellow-300 drop-shadow-[0_0_4px_rgba(234,179,8,0.15)]" : "text-white"
-              )}>{formatPrice(currentBid)}</span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[7.5px] uppercase tracking-widest text-slate-400 font-bold mb-0.5">
+                  Current Bidder
+                </span>
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="h-5 w-5 rounded-full bg-black/50 border border-white/10 p-0.5 flex items-center justify-center overflow-hidden shrink-0">
+                    <TeamLogo
+                      teamId={currentBidderId || null}
+                      shortName={currentBidderName || 'BID'}
+                      size="sm"
+                      className="h-full w-full object-contain bg-transparent border-none"
+                    />
+                  </div>
+                  <span className="font-black text-white text-xs truncate uppercase tracking-wider">
+                    {getFullTeamName(currentBidderName)}
+                  </span>
+                </div>
+              </div>
             </div>
+
+            {/* 5. Bid Information Section (Current Bid Visual Hero) */}
+            <div className={cn(
+              "border rounded-lg p-2.5 md:p-3 flex flex-col justify-center shadow-lg transition-all duration-300",
+              bidActive 
+                ? "bg-gradient-to-r from-[#0c224a] to-[#081836] border-yellow-500/50" 
+                : "bg-[#071731] border-white/10"
+            )}>
+              <div className="flex items-baseline justify-between gap-2">
+                <div className="flex flex-col">
+                  <span className="text-[8.5px] uppercase tracking-widest text-yellow-400 font-extrabold mb-0.5">
+                    Current Bid
+                  </span>
+                  <AnimatedBidValue value={currentBid} className="font-black text-yellow-300 text-xl md:text-2xl lg:text-3xl leading-none tracking-wide" />
+                </div>
+
+                <div className="text-right">
+                  <span className="text-[7.5px] uppercase tracking-widest text-slate-400 font-bold block mb-0.5">
+                    Base Price
+                  </span>
+                  <span className="font-extrabold text-slate-300 text-xs">
+                    {formatPrice(player.basePrice)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 6. Country (Left-aligned with tab space gap) */}
+            <div className="flex items-center justify-start gap-4 text-xs text-slate-400 font-medium px-0.5 pt-0.5">
+              <span className="text-[8.5px] uppercase tracking-wider text-slate-500 font-bold">Nationality</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-mono font-black text-cyan-400 text-[11px]">{getCountryCode(player.nationality)}</span>
+                <span className="text-slate-300 text-[11px] font-semibold">({player.nationality})</span>
+              </div>
+            </div>
+
           </div>
+
         </div>
       </div>
-    </Tilt>
+    </div>
   );
 };
 

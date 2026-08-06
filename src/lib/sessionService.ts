@@ -474,8 +474,18 @@ export const createSession = async (gameCode: string, hostId: string, mode: "MUL
   await batch.commit();
 };
 
+/** Phases where no new participants are allowed to enter. */
+const LOCKED_PHASES = new Set(["RETENTION", "AUCTION", "AUCTION_COMPLETE", "ENDED"]);
+
 export const joinSession = async (gameCode: string, userId: string) => {
-  await updateDoc(doc(db, "sessions", gameCode), { playersJoined: arrayUnion(userId) });
+  const sessionRef = doc(db, "sessions", gameCode);
+  const snap = await getDoc(sessionRef);
+  if (!snap.exists()) throw new Error("Room not found");
+  const phase = String(snap.data()?.phase || "");
+  if (LOCKED_PHASES.has(phase)) {
+    throw new Error("AUCTION_ALREADY_STARTED");
+  }
+  await updateDoc(sessionRef, { playersJoined: arrayUnion(userId) });
 };
 
 
@@ -606,6 +616,12 @@ export const rejoinGame = async (gameCode: string, userId: string) => {
 
 export const selectTeam = async (gameCode: string, teamId: string, userId: string, managerName?: string) => {
   const sessionRef = doc(db, "sessions", gameCode);
+  const snap = await getDoc(sessionRef);
+  if (!snap.exists()) throw new Error("Room not found");
+  const phase = String(snap.data()?.phase || "");
+  if (LOCKED_PHASES.has(phase)) {
+    throw new Error("AUCTION_ALREADY_STARTED");
+  }
   await updateDoc(sessionRef, {
     [`selectedTeams.${teamId}`]: userId,
     ...(managerName ? { [`managerNames.${teamId}`]: managerName } : {}),
@@ -895,44 +911,90 @@ export const startNextPlayer = loadNextPlayer;
 
 export const placeBid = async (gameCode: string, teamId: string, amount: number) => {
   const sessionRef = doc(db, "sessions", gameCode);
+
+  console.log(`[BID ATTEMPT] Requesting bid: Game=${gameCode}, Team=${teamId}, ProposedAmount=₹${(amount/10000000).toFixed(2)} Cr`);
+
   await runTransaction(db, async (tx) => {
     const sessionSnap = await tx.get(sessionRef);
-    if (!sessionSnap.exists()) throw new Error("Session not found");
+    if (!sessionSnap.exists()) {
+      console.error(`[BID VALIDATION FAILED] Session document ${gameCode} not found in Firestore`);
+      throw new Error("Session not found");
+    }
 
-    const currentAuction = sessionSnap.data().currentAuction;
-    if (!currentAuction || currentAuction.status !== "RUNNING" || currentAuction.isAuctionLocked) throw new Error("No active auction");
+    const sessionData = sessionSnap.data();
+    const currentAuction = sessionData.currentAuction;
+    const phase = sessionData.phase;
+
+    if (phase !== "AUCTION") {
+      console.error(`[BID VALIDATION FAILED] Invalid session phase: ${phase}`);
+      throw new Error("Auction phase is not active");
+    }
+
+    if (!currentAuction || currentAuction.status !== "RUNNING") {
+      console.error(`[BID VALIDATION FAILED] Auction status is not RUNNING. Current status: ${currentAuction?.status}`);
+      throw new Error("Auction is not running");
+    }
+
+    if (currentAuction.isAuctionLocked) {
+      console.error(`[BID VALIDATION FAILED] Auction is currently locked`);
+      throw new Error("Auction is currently locked");
+    }
+
+    const activePlayerId = currentAuction.activePlayerId;
+    if (!activePlayerId) {
+      console.error(`[BID VALIDATION FAILED] No active player in auction`);
+      throw new Error("No active player found");
+    }
+
+    // Check timer expiration
+    const timerEndsAtMs = currentAuction.timerEndsAt?.toMillis?.() || 0;
+    if (timerEndsAtMs && Date.now() >= timerEndsAtMs) {
+      console.error(`[BID VALIDATION FAILED] Auction timer has expired for player ${activePlayerId}`);
+      throw new Error("Auction timer has expired");
+    }
 
     const [teamSnap, playerSnap] = await Promise.all([
       tx.get(doc(db, "sessions", gameCode, "teams", teamId)),
-      tx.get(doc(db, "players", currentAuction.activePlayerId)),
+      tx.get(doc(db, "players", activePlayerId)),
     ]);
 
-    if (!teamSnap.exists()) throw new Error("Team not found");
-    if (!playerSnap.exists()) throw new Error("Player not found");
+    if (!teamSnap.exists()) {
+      console.error(`[BID VALIDATION FAILED] Team document ${teamId} not found`);
+      throw new Error("Team not found");
+    }
+
+    if (!playerSnap.exists()) {
+      console.error(`[BID VALIDATION FAILED] Player document ${activePlayerId} not found`);
+      throw new Error("Current player not found");
+    }
 
     const team = teamSnap.data();
+    const playerData = playerSnap.data();
+
     const squadSize = Number(team.squadSize ?? ((team.players || []).length + (team.retainedPlayers || []).length));
-    if (squadSize >= SQUAD_CONSTRAINTS.MAX_SQUAD) {
-      console.log(`[TEAM LOCK] Bidding rejected: Team ${teamId} has reached max squad size (${SQUAD_CONSTRAINTS.MAX_SQUAD}) and is LOCKED.`);
-      throw new Error("Squad full");
-    }
     const overseasCount = Number(team.overseasCount || 0);
-    const isOverseas = getPlayerOverseasFlag(playerSnap.data());
+    const isOverseas = getPlayerOverseasFlag(playerData);
+    const currentBid = Number(currentAuction.currentBid || 0);
+    const currentBidderId = currentAuction.currentBidderId || null;
+    const purseRemaining = Number(team.purseRemaining || 0);
 
-    const bidBefore = Number(currentAuction.currentBid || 0);
-    const bidderBefore = currentAuction.currentBidderId || "None";
-    console.log(`[BID INCREMENT LOG] Before bid update on player ${currentAuction.activePlayerId}: Bid = ${bidBefore} (held by ${bidderBefore}), new proposed Bid = ${amount} (requested by team ${teamId})`);
+    console.log(`[BID AUDIT] Player=${playerData.name} (${activePlayerId}), CurrentBid=₹${(currentBid/10000000).toFixed(2)} Cr (held by ${currentBidderId || 'None'}), ProposedBid=₹${(amount/10000000).toFixed(2)} Cr, Team=${team.shortName || teamId}, Purse=₹${(purseRemaining/10000000).toFixed(2)} Cr, SquadSize=${squadSize}/${SQUAD_CONSTRAINTS.MAX_SQUAD}, Overseas=${overseasCount}/${isOverseas ? SQUAD_CONSTRAINTS.MAX_OVERSEAS : 'N/A'}`);
 
-    auctionEngine.validateBid({
-      amount,
-      currentBid: Number(currentAuction.currentBid || 0),
-      currentBidderId: currentAuction.currentBidderId || null,
-      teamId,
-      purseRemaining: Number(team.purseRemaining || 0),
-      squadSize,
-      overseasCount,
-      isPlayerOverseas: isOverseas,
-    });
+    try {
+      auctionEngine.validateBid({
+        amount,
+        currentBid,
+        currentBidderId,
+        teamId,
+        purseRemaining,
+        squadSize,
+        overseasCount,
+        isPlayerOverseas: isOverseas,
+      });
+    } catch (valErr: any) {
+      console.error(`[BID VALIDATION FAILED] ${valErr.message}`);
+      throw valErr;
+    }
 
     tx.update(sessionRef, {
       "currentAuction.currentBid": amount,
@@ -941,7 +1003,7 @@ export const placeBid = async (gameCode: string, teamId: string, amount: number)
       "currentAuction.timerMode": "AUCTION",
     });
 
-    console.log(`[BID INCREMENT LOG] After bid update on player ${currentAuction.activePlayerId}: Bid = ${amount} (held by team ${teamId})`);
+    console.log(`[BID SUCCESS] Bid successfully placed: Team ${team.shortName || teamId} on ${playerData.name} for ₹${(amount/10000000).toFixed(2)} Cr`);
   });
 };
 
@@ -986,7 +1048,7 @@ export const resolveAuction = async (gameCode: string) => {
 
     const now = Date.now();
     const timerEndsAtMs = auction.timerEndsAt?.toMillis?.() || 0;
-    if (timerEndsAtMs && timerEndsAtMs > now + 500) {
+    if (timerEndsAtMs && timerEndsAtMs > now + 1500) {
       console.log(`[resolveAuction] Aborting resolution: timer has not expired yet in DB (ends at ${timerEndsAtMs}, now is ${now})`);
       return;
     }

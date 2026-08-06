@@ -3,7 +3,7 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from './ui/dialog';
-import { formatPrice, getNextBid } from '@/lib/constants';
+import { formatPrice, getNextBid, getPlayerPreviousTeam } from '@/lib/constants';
 
 const formatCrPrice = (amount: number) => `₹${(Number(amount || 0) / 10000000).toFixed(2)} Cr`;
 import { Player } from '@/lib/samplePlayers';
@@ -227,7 +227,7 @@ const BidControlsComponent = ({
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            📋 SETS
+            SETS
           </button>
           <button
             onClick={() => setActiveTab('sold')}
@@ -237,7 +237,7 @@ const BidControlsComponent = ({
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            🤝 SOLD
+            SOLD
           </button>
           <button
             onClick={() => setActiveTab('unsold')}
@@ -247,7 +247,7 @@ const BidControlsComponent = ({
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            ❌ UNSOLD
+            UNSOLD
           </button>
         </div>
 
@@ -419,7 +419,7 @@ const BidControlsComponent = ({
                           if (isPlayerActive) {
                             statusBadge = (
                               <span className="px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider bg-yellow-400/10 text-yellow-400 border border-yellow-400/30 animate-pulse">
-                                ⚡ ACTIVE
+                                ACTIVE
                               </span>
                             );
                           } else if (soldPlayer) {
@@ -596,7 +596,7 @@ const BidControlsComponent = ({
                       </div>
                       <div>
                         <span className="text-slate-500 text-[9px] uppercase tracking-wider block font-bold">Country</span>
-                        <span className="font-semibold text-slate-100">{selectedPlayer.isOverseas ? 'Overseas ✈' : 'India 🇮🇳'}</span>
+                        <span className="font-semibold text-slate-100">{selectedPlayer.isOverseas ? 'Overseas' : 'India'}</span>
                       </div>
                       <div>
                         <span className="text-slate-500 text-[9px] uppercase tracking-wider block font-bold">Rating</span>
@@ -604,7 +604,7 @@ const BidControlsComponent = ({
                       </div>
                       <div>
                         <span className="text-slate-500 text-[9px] uppercase tracking-wider block font-bold">Prev Team</span>
-                        <span className="font-semibold text-slate-100 truncate block">{selectedPlayer.previousTeam || 'None'}</span>
+                        <span className="font-semibold text-slate-100 truncate block">{getPlayerPreviousTeam(selectedPlayer)}</span>
                       </div>
                     </div>
 
@@ -638,7 +638,7 @@ const BidControlsComponent = ({
                       {isUnsold && (
                         <div className="bg-rose-500/10 p-2.5 rounded border border-rose-500/25 text-center">
                           <span className="font-black text-rose-400 uppercase tracking-widest text-xs">
-                            ❌ UNSOLD IN GENERAL ROUND
+                            UNSOLD IN GENERAL ROUND
                           </span>
                           <p className="text-[10px] text-slate-400 mt-1 leading-normal">
                             Can be nominated again in the upcoming Accelerated Round.

@@ -569,7 +569,7 @@ const Summary = () => {
         <div className="rounded-3xl border border-white/5 bg-[#0f172a]/20 backdrop-blur-xl p-6 shadow-2xl space-y-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div>
-              <h3 className="text-xl font-display font-black text-yellow-400 tracking-wider uppercase">🏆 CHAMPIONSHIP SCORE BREAKDOWN</h3>
+              <h3 className="text-xl font-display font-black text-yellow-400 tracking-wider uppercase">CHAMPIONSHIP SCORE BREAKDOWN</h3>
               <p className="text-xs text-slate-400 mt-1">Transparency on how team ratings and scores were computed at the end of the auction.</p>
             </div>
             <div className="bg-[#030712]/50 border border-white/15 rounded-2xl px-4 py-2.5 text-xs text-yellow-400">
@@ -655,7 +655,7 @@ const Summary = () => {
                 </div>
                 <div className="space-y-1 min-w-0 flex-1">
                   <span className="bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 rounded text-[9px] font-black px-1.5 py-0.5 tracking-widest uppercase inline-block">
-                    🔥 MOST EXPENSIVE BUY
+                    MOST EXPENSIVE BUY
                   </span>
                   <h3 className="text-xl font-display font-black uppercase text-yellow-100 truncate">
                     {stats.mostExpensive.name}
@@ -838,7 +838,7 @@ const Summary = () => {
                             {team.name} ({team.shortName})
                           </p>
                           <span className="text-[9px] text-slate-400 uppercase font-mono">
-                            {team.isAI ? "🤖 AI Managed" : "👤 Human Managed"}
+                            {team.isAI ? "AI Managed" : "Human Managed"}
                           </span>
                         </div>
                       </div>

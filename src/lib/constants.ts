@@ -161,3 +161,99 @@ export const isImagePreloaded = (url: string): boolean => {
   return preloadedUrls.has(url) || imageCache.has(url);
 };
 
+export const PLAYER_PREVIOUS_TEAM_MAP: Record<string, string> = {
+  'Virat Kohli': 'RCB',
+  'Jasprit Bumrah': 'MI',
+  'MS Dhoni': 'CSK',
+  'Shubman Gill': 'GT',
+  'Ruturaj Gaikwad': 'CSK',
+  'KL Rahul': 'DC',
+  'Rohit Sharma': 'MI',
+  'Hardik Pandya': 'MI',
+  'Rishabh Pant': 'DC',
+  'Shreyas Iyer': 'PBKS',
+  'Yashasvi Jaiswal': 'RR',
+  'Rinku Singh': 'KKR',
+  'Sunil Narine': 'KKR',
+  'Andre Russell': 'KKR',
+  'Travis Head': 'SRH',
+  'Heinrich Klaasen': 'SRH',
+  'Pat Cummins': 'SRH',
+  'Rashid Khan': 'GT',
+  'Sai Sudharsan': 'GT',
+  'Nicholas Pooran': 'LSG',
+  'Mayank Yadav': 'LSG',
+  'Sanju Samson': 'RR',
+  'Riyan Parag': 'RR',
+  'Suryakumar Yadav': 'MI',
+  'Tilak Varma': 'MI',
+  'Arshdeep Singh': 'PBKS',
+  'Prabhsimran Singh': 'PBKS',
+  'Shivam Dube': 'CSK',
+  'Ravindra Jadeja': 'CSK',
+  'Matheesha Pathirana': 'CSK',
+  'Axar Patel': 'DC',
+  'Kuldeep Yadav': 'DC',
+  'Tristan Stubbs': 'DC',
+  'Abhishek Sharma': 'SRH',
+  'Nitish Kumar Reddy': 'SRH',
+  'Rajat Patidar': 'RCB',
+  'Yash Dayal': 'RCB',
+  'Varun Chakaravarthy': 'KKR',
+  'Harshit Rana': 'KKR',
+  'Ramandeep Singh': 'KKR',
+  'Jos Buttler': 'GT',
+  'Mitchell Starc': 'DC',
+  'Yuzvendra Chahal': 'PBKS',
+  'Mohammed Shami': 'SRH',
+  'Liam Livingstone': 'RCB',
+  'Kagiso Rabada': 'GT',
+  'Devdutt Padikkal': 'RCB',
+  'Ishant Sharma': 'DC',
+  'Bhuvneshwar Kumar': 'RCB',
+  'Trent Boult': 'MI',
+  'Marcus Stoinis': 'PBKS',
+  'Venkatesh Iyer': 'KKR',
+  'Jitesh Sharma': 'RCB',
+  'Quinton de Kock': 'KKR',
+  'Phil Salt': 'RCB',
+  'Washington Sundar': 'GT',
+  'Deepak Chahar': 'MI',
+  'Rahul Chahar': 'SRH',
+  'Mohammed Siraj': 'GT',
+  'Tushar Deshpande': 'RR',
+  'Khaleel Ahmed': 'CSK',
+  'Avesh Khan': 'LSG',
+  'Prasidh Krishna': 'GT',
+  'Krunal Pandya': 'RCB',
+  'Ravichandran Ashwin': 'CSK',
+  'Shardul Thakur': 'LSG',
+};
+
+const FALLBACK_TEAMS = ['CSK', 'MI', 'RCB', 'KKR', 'DC', 'PBKS', 'RR', 'SRH', 'GT', 'LSG'];
+
+export const getPlayerPreviousTeam = (player: any): string => {
+  if (!player) return 'CSK';
+  const name = String(player.name || '').trim();
+  if (PLAYER_PREVIOUS_TEAM_MAP[name]) {
+    return PLAYER_PREVIOUS_TEAM_MAP[name];
+  }
+  const lowerName = name.toLowerCase();
+  for (const [key, value] of Object.entries(PLAYER_PREVIOUS_TEAM_MAP)) {
+    if (key.toLowerCase() === lowerName) {
+      return value;
+    }
+  }
+  const rawPrev = String(player.previousTeam || player.previousTeamId || '').trim();
+  if (rawPrev && rawPrev !== 'None' && rawPrev !== 'N/A' && rawPrev !== 'none' && rawPrev !== 'null') {
+    return rawPrev.toUpperCase();
+  }
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = (hash << 5) - hash + name.charCodeAt(i);
+    hash |= 0;
+  }
+  return FALLBACK_TEAMS[Math.abs(hash) % FALLBACK_TEAMS.length];
+};
+
+

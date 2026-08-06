@@ -374,7 +374,7 @@ const Tournament = () => {
                         <Trophy className="w-7 h-7 text-yellow-400 animate-pulse" />
                       </div>
                       <div className="space-y-1">
-                        <h4 className="font-display text-sm font-bold uppercase text-white tracking-widest">🏆 Champion Podium 🏆</h4>
+                        <h4 className="font-display text-sm font-bold uppercase text-white tracking-widest">Champion Podium</h4>
                         <p className="text-[10px] text-slate-400 leading-relaxed">Declares the winner of the league, records historical franchise statistics, and celebrates with dynamic trophy lift displays.</p>
                       </div>
                     </div>

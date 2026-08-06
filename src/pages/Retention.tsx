@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { IPL_TEAMS, formatPrice, RETENTION_COSTS } from '@/lib/constants';
+import { IPL_TEAMS, formatPrice, RETENTION_COSTS, getPlayerPreviousTeam } from '@/lib/constants';
 import { listenSession, lockRetention } from '@/lib/sessionService';
 import type { Player } from '@/lib/samplePlayers';
 import { useGameData } from '@/contexts/GameDataContext';
@@ -55,7 +55,7 @@ const Retention = () => {
 
   const squad: Player[] = useMemo(() => {
     if (!myTeam) return [];
-    return masterPlayerList.filter((p: any) => (p.previousTeamId || p.previousTeam || '').toLowerCase() === myTeam.toLowerCase());
+    return masterPlayerList.filter((p: any) => getPlayerPreviousTeam(p).toLowerCase() === myTeam.toLowerCase());
   }, [masterPlayerList, myTeam]);
 
   const groupedSquad = useMemo(() => groupPlayersByRetentionRole(squad as any[]), [squad]);
@@ -190,7 +190,7 @@ const Retention = () => {
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-6 gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
                     {rolePlayers.map((player: any) => {
                       const isSelected = selected.includes(player.id);
                       const role = roleBadge(player.role || '');
@@ -199,46 +199,50 @@ const Retention = () => {
                         <motion.button
                           key={player.id}
                           onClick={() => handleToggle(player.id)}
-                          whileHover={{ scale: 1.03 }}
+                          whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
                           className={cn(
-                            'relative text-left rounded-2xl border p-4 bg-[#0f172a]/30 backdrop-blur-md transition-all duration-300 flex flex-col justify-between select-none outline-none h-[230px]',
+                            'relative text-left rounded-3xl border p-5 bg-[#0f172a]/40 backdrop-blur-xl transition-all duration-300 flex flex-col justify-between select-none outline-none h-[340px] overflow-hidden group',
                             isSelected 
-                              ? 'border-yellow-400 shadow-[0_0_25px_rgba(250,204,21,0.22)] bg-yellow-500/5' 
-                              : 'border-white/5 hover:border-yellow-400/40 hover:shadow-[0_8px_25px_rgba(250,204,21,0.12)]',
+                              ? 'border-yellow-400 shadow-[0_0_35px_rgba(250,204,21,0.3)] bg-yellow-500/10' 
+                              : 'border-white/10 hover:border-yellow-400/50 hover:shadow-[0_12px_30px_rgba(250,204,21,0.18)] hover:-translate-y-1',
                           )}
                         >
+                          {/* Card Top Badges */}
                           <div className="w-full flex items-center justify-between z-10">
                             {isSelected ? (
-                              <span className="text-[10px] text-yellow-400 font-extrabold flex items-center gap-1">
+                              <span className="text-xs text-yellow-400 font-extrabold flex items-center gap-1 bg-yellow-500/10 px-2.5 py-1 rounded-full border border-yellow-400/30">
                                 - {formatPrice(cost || 0)}
                               </span>
                             ) : (
-                              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
+                              <span className="text-[11px] text-slate-400 font-bold uppercase tracking-wider bg-black/40 px-2.5 py-1 rounded-full border border-white/5">
                                 {player.isCapped ? 'Capped' : 'Uncapped'}
                               </span>
                             )}
-                            <span className="text-[9px] rounded-md border border-cyan-500/30 bg-cyan-500/5 px-2 py-0.5 text-cyan-400 font-bold uppercase tracking-widest">{role}</span>
+                            <span className="text-xs rounded-full border border-cyan-500/40 bg-cyan-500/10 px-3 py-1 text-cyan-300 font-black uppercase tracking-widest">{role}</span>
                           </div>
 
-                          <div className="w-full h-28 flex items-center justify-center overflow-visible my-3 shrink-0">
+                          {/* Player Showcase Image (~70% of card) */}
+                          <div className="w-full h-48 flex items-center justify-center overflow-visible my-2 shrink-0 relative">
+                            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-cyan-500/5 to-transparent rounded-2xl pointer-events-none" />
                             <PlayerInitialsAvatar
                               name={player.name}
                               role={player.role}
                               isOverseas={player.isOverseas}
                               image={player.image || player.imageUrl}
-                              size="md"
+                              size="xl"
                             />
                           </div>
 
-                          <div className="w-full space-y-1 z-10 shrink-0">
-                            <p className="font-extrabold text-white truncate text-sm leading-tight uppercase">{player.name}</p>
+                          {/* Player Info */}
+                          <div className="w-full space-y-1 z-10 shrink-0 border-t border-white/5 pt-3">
+                            <p className="font-extrabold text-white truncate text-base md:text-lg leading-tight uppercase tracking-wide group-hover:text-yellow-400 transition-colors">{player.name}</p>
                             {isSelected ? (
-                              <div className="flex items-center gap-1 text-[9px] text-yellow-400 font-bold uppercase tracking-wider mt-0.5">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Retained
+                              <div className="flex items-center gap-1.5 text-xs text-yellow-400 font-black uppercase tracking-wider pt-0.5">
+                                <CheckCircle2 className="w-4 h-4 text-yellow-400" /> Retained
                               </div>
                             ) : (
-                              <p className="text-[10px] text-slate-400 font-medium">{player.isCapped ? 'Capped' : 'Uncapped'}</p>
+                              <p className="text-xs text-slate-400 font-semibold">{player.isCapped ? 'Capped Player' : 'Uncapped Player'}</p>
                             )}
                           </div>
                         </motion.button>

@@ -3,24 +3,53 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSession, joinSession, generateGameCode } from "@/lib/sessionService";
-import { Users, Gavel } from "lucide-react";
+import { Users, Gavel, Lock } from "lucide-react";
 import { useUserId } from "@/hooks/useUserId";
+
+const AuctionStartedBlock = ({ onBack }: { onBack: () => void }) => (
+  <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#020617] px-6 text-center">
+    <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-500/10 border border-red-500/30">
+      <Lock className="h-10 w-10 text-red-400" />
+    </div>
+    <h1 className="font-display text-4xl font-black text-white uppercase tracking-wide mb-4">
+      Auction Already Started
+    </h1>
+    <p className="text-slate-400 text-base max-w-md leading-relaxed mb-2">
+      This auction has already begun and is no longer accepting new participants.
+    </p>
+    <p className="text-slate-500 text-sm max-w-md leading-relaxed mb-8">
+      Please create a new auction or join another available room.
+    </p>
+    <div className="flex flex-col sm:flex-row gap-3">
+      <Button
+        disabled
+        className="opacity-40 cursor-not-allowed px-8 h-12 text-sm font-bold tracking-wider uppercase"
+      >
+        Join Room (Closed)
+      </Button>
+      <Button
+        onClick={onBack}
+        variant="outline"
+        className="px-8 h-12 text-sm font-bold tracking-wider uppercase border-white/20 hover:border-yellow-400/40 hover:text-yellow-400"
+      >
+        Go Back
+      </Button>
+    </div>
+  </div>
+);
 
 const Multiplayer = () => {
   const navigate = useNavigate();
   const userId = useUserId();
   const [joinCode, setJoinCode] = useState("");
   const [error, setError] = useState("");
+  const [auctionStarted, setAuctionStarted] = useState(false);
 
   const handleCreateRoom = async () => {
     setError("");
     try {
-      const newGameCode = generateGameCode(); // Generates "CAIPLxxxx"
-
-      // Pass the code and the hostId to the service
+      const newGameCode = generateGameCode();
       await createSession(newGameCode, userId);
-      
-      // Navigate to lobby with the generated code
       navigate(`/lobby/${newGameCode}`);
     } catch (err) {
       console.error(err);
@@ -38,15 +67,20 @@ const Multiplayer = () => {
 
     try {
       setError("");
-      // This checks if the room exists and adds user to playersJoined
       await joinSession(formattedCode, userId);
-      
-      // Navigate to the lobby
       navigate(`/lobby/${formattedCode}`);
-    } catch {
-      setError("Invalid Room Code");
+    } catch (err: any) {
+      if (err?.message === "AUCTION_ALREADY_STARTED") {
+        setAuctionStarted(true);
+      } else {
+        setError("Invalid Room Code");
+      }
     }
   };
+
+  if (auctionStarted) {
+    return <AuctionStartedBlock onBack={() => setAuctionStarted(false)} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-6 bg-background">

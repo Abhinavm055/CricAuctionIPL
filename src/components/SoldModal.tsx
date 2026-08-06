@@ -146,7 +146,7 @@ export const SoldModal = ({
                   textShadow: `0 0 8px ${primaryColor}60`,
                 }}
               >
-                🔨 SOLD
+                SOLD
               </div>
               <h2
                 className="text-4xl md:text-5xl font-display uppercase tracking-widest leading-none"

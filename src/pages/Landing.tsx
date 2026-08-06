@@ -3,7 +3,7 @@ import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { generateGameCode } from '@/lib/constants';
-import { Bot, Users, Menu, Trophy, PlayCircle, Swords, ListChecks, Gavel } from 'lucide-react';
+import { Bot, Users, Menu, Trophy, PlayCircle, Swords, ListChecks, Gavel, Lock, User } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
@@ -40,6 +40,7 @@ const Landing = () => {
   const [resumeSession, setResumeSession] = useState<{ gameCode: string; auctionStage: string } | null>(null);
   const [joiningInvite, setJoiningInvite] = useState(false);
   const [invalidRoomCode, setInvalidRoomCode] = useState(false);
+  const [auctionStarted, setAuctionStarted] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (currentUser) => {
@@ -66,9 +67,13 @@ const Landing = () => {
         setJoiningInvite(true);
         await joinSession(joinCode, userId);
         navigate(`/lobby/${joinCode}`, { replace: true });
-      } catch {
+      } catch (err: any) {
         setJoiningInvite(false);
-        setInvalidRoomCode(true);
+        if (err?.message === 'AUCTION_ALREADY_STARTED') {
+          setAuctionStarted(true);
+        } else {
+          setInvalidRoomCode(true);
+        }
       }
     };
     joinViaInvite();
@@ -169,6 +174,40 @@ const Landing = () => {
     { key: 'squad' as const, label: 'Build Squad', icon: Trophy, onClick: () => openRules('squad'), description: 'Review squad balance, strategy and team composition.' },
   ];
 
+  if (auctionStarted) {
+    return (
+      <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#020617] px-6 text-center">
+        <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-red-500/10 border border-red-500/30">
+          <Lock className="h-10 w-10 text-red-400" />
+        </div>
+        <h1 className="font-display text-4xl font-black text-white uppercase tracking-wide mb-4">
+          Auction Already Started
+        </h1>
+        <p className="text-slate-400 text-base max-w-md leading-relaxed mb-2">
+          This auction has already begun and is no longer accepting new participants.
+        </p>
+        <p className="text-slate-500 text-sm max-w-md leading-relaxed mb-8">
+          Please create a new auction or join another available room.
+        </p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <Button
+            disabled
+            className="opacity-40 cursor-not-allowed px-8 h-12 text-sm font-bold tracking-wider uppercase"
+          >
+            Join Room (Closed)
+          </Button>
+          <Button
+            onClick={() => navigate('/')}
+            variant="outline"
+            className="px-8 h-12 text-sm font-bold tracking-wider uppercase border-white/20 hover:border-yellow-400/40 hover:text-yellow-400"
+          >
+            Go Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="landing-page min-h-screen relative flex flex-col overflow-hidden bg-slate-950">
       <div className="absolute inset-0 z-0" style={{ backgroundColor: "rgba(0,0,0,0.45)" }} />
@@ -222,7 +261,7 @@ const Landing = () => {
                 onClick={() => setShowProfileMenu((prev) => !prev)}
                 className="flex items-center gap-2 hover:text-yellow-400 transition-colors font-semibold"
               >
-                👤 {user.displayName || user.email?.split('@')[0] || 'Profile'}
+                <User className="h-4 w-4" /> {user.displayName || user.email?.split('@')[0] || 'Profile'}
               </button>
 
               {showProfileMenu && (
@@ -271,9 +310,11 @@ const Landing = () => {
           className="flex justify-center mb-4 -mt-4 md:-mt-8"
         >
           <img
-            src="/logo.png"
+            src="/logo.webp"
             alt="CAIPL Logo"
             className="hero-logo"
+            loading="lazy"
+            decoding="async"
           />
         </motion.section>
 

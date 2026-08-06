@@ -20,7 +20,7 @@ const TEAM_INSIGHTS: Record<string, { titles: number; titleYears?: string; home:
   rr: { titles: 1, titleYears: '2008', home: 'Sawai Mansingh Stadium', captain: 'Riyan Parag' },
   srh: { titles: 1, titleYears: '2016', home: 'Rajiv Gandhi International Stadium', captain: 'Pat Cummins' },
   gt: { titles: 1, titleYears: '2022', home: 'Narendra Modi Stadium', captain: 'Shubman Gill' },
-  rcb: { titles: 1, titleYears: '2025', home: 'M Chinnaswamy Stadium', captain: 'Rajat Patidar' },
+  rcb: { titles: 2, titleYears: '2025, 2026', home: 'M Chinnaswamy Stadium', captain: 'Rajat Patidar' },
   dc: { titles: 0, home: 'Arun Jaitley Stadium', captain: 'Axar Patel' },
   lsg: { titles: 0, home: 'BRSABV Ekana Stadium', captain: 'Rishabh Pant' },
   pbks: { titles: 0, home: 'Maharaja Yadavindra Singh Stadium', captain: 'Shreyas Iyer' },

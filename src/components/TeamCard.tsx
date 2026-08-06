@@ -110,7 +110,7 @@ const TeamCardComponent = ({
             {/* Highest Bidder badge */}
             {isCurrentBidder && !shouldGlow && (
               <div className="absolute -top-2.5 -right-1.5 z-20 flex h-5.5 items-center rounded-full bg-slate-950 border border-yellow-500/80 px-2.5 text-[9px] font-bold tracking-wider text-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.45)]">
-                🔨 LEADING
+                LEADING
               </div>
             )}
           </>

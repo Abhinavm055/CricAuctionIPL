@@ -1,4 +1,4 @@
-import { SQUAD_CONSTRAINTS, getNextBid } from '@/lib/constants';
+import { SQUAD_CONSTRAINTS, getNextBid, formatPrice } from '@/lib/constants';
 
 interface BidValidationInput {
   amount: number;
@@ -19,13 +19,31 @@ interface AuctionEndInput {
 
 export class AuctionEngine {
   validateBid(input: BidValidationInput) {
-    const nextBid = getNextBid(Number(input.currentBid || 0));
-    if (input.amount !== nextBid) throw new Error('Bid must match next increment');
-    if (input.currentBidderId === input.teamId) throw new Error('Consecutive bids not allowed');
-    if (Number(input.purseRemaining || 0) < input.amount) throw new Error('Insufficient purse');
-    if (Number(input.squadSize || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD) throw new Error('Squad full');
+    const currentBid = Number(input.currentBid || 0);
+    const minNextBid = getNextBid(currentBid);
+
+    if (input.currentBidderId === input.teamId) {
+      throw new Error('You are already the highest bidder');
+    }
+
+    if (input.amount <= currentBid) {
+      throw new Error(`Bid amount (${formatPrice(input.amount)}) must be higher than current bid (${formatPrice(currentBid)})`);
+    }
+
+    if (input.amount < minNextBid) {
+      throw new Error(`Bid amount (${formatPrice(input.amount)}) is below the required next increment (${formatPrice(minNextBid)})`);
+    }
+
+    if (Number(input.purseRemaining || 0) < input.amount) {
+      throw new Error(`Insufficient purse remaining (${formatPrice(input.purseRemaining)} available, ${formatPrice(input.amount)} needed)`);
+    }
+
+    if (Number(input.squadSize || 0) >= SQUAD_CONSTRAINTS.MAX_SQUAD) {
+      throw new Error(`Squad is full (${SQUAD_CONSTRAINTS.MAX_SQUAD} players max limit reached)`);
+    }
+
     if (input.isPlayerOverseas && Number(input.overseasCount || 0) >= SQUAD_CONSTRAINTS.MAX_OVERSEAS) {
-      throw new Error('Overseas limit reached');
+      throw new Error(`Overseas player limit reached (${SQUAD_CONSTRAINTS.MAX_OVERSEAS} overseas players max)`);
     }
   }
 
