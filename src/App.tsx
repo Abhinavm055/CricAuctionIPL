@@ -13,6 +13,7 @@ import { GameDataProvider } from "@/contexts/GameDataContext";
 import Multiplayer from "./pages/Multiplayer";
 import RetentionReview from "./pages/RetentionReview";
 import AdminPage from "./pages/AdminPage";
+import ProtectedAdminRoute from "./components/ProtectedAdminRoute";
 import Feedback from "./pages/Feedback";
 import Profile from "./pages/Profile";
 import { AddToHomeScreenButton } from "./components/AddToHomeScreenButton";
@@ -41,6 +42,7 @@ const Retention = lazyWithRetry(() => import("./pages/Retention"));
 const Leaderboard = lazyWithRetry(() => import("./pages/Leaderboard"));
 const Summary = lazyWithRetry(() => import("./pages/Summary"));
 const Tournament = lazyWithRetry(() => import("./pages/Tournament"));
+const Login = lazyWithRetry(() => import("./pages/Login"));
 
 const queryClient = new QueryClient();
 
@@ -69,6 +71,7 @@ const App = () => {
                 <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center text-primary font-display text-2xl animate-pulse">Loading...</div>}>
                   <Routes>
                     <Route path="/" element={<Landing />} />
+                    <Route path="/login" element={<Login />} />
                     <Route path="/multiplayer" element={<Multiplayer />} />
                     <Route path="/join/:roomCode" element={<JoinRoom />} />
                     <Route path="/lobby/:gameCode" element={<Lobby />} />
@@ -80,7 +83,14 @@ const App = () => {
                     <Route path="/feedback" element={<Feedback />} />
                     <Route path="/profile" element={<Profile />} />
                     <Route path="/tournament" element={<Tournament />} />
-                    <Route path="/admin" element={<AdminPage />} />
+                    <Route
+                      path="/admin"
+                      element={
+                        <ProtectedAdminRoute>
+                          <AdminPage />
+                        </ProtectedAdminRoute>
+                      }
+                    />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </Suspense>

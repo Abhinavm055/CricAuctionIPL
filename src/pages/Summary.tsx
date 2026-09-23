@@ -368,61 +368,62 @@ const Summary = () => {
   }, [leaderboard]);
 
   return (
-    <div className={cn("min-h-screen bg-gradient-to-br from-[#020617] via-[#051126] to-[#020617] text-white p-4 md:p-8 overflow-y-auto relative", session?.mode === 'VS_AI' ? "theme-ai" : "theme-multiplayer")}>
-      {/* Stadium-inspired atmospheric lighting */}
-      <div className="stadium-ambient stadium-ambient-cyan -top-40 -left-40 w-[600px] h-[600px]" />
-      <div className="stadium-ambient stadium-ambient-gold -bottom-40 -right-40 w-[600px] h-[600px]" />
+    <div className="min-h-screen bg-[#020817] text-slate-100 font-sans selection:bg-amber-400 selection:text-slate-950 relative overflow-hidden flex flex-col">
+      {/* Atmospheric ambient lighting */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute inset-0 bg-radial-gradient from-[#071225]/60 via-[#020817] to-[#01030a]" />
+        <div className="absolute top-1/4 -left-32 w-[600px] h-[600px] rounded-full bg-amber-500/10 blur-[150px]" />
+        <div className="absolute top-1/3 -right-32 w-[600px] h-[600px] rounded-full bg-cyan-500/5 blur-[160px]" />
+      </div>
 
-      <div className="max-w-6xl mx-auto space-y-8 relative z-10">
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-8 w-full space-y-8 relative z-10 flex-1">
         
         {/* Header Title */}
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-white/5 pb-6">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-4 border-b border-white/[0.08] pb-6">
           <div className="text-center md:text-left space-y-1">
             <div className="flex items-center justify-center md:justify-start gap-2">
-              <Sparkles className="h-5 w-5 text-yellow-400 animate-pulse" />
-              <span className="text-xs font-black tracking-[0.25em] text-yellow-400 uppercase">
-                IPL MOCK AUCTION
+              <Sparkles className="h-4 w-4 text-amber-400" />
+              <span className="text-xs font-bold tracking-[0.25em] text-amber-400 uppercase">
+                AUCTION COMPLETE
               </span>
             </div>
-            <h1 className="text-3xl md:text-5xl font-display font-black tracking-wide text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 via-amber-400 to-yellow-500 uppercase">
-              Final Auction Summary
+            <h1 className="text-3xl md:text-5xl font-display font-black tracking-wider text-white uppercase">
+              Post-Auction Results
             </h1>
-            <p className="text-xs text-slate-400 font-mono">Game Code: {gameCode} • Phase: COMPLETE</p>
+            <p className="text-xs text-slate-400 font-mono">Game Code: <span className="text-amber-400 font-bold">{gameCode}</span></p>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
             <Button
               onClick={handleDownloadCSV}
               variant="outline"
-              className="h-10 border-emerald-500/35 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500 hover:text-slate-950 font-bold transition-all flex items-center gap-2 cursor-pointer rounded-xl"
+              className="h-10 text-xs font-bold uppercase tracking-wider flex items-center gap-2"
             >
-              <Download className="h-4 w-4" /> Download Report
+              <Download className="h-4 w-4" /> Download Report (CSV)
             </Button>
             {isHost && (
               <Button
                 onClick={() => setIsRestartConfirmOpen(true)}
-                className="h-10 bg-yellow-500 text-slate-950 hover:bg-yellow-400 font-extrabold flex items-center gap-2 cursor-pointer shadow-[0_4px_14px_rgba(234,179,8,0.25)] rounded-xl"
+                variant="default"
+                className="h-10 text-xs font-bold uppercase tracking-wider flex items-center gap-2"
               >
-                <RotateCcw className="h-4 w-4" /> Restart Auction
+                <RotateCcw className="h-4 w-4" /> New Auction
               </Button>
             )}
             <Button
               asChild
               variant="outline"
-              className="h-10 border-white/10 hover:bg-white/5 text-slate-300 font-semibold cursor-pointer rounded-xl"
+              className="h-10 text-xs font-bold uppercase tracking-wider"
             >
               <Link to="/">
-                <Home className="h-4 w-4 mr-2" /> Home
+                <Home className="h-4 w-4 mr-1.5" /> Home
               </Link>
             </Button>
           </div>
         </div>
 
         {/* Celebration Podium Section */}
-        <div className="flex flex-col md:flex-row items-end justify-center gap-6 md:gap-4 pt-16 pb-8 px-4 rounded-3xl border border-white/5 bg-[#0f172a]/20 backdrop-blur-xl relative overflow-hidden shadow-2xl">
-          {/* Atmospheric spotlight beams for the podium */}
-          <div className="stadium-ambient stadium-ambient-cyan left-1/4 -top-20 w-[400px] h-[400px]" />
-          <div className="stadium-ambient stadium-ambient-gold right-1/4 -top-20 w-[400px] h-[400px]" />
+        <div className="flex flex-col md:flex-row items-end justify-center gap-6 md:gap-4 pt-16 pb-8 px-4 rounded-2xl border border-white/[0.08] bg-[#09152A]/80 backdrop-blur-xl relative overflow-hidden shadow-2xl">
 
           {/* 2nd Place */}
           {runnerUp && (

@@ -187,42 +187,66 @@ export const PlayersManager = ({ players, teams, globalSearch = '' }: PlayersMan
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center gap-2 flex-wrap">
-        <h2 className="text-xl font-semibold">Players (Firestore)</h2>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center gap-3 flex-wrap pb-2 border-b border-white/[0.08]">
+        <div>
+          <h2 className="text-lg font-display uppercase tracking-wider text-white">
+            Player Pool Database
+          </h2>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {players.length} Total Registered Athletes ({filteredPlayers.length} filtered)
+          </p>
+        </div>
 
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
           <CSVUpload />
-          <Button variant="destructive" onClick={handleDeleteAllPlayers}>Delete All Players</Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDeleteAllPlayers}
+            className="bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30 h-9 text-xs"
+          >
+            Flush Pool
+          </Button>
 
           <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
-              <Button>Add Player</Button>
+              <Button variant="gold" size="sm" className="h-9 text-xs font-bold uppercase tracking-wider">
+                + Add Candidate
+              </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl">
+            <DialogContent className="max-w-3xl bg-[#09152A] border-white/[0.08] text-white">
               <DialogHeader>
-                <DialogTitle>Create New Player</DialogTitle>
+                <DialogTitle className="font-display uppercase tracking-wider text-white text-xl">
+                  Register New Auction Candidate
+                </DialogTitle>
               </DialogHeader>
               <PlayerForm
                 initial={emptyPlayer}
                 teams={teams.map((team) => ({ id: team.id, name: team.name }))}
                 onSave={savePlayer}
                 onCancel={() => setCreateOpen(false)}
-                submitLabel="Create Player"
+                submitLabel="Register Athlete"
               />
             </DialogContent>
           </Dialog>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3 border rounded-lg p-3">
-        <div className="space-y-2">
-          <Label>Search</Label>
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Player name" />
+      <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-3.5 border border-white/[0.08] rounded-2xl p-4 bg-slate-950/40">
+        <div className="space-y-1.5">
+          <Label className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Search Candidate</Label>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter by athlete name..."
+            className="h-9 bg-[#09152A] border-white/[0.08] text-xs text-white placeholder:text-slate-600 focus:border-[#F5B82E]"
+          />
         </div>
 
-        <div className="space-y-2">
-          <Label>Role</Label>
+        <div className="space-y-1.5">
+          <Label className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold">Role</Label>
+
           <Select value={roleFilter} onValueChange={setRoleFilter}>
             <SelectTrigger><SelectValue /></SelectTrigger>
             <SelectContent>

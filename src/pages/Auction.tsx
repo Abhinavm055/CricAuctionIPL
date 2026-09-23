@@ -1826,13 +1826,13 @@ const Auction = () => {
       {!auctionEnded && (
         <>
           <div className="relative shrink-0">
-            <div className="border-y border-[#00CFFF66] bg-[#05142ccc]/90 backdrop-blur-md overflow-hidden py-2">
+            <div className="border-y border-white/[0.08] bg-[#020817]/95 backdrop-blur-md overflow-hidden py-2">
               <div className="whitespace-nowrap animate-[marquee_55s_linear_infinite] hover:[animation-play-state:paused] cursor-pointer text-xs md:text-sm font-semibold tracking-wide text-slate-200 flex items-center gap-12 px-4 select-none">
                 {commentaryTickerItems.length === 0 ? (
                   <div className="flex items-center gap-4">
-                    <span className="text-yellow-400 font-bold">📢 Waiting for first sale...</span>
+                    <span className="text-amber-400 font-bold">Waiting for first sale...</span>
                     <span className="text-slate-500">•</span>
-                    <span className="text-slate-300">Place your bids to start the auction</span>
+                    <span className="text-slate-300">Place bids to begin the auction</span>
                   </div>
                 ) : (
                   <>
@@ -1841,10 +1841,10 @@ const Auction = () => {
                         <div key={`ticker-1-${i}`} className="flex items-center gap-3">
                           <span className="text-white font-bold">{item.name}</span>
                           <span className="text-slate-500">•</span>
-                          <span className="text-yellow-400 font-extrabold uppercase bg-yellow-500/10 border border-yellow-500/25 px-1.5 py-0.5 rounded text-[10px] tracking-widest">{item.team}</span>
+                          <span className="text-amber-400 font-black uppercase bg-amber-400/10 border border-amber-400/25 px-1.5 py-0.5 rounded text-[10px] tracking-widest">{item.team}</span>
                           <span className="text-slate-500">•</span>
-                          <span className="text-emerald-400 font-bold">{item.price}</span>
-                          <span className="text-yellow-500/50 ml-4 font-mono">✦</span>
+                          <span className="text-emerald-400 font-mono font-bold">{item.price}</span>
+                          <span className="text-amber-400/50 ml-4 font-mono">✦</span>
                         </div>
                       ))}
                     </div>
@@ -1853,10 +1853,10 @@ const Auction = () => {
                         <div key={`ticker-2-${i}`} className="flex items-center gap-3">
                           <span className="text-white font-bold">{item.name}</span>
                           <span className="text-slate-500">•</span>
-                          <span className="text-yellow-400 font-extrabold uppercase bg-yellow-500/10 border border-yellow-500/25 px-1.5 py-0.5 rounded text-[10px] tracking-widest">{item.team}</span>
+                          <span className="text-amber-400 font-black uppercase bg-amber-400/10 border border-amber-400/25 px-1.5 py-0.5 rounded text-[10px] tracking-widest">{item.team}</span>
                           <span className="text-slate-500">•</span>
-                          <span className="text-emerald-400 font-bold">{item.price}</span>
-                          <span className="text-yellow-500/50 ml-4 font-mono">✦</span>
+                          <span className="text-emerald-400 font-mono font-bold">{item.price}</span>
+                          <span className="text-amber-400/50 ml-4 font-mono">✦</span>
                         </div>
                       ))}
                     </div>
@@ -1899,28 +1899,28 @@ const Auction = () => {
               </div>
 
               <div className="h-full min-h-0 overflow-hidden">
-                <div className="h-full rounded-xl border border-yellow-500/35 bg-gradient-to-b from-[#071a3a] to-[#040e21] p-3 overflow-hidden flex flex-col justify-between">
+                <div className="h-full rounded-2xl border border-white/[0.08] bg-[#09152A]/90 p-3.5 shadow-2xl backdrop-blur-md overflow-hidden flex flex-col justify-between">
                   {isSetIntroDelayActive && (
                     <div className="h-full flex items-center justify-center">
                       <div className="text-center">
-                        <p className="font-display text-3xl text-primary mb-2">Set Intro Complete</p>
-                        <p className="text-muted-foreground">Auction starts in {timerSeconds - (session?.isAcceleratedRound ? BID_RESET_TIMER : AUCTION_TIMER)}s</p>
+                        <p className="font-display text-3xl text-amber-400 mb-2">Set Intro Complete</p>
+                        <p className="text-slate-400">Auction starts in {timerSeconds - (session?.isAcceleratedRound ? BID_RESET_TIMER : AUCTION_TIMER)}s</p>
                       </div>
                     </div>
                   )}
                   {showPoolTransition && (
                     <div className="h-full flex items-center justify-center">
                       <div className="text-center">
-                        <p className="font-display text-3xl text-primary mb-2">Preparing Set</p>
-                        <p className="text-muted-foreground">Please wait...</p>
+                        <p className="font-display text-3xl text-amber-400 mb-2">Preparing Set</p>
+                        <p className="text-slate-400">Please wait...</p>
                       </div>
                     </div>
                   )}
                   {/* Auction Progress Tracker */}
-                  <div className="bg-slate-950/40 rounded-xl border border-white/5 p-3 flex flex-wrap items-center justify-between gap-y-2 gap-x-4 text-xs select-none shrink-0 mb-3">
+                  <div className="bg-[#050B16] rounded-xl border border-white/[0.06] p-3 flex flex-wrap items-center justify-between gap-y-2 gap-x-4 text-xs select-none shrink-0 mb-3">
                     <div className="flex items-center gap-1.5">
                       <span className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">Set:</span>
-                      <span className="font-bold text-yellow-400 uppercase font-display">{setProgress.activeSetLabel}</span>
+                      <span className="font-bold text-amber-400 uppercase font-display">{setProgress.activeSetLabel}</span>
                     </div>
                     
                     <div className="flex items-center gap-1.5">

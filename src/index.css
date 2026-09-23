@@ -68,39 +68,39 @@
   }
 
   .dark {
-    --background: 220 68% 5%;
-    --foreground: 210 40% 98%;
-    --card: 220 50% 11%;
+    --background: 222 84% 5%; /* #020817 */
+    --foreground: 210 40% 98%; /* #F8FAFC */
+    --card: 218 64% 10%; /* #09152A */
     --card-foreground: 210 40% 98%;
-    --popover: 220 50% 11%;
+    --popover: 218 64% 10%; /* #09152A */
     --popover-foreground: 210 40% 98%;
-    --primary: 51 100% 50%;
-    --primary-foreground: 20 24% 10%;
-    --secondary: 220 50% 12%;
+    --primary: 41 92% 57%; /* Gold #F5B82E */
+    --primary-foreground: 222 84% 5%; /* Dark #020817 */
+    --secondary: 217 55% 12%; /* #0B1930 */
     --secondary-foreground: 210 40% 98%;
-    --muted: 220 42% 16%;
-    --muted-foreground: 215 20% 74%;
-    --accent: 191 100% 50%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 100% 65%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 16% 47%; /* #64748B */
+    --accent: 41 92% 57%;
+    --accent-foreground: 222 84% 5%;
+    --destructive: 0 84% 60%;
     --destructive-foreground: 210 40% 98%;
-    --border: 220 35% 25%;
-    --input: 220 42% 17%;
-    --ring: 191 100% 50%;
-    --glow-gold: 0 0 30px #ffd70066;
-    --glow-primary: 0 0 24px #00cfff55;
-    --gradient-broadcast: linear-gradient(155deg, #020204 0%, #07142a 45%, #0b1d3a 100%);
-    --gradient-card: linear-gradient(180deg, rgba(10, 24, 48, 0.85) 0%, rgba(4, 12, 28, 0.8) 100%);
-    --gradient-gold: linear-gradient(135deg, #0b1d3a 0%, #00cfff 100%);
-    --gradient-hero: linear-gradient(180deg, transparent 0%, rgba(2, 8, 23, 0.86) 100%);
-    --theme-btn-from: #0B1D3A;
-    --theme-btn-to: #00CFFF;
-    --theme-btn-gold-from: #795b06;
-    --theme-btn-gold-to: #FFD700;
-    --theme-color-primary: #ffd700;
-    --theme-color-accent: #00cfff;
-    --theme-color-glow: rgba(0, 207, 255, 0.15);
-    --theme-color-border: rgba(0, 207, 255, 0.3);
+    --border: 217 33% 20%; /* rgba(148, 163, 184, 0.16) */
+    --input: 217 33% 18%;
+    --ring: 41 92% 57%;
+    --glow-gold: 0 0 24px rgba(245, 184, 46, 0.25);
+    --glow-primary: 0 0 24px rgba(245, 184, 46, 0.20);
+    --gradient-broadcast: radial-gradient(circle at 50% 20%, #071225 0%, #050B16 55%, #020817 100%);
+    --gradient-card: linear-gradient(180deg, rgba(9, 21, 42, 0.95) 0%, rgba(5, 11, 22, 0.9) 100%);
+    --gradient-gold: linear-gradient(135deg, #FFC52F 0%, #F5B82E 100%);
+    --gradient-hero: linear-gradient(180deg, transparent 0%, rgba(2, 8, 23, 0.92) 100%);
+    --theme-btn-from: #09152A;
+    --theme-btn-to: #0D1C33;
+    --theme-btn-gold-from: #F5B82E;
+    --theme-btn-gold-to: #FFC52F;
+    --theme-color-primary: #F5B82E;
+    --theme-color-accent: #38BDF8;
+    --theme-color-glow: rgba(245, 184, 46, 0.20);
+    --theme-color-border: rgba(148, 163, 184, 0.16);
   }
 }
 
@@ -441,32 +441,63 @@
 
 html {
   scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 184, 46, 0.4) #020817;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 184, 46, 0.35) transparent;
 }
 
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(2, 10, 25, 0.8);
+  background: #020817;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(0, 207, 255, 0.95), rgba(11, 29, 58, 0.95));
-  border-radius: 999px;
-  border: 1px solid rgba(0, 207, 255, 0.3);
+  background: linear-gradient(180deg, rgba(245, 184, 46, 0.45) 0%, rgba(30, 41, 59, 0.85) 100%);
+  border-radius: 9999px;
+  border: 1px solid rgba(245, 184, 46, 0.2);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  box-shadow: 0 0 10px rgba(0, 207, 255, 0.7);
+  background: linear-gradient(180deg, rgba(245, 184, 46, 0.8) 0%, rgba(217, 119, 6, 0.75) 100%);
+  box-shadow: 0 0 10px rgba(245, 184, 46, 0.45);
+}
+
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(245, 184, 46, 0.35) rgba(2, 8, 23, 0.5);
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: rgba(2, 8, 23, 0.4);
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(245, 184, 46, 0.35);
+  border-radius: 9999px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: rgba(245, 184, 46, 0.65);
 }
 
 .retained-player-list {
   overscroll-behavior: contain;
   scroll-behavior: smooth;
   scrollbar-width: thin;
-  scrollbar-color: rgba(250, 204, 21, 0.65) rgba(15, 23, 42, 0.35);
+  scrollbar-color: rgba(245, 184, 46, 0.5) rgba(15, 23, 42, 0.35);
 }
 
 .retained-player-list::-webkit-scrollbar {
@@ -479,13 +510,13 @@ html {
 }
 
 .retained-player-list::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, rgba(250, 204, 21, 0.9), rgba(0, 207, 255, 0.55));
-  border: 1px solid rgba(250, 204, 21, 0.25);
+  background: linear-gradient(180deg, rgba(245, 184, 46, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%);
+  border: 1px solid rgba(245, 184, 46, 0.25);
   border-radius: 999px;
 }
 
 .retained-player-list::-webkit-scrollbar-thumb:hover {
-  box-shadow: 0 0 8px rgba(250, 204, 21, 0.6);
+  box-shadow: 0 0 8px rgba(245, 184, 46, 0.6);
 }
 
 @keyframes timerUrgent {
@@ -582,62 +613,54 @@ html {
 
 /* CricAuctionIPL Mode Theme Classes */
 .theme-multiplayer {
-  --primary: 210 100% 50% !important; /* Blue */
-  --ring: 210 100% 50% !important;
-  --glow-primary: 0 0 24px rgba(59, 130, 246, 0.55) !important;
-  --glow-gold: 0 0 30px rgba(59, 130, 246, 0.45) !important;
-  --theme-btn-from: #0a1b3a !important;
-  --theme-btn-to: #3b82f6 !important;
-  --theme-btn-gold-from: #1e3a8a !important;
-  --theme-btn-gold-to: #60a5fa !important;
-  --theme-color-primary: #3b82f6 !important;
-  --theme-color-accent: #60a5fa !important;
-  --theme-color-glow: rgba(59, 130, 246, 0.18) !important;
-  --theme-color-border: rgba(59, 130, 246, 0.45) !important;
+  --primary: 270 91% 65% !important; /* Purple #A855F7 */
+  --ring: 270 91% 65% !important;
+  --glow-primary: 0 0 24px rgba(168, 85, 247, 0.35) !important;
+  --glow-gold: 0 0 24px rgba(245, 184, 46, 0.25) !important;
+  --theme-btn-from: #09152A !important;
+  --theme-btn-to: #581C87 !important;
+  --theme-color-primary: #A855F7 !important;
+  --theme-color-accent: #C084FC !important;
+  --theme-color-glow: rgba(168, 85, 247, 0.20) !important;
+  --theme-color-border: rgba(168, 85, 247, 0.35) !important;
 }
 
 .theme-ai {
-  --primary: 270 100% 60% !important; /* Purple */
-  --ring: 270 100% 60% !important;
-  --glow-primary: 0 0 24px rgba(168, 85, 247, 0.55) !important;
-  --glow-gold: 0 0 30px rgba(168, 85, 247, 0.45) !important;
-  --theme-btn-from: #1e1b4b !important;
-  --theme-btn-to: #a855f7 !important;
-  --theme-btn-gold-from: #581c87 !important;
-  --theme-btn-gold-to: #c084fc !important;
-  --theme-color-primary: #a855f7 !important;
-  --theme-color-accent: #c084fc !important;
-  --theme-color-glow: rgba(168, 85, 247, 0.18) !important;
-  --theme-color-border: rgba(168, 85, 247, 0.45) !important;
+  --primary: 199 89% 48% !important; /* Cyan/Blue #0284C7 / #38BDF8 */
+  --ring: 199 89% 48% !important;
+  --glow-primary: 0 0 24px rgba(56, 189, 248, 0.35) !important;
+  --glow-gold: 0 0 24px rgba(245, 184, 46, 0.25) !important;
+  --theme-btn-from: #09152A !important;
+  --theme-btn-to: #0369A1 !important;
+  --theme-color-primary: #38BDF8 !important;
+  --theme-color-accent: #0284C7 !important;
+  --theme-color-glow: rgba(56, 189, 248, 0.20) !important;
+  --theme-color-border: rgba(56, 189, 248, 0.35) !important;
 }
 
 .theme-tournament {
-  --primary: 35 100% 50% !important; /* Gold/Orange */
-  --ring: 35 100% 50% !important;
-  --glow-primary: 0 0 24px rgba(245, 158, 11, 0.55) !important;
-  --glow-gold: 0 0 30px rgba(245, 158, 11, 0.45) !important;
-  --theme-btn-from: #2e1505 !important;
-  --theme-btn-to: #f59e0b !important;
-  --theme-btn-gold-from: #7c2d12 !important;
-  --theme-btn-gold-to: #fb923c !important;
-  --theme-color-primary: #f59e0b !important;
-  --theme-color-accent: #fb923c !important;
-  --theme-color-glow: rgba(245, 158, 11, 0.18) !important;
-  --theme-color-border: rgba(245, 158, 11, 0.45) !important;
+  --primary: 160 84% 39% !important; /* Emerald/Teal #10B981 */
+  --ring: 160 84% 39% !important;
+  --glow-primary: 0 0 24px rgba(16, 185, 129, 0.35) !important;
+  --glow-gold: 0 0 24px rgba(245, 184, 46, 0.25) !important;
+  --theme-btn-from: #09152A !important;
+  --theme-btn-to: #065F46 !important;
+  --theme-color-primary: #10B981 !important;
+  --theme-color-accent: #34D399 !important;
+  --theme-color-glow: rgba(16, 185, 129, 0.20) !important;
+  --theme-color-border: rgba(16, 185, 129, 0.35) !important;
 }
 
 .theme-classic {
-  --primary: 51 100% 50% !important; /* Yellow */
-  --ring: 191 100% 50% !important;
-  --glow-primary: 0 0 24px #00cfff55 !important;
-  --glow-gold: 0 0 30px #ffd70066 !important;
-  --theme-btn-from: #0B1D3A !important;
-  --theme-btn-to: #00CFFF !important;
-  --theme-btn-gold-from: #795b06 !important;
-  --theme-btn-gold-to: #FFD700 !important;
-  --theme-color-primary: #ffd700 !important;
-  --theme-color-accent: #00cfff !important;
-  --theme-color-glow: rgba(0, 207, 255, 0.15) !important;
-  --theme-color-border: rgba(0, 207, 255, 0.3) !important;
+  --primary: 41 92% 57% !important; /* Gold */
+  --ring: 41 92% 57% !important;
+  --glow-primary: 0 0 24px rgba(245, 184, 46, 0.25) !important;
+  --glow-gold: 0 0 24px rgba(245, 184, 46, 0.25) !important;
+  --theme-btn-from: #09152A !important;
+  --theme-btn-to: #0D1C33 !important;
+  --theme-color-primary: #F5B82E !important;
+  --theme-color-accent: #FFC52F !important;
+  --theme-color-glow: rgba(245, 184, 46, 0.20) !important;
+  --theme-color-border: rgba(245, 184, 46, 0.30) !important;
 }
 

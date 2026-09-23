@@ -282,7 +282,15 @@ export const TeamDetails = ({ team, players, teams }: TeamDetailsProps) => {
                 <TableCell>{player.rating}</TableCell>
                 <TableCell>{formatPrice(Number(player.basePrice || 0))}</TableCell>
                 <TableCell>
-                  {player.overseas ? <span className="text-yellow-400 text-lg" title="Overseas">✈️</span> : <span className="text-muted-foreground">—</span>}
+                  {player.overseas ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      Overseas
+                    </span>
+                  ) : (
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">
+                      Domestic
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="space-x-2">
                   <Button size="sm" variant="outline" onClick={() => setEditingPlayer(player)}>Edit</Button>

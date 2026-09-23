@@ -192,38 +192,58 @@ const BidControlsComponent = ({
   };
 
   return (
-    <div className="h-full flex flex-col rounded-2xl border border-yellow-500/35 bg-gradient-to-br from-[#051126]/95 to-[#020917]/98 p-4 shadow-[0_12px_40px_rgba(0,0,0,0.5)] overflow-hidden">
+    <div className="h-full flex flex-col rounded-2xl border border-white/[0.08] bg-[#09152A]/95 p-4 shadow-2xl overflow-hidden backdrop-blur-xl">
       {/* Bid Interaction Panel */}
-      <div className="bg-[#030d1c]/80 rounded-xl p-3 border border-white/5 space-y-2 shrink-0 mb-3">
+      <div className="bg-[#050B16] rounded-xl p-3 border border-white/[0.06] space-y-2.5 shrink-0 mb-3">
         <div className="flex justify-between items-center">
-          <p className="text-[10px] uppercase tracking-widest text-slate-400 font-semibold">Place Bid</p>
+          <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Place Bid</p>
           {currentPlayer && (
-            <span className="text-[9px] uppercase tracking-wider text-yellow-400 font-bold bg-yellow-500/10 border border-yellow-500/30 px-1.5 py-0.5 rounded">
-              Active: {currentPlayer.name.split(' ')[0]}
+            <span className="text-[9px] uppercase tracking-wider text-amber-400 font-bold bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full">
+              {currentPlayer.name.split(' ')[0]}
             </span>
           )}
         </div>
+
+        {/* Quick Increment Buttons (+0.10 Cr, +0.20 Cr, +0.50 Cr) */}
+        <div className="grid grid-cols-3 gap-1.5">
+          {[
+            { label: '+0.10 Cr', inc: 1000000 },
+            { label: '+0.20 Cr', inc: 2000000 },
+            { label: '+0.50 Cr', inc: 5000000 },
+          ].map((item) => (
+            <button
+              key={item.label}
+              disabled={!canBid || isBidPending}
+              onClick={() => onBid(currentBid + item.inc)}
+              className="py-1.5 px-2 rounded-lg border border-white/10 bg-[#09152A] text-slate-200 text-[11px] font-mono font-bold hover:border-amber-400/40 hover:text-amber-400 hover:-translate-y-0.5 transition-all disabled:opacity-30 disabled:pointer-events-none"
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Primary Bid Button */}
         <Button
-          className="h-12 w-full rounded-xl bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 text-slate-950 text-lg font-black hover:brightness-105 transition-all shadow-[0_4px_15px_rgba(234,179,8,0.25)] border border-yellow-300/40 cursor-pointer disabled:opacity-50"
+          className="h-12 w-full rounded-xl bg-[#F5B82E] text-slate-950 text-base font-black tracking-wider uppercase hover:bg-[#FFC52F] hover:-translate-y-0.5 transition-all shadow-[0_0_20px_rgba(245,184,46,0.3)] disabled:opacity-40"
           onClick={handleBidClick}
           disabled={!canBid || isBidPending}
         >
-          {isSquadComplete ? 'SQUAD COMPLETE' : isBidPending ? 'BIDDING...' : 'PLACE BID'}
+          {isSquadComplete ? 'SQUAD COMPLETE' : isBidPending ? 'BIDDING...' : `BID ${formatPrice(nextBid)}`}
         </Button>
-        <p className="text-center text-[11px] text-slate-400 font-medium">
-          Next bid: <span className="font-extrabold text-yellow-400 tracking-wide">{formatPrice(nextBid)}</span>
+        <p className="text-center text-[10px] text-slate-400 font-medium">
+          Min increment: <span className="font-mono font-bold text-amber-400">{formatPrice(nextBid)}</span>
         </p>
       </div>
 
       {/* Upgraded Directory Panel */}
       <div className="flex-1 flex flex-col min-h-0">
         {/* Main Tab Selection */}
-        <div className="grid grid-cols-3 gap-1 bg-[#020d1c]/90 rounded-lg p-1 border border-white/5 shrink-0 mb-2.5 relative">
+        <div className="grid grid-cols-3 gap-1 bg-[#050B16] rounded-xl p-1 border border-white/[0.06] shrink-0 mb-2.5 relative">
           <button
             onClick={() => setActiveTab('sets')}
-            className={`py-1.5 px-2 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+            className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
               activeTab === 'sets'
-                ? 'bg-[#0066cc] text-white shadow-md font-extrabold'
+                ? 'bg-[#09152A] text-amber-400 border border-amber-400/40 shadow-md font-extrabold'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -231,9 +251,9 @@ const BidControlsComponent = ({
           </button>
           <button
             onClick={() => setActiveTab('sold')}
-            className={`py-1.5 px-2 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+            className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
               activeTab === 'sold'
-                ? 'bg-emerald-500 text-white shadow-md font-extrabold'
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-md font-extrabold'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -241,9 +261,9 @@ const BidControlsComponent = ({
           </button>
           <button
             onClick={() => setActiveTab('unsold')}
-            className={`py-1.5 px-2 rounded-md text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+            className={`py-1.5 px-2 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
               activeTab === 'unsold'
-                ? 'bg-rose-500 text-white shadow-md font-extrabold'
+                ? 'bg-red-500/20 text-red-400 border border-red-500/30 shadow-md font-extrabold'
                 : 'text-slate-400 hover:text-white hover:bg-white/5'
             }`}
           >

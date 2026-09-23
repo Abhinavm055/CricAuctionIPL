@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -87,36 +87,38 @@ const Tournament = () => {
   const activeStep = TOURNAMENT_STEPS[activeStepIndex];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white relative overflow-hidden flex flex-col theme-tournament">
+    <div className="min-h-screen bg-[#020817] text-slate-100 font-sans selection:bg-amber-400 selection:text-slate-950 relative overflow-hidden flex flex-col theme-tournament">
       {/* Background ambient lighting */}
-      <div className="absolute inset-0 bg-[#020617]/70 backdrop-blur-[1.5px] z-0" />
-      <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-        <div className="absolute -top-40 -left-40 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[120px]" />
-        <div className="absolute -bottom-40 -right-40 w-[700px] h-[700px] bg-yellow-500/5 rounded-full blur-[120px]" />
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
+        <div className="absolute inset-0 bg-radial-gradient from-[#071225]/60 via-[#020817] to-[#01030a]" />
+        <div className="absolute top-1/4 -left-32 w-[600px] h-[600px] bg-emerald-500/10 rounded-full blur-[150px]" />
+        <div className="absolute top-1/3 -right-32 w-[600px] h-[600px] bg-amber-500/5 rounded-full blur-[160px]" />
       </div>
 
-      {/* Header */}
-      <header className="relative z-10 flex items-center justify-between px-8 py-4 bg-[#020617]/50 backdrop-blur-md border-b border-white/5">
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            onClick={() => navigate('/')} 
-            className="text-slate-400 hover:text-white hover:bg-white/5"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <h1 className="text-yellow-400 text-lg font-display font-black tracking-widest uppercase flex items-center gap-2">
-            <span>CRIC</span><span className="text-emerald-400">TOURNAMENT</span><span>IPL</span>
-          </h1>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.1)]">
-            <Sparkles className="w-3.5 h-3.5 animate-pulse" />
-            Tournament Beta Roadmap
+      <div className="relative z-10 max-w-7xl mx-auto px-4 md:px-8 pt-6 pb-2 w-full">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-4">
+            <Button asChild variant="outline" size="sm" className="border-white/[0.12] hover:border-yellow-500/40 text-slate-300">
+              <Link to="/" className="flex items-center gap-1.5 text-xs font-semibold">
+                <ArrowLeft className="w-3.5 h-3.5" />
+                Return to Arena
+              </Link>
+            </Button>
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-[11px] font-bold tracking-widest uppercase mb-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Championship Engine</span>
+              </div>
+              <h1 className="font-display text-2xl md:text-3xl font-black text-white uppercase tracking-wider">
+                Tournament Central
+              </h1>
+            </div>
+          </div>
+          <span className="text-xs font-bold text-slate-400 bg-[#09152A] border border-white/10 px-3 py-1.5 rounded-xl">
+            Tournament Roadmap & Simulation
           </span>
         </div>
-      </header>
+      </div>
 
       {/* Main Roadmap Workspace */}
       <main className="relative z-10 flex-1 flex flex-col md:flex-row gap-6 p-6 max-w-7xl w-full mx-auto min-h-0 overflow-hidden">

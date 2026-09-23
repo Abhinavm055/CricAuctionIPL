@@ -6,6 +6,7 @@ import { formatPrice } from '@/lib/constants';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
 import { PlayerInitialsAvatar } from '@/components/PlayerInitialsAvatar';
+import { Trash2, Users, ArrowDownUp } from 'lucide-react';
 
 interface TeamRecord {
   id: string;
@@ -64,13 +65,24 @@ const AdminTeamsPage = ({ teams, players }: AdminTeamsPageProps) => {
     await deleteDoc(doc(db, 'players', player.id));
   };
 
-  if (!teams.length) return <p className="text-muted-foreground">No teams available.</p>;
+  if (!teams.length) return <p className="text-slate-400">No franchises registered in database.</p>;
 
   return (
-    <div className="space-y-4 h-full">
-      <h2 className="text-xl font-semibold">Teams • Admin: <span className="text-primary">Abhinav</span></h2>
+    <div className="space-y-6 h-full">
+      <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-white/[0.08]">
+        <div className="flex items-center gap-2">
+          <Users className="w-5 h-5 text-[#F5B82E]" />
+          <h2 className="text-lg font-display uppercase tracking-wider text-white">
+            Franchise Roster Allocation
+          </h2>
+        </div>
+        <p className="text-xs text-slate-400">
+          Drag and drop players onto any franchise logo to transfer squad rights.
+        </p>
+      </div>
 
-      <div className="flex overflow-x-auto gap-3 pb-2">
+      {/* Team Selection Ribbon */}
+      <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-thin">
         {teams.map((team) => (
           <button
             key={team.id}
@@ -88,28 +100,37 @@ const AdminTeamsPage = ({ teams, players }: AdminTeamsPageProps) => {
               setDragOverTeamId(null);
               setDraggingPlayerId(null);
             }}
-            className={`shrink-0 p-2 rounded-xl border transition ${selectedTeam?.id === team.id ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40'} ${dragOverTeamId === team.id ? 'scale-105 shadow-[0_0_12px_gold]' : ''}`}
+            className={`shrink-0 p-3 rounded-2xl border transition-all ${
+              selectedTeam?.id === team.id
+                ? 'border-[#F5B82E] bg-yellow-500/15 shadow-md shadow-yellow-500/20'
+                : 'border-white/[0.08] bg-slate-950/40 hover:border-white/20'
+            } ${dragOverTeamId === team.id ? 'scale-105 ring-2 ring-[#F5B82E] bg-yellow-500/25' : ''}`}
             title={team.name}
           >
-            <TeamLogo teamId={team.id} logo={team.logo} shortName={team.shortName} size="lg" className="w-14 h-14" />
+            <TeamLogo teamId={team.id} logo={team.logo} shortName={team.shortName} size="lg" className="w-12 h-12" />
           </button>
         ))}
       </div>
 
       {selectedTeam && (
-        <div className="border rounded-xl p-4 bg-card/50 space-y-4 h-[calc(100vh-250px)] overflow-y-auto">
-          <div className="flex flex-col items-center gap-2">
+        <div className="rounded-2xl border border-white/[0.08] p-5 bg-slate-950/40 space-y-5 max-h-[calc(100vh-320px)] overflow-y-auto">
+          <div className="flex items-center gap-4 pb-4 border-b border-white/[0.08]">
             <TeamLogo
               teamId={selectedTeam.id}
               logo={selectedTeam.logo}
               shortName={selectedTeam.shortName}
-              size="xl"
-              className="w-28 h-28 md:w-32 md:h-32 border-2 border-primary/60 rounded-full"
+              size="lg"
+              className="w-16 h-16 rounded-full border-2 border-[#F5B82E]/50"
             />
-            <p className="font-semibold text-lg text-center">{selectedTeam.name}</p>
+            <div>
+              <h3 className="font-display text-xl uppercase tracking-wider text-white">{selectedTeam.name}</h3>
+              <p className="text-xs text-slate-400 mt-0.5">
+                {selectedTeamPlayers.length} Active Squad Members
+              </p>
+            </div>
           </div>
 
-          <div className="w-full grid grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-5">
+          <div className="w-full grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3.5">
             {selectedTeamPlayers.map((player) => (
               <div
                 key={player.id}
@@ -120,9 +141,11 @@ const AdminTeamsPage = ({ teams, players }: AdminTeamsPageProps) => {
                   setDraggingPlayerId(player.id);
                 }}
                 onDragEnd={() => setDraggingPlayerId(null)}
-                className={`rounded-xl border p-3 bg-background/40 transition ${draggingPlayerId === player.id ? 'opacity-60 scale-95' : 'hover:scale-[1.02]'}`}
+                className={`rounded-xl border border-white/[0.08] p-3 bg-[#09152A] transition-all cursor-grab active:cursor-grabbing ${
+                  draggingPlayerId === player.id ? 'opacity-40 scale-95' : 'hover:border-white/20'
+                }`}
               >
-                <div className="w-full h-[120px] flex items-center justify-center bg-transparent rounded-md border border-primary/20 overflow-visible py-1">
+                <div className="w-full h-24 flex items-center justify-center bg-slate-950/50 rounded-lg border border-white/[0.04]">
                   <PlayerInitialsAvatar
                     name={player.name}
                     role={player.role}
@@ -132,18 +155,21 @@ const AdminTeamsPage = ({ teams, players }: AdminTeamsPageProps) => {
                   />
                 </div>
 
-                <h3 className="mt-2 text-sm font-semibold truncate">{player.name}</h3>
-                <p className="text-xs text-muted-foreground truncate">{player.nationality || 'Unknown'}</p>
-                <p className="text-xs">{formatPrice(Number(player.basePrice || 0))}</p>
+                <h4 className="mt-2 text-xs font-bold text-white truncate">{player.name}</h4>
+                <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1">
+                  <span className="truncate">{player.role}</span>
+                  <span className="font-mono text-[#F5B82E] font-semibold">{formatPrice(Number(player.basePrice || 0))}</span>
+                </div>
 
                 <Button
                   type="button"
                   variant="destructive"
                   size="sm"
-                  className="mt-2 w-full"
+                  className="mt-2.5 w-full h-7 text-[11px] font-semibold flex items-center justify-center gap-1 bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30"
                   onClick={() => player.id && deletePlayer(player.id)}
                 >
-                  🗑 DELETE
+                  <Trash2 className="w-3 h-3" />
+                  Remove
                 </Button>
               </div>
             ))}

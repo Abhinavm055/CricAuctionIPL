@@ -32,10 +32,10 @@ const TeamGridComponent = ({ teams, myTeamId, currentBidderId, glowingTeamId, on
   }, [teams]);
 
   return (
-    <div className="rounded-3xl border border-white/5 bg-[#0f172a]/20 backdrop-blur-xl p-4.5 shadow-2xl flex flex-col h-full min-h-0 overflow-hidden">
-      <div className="flex items-center justify-between mb-3 border-b border-white/5 pb-2.5 shrink-0">
-        <p className="text-xs font-display uppercase tracking-widest text-yellow-400 font-semibold">Team Standings & Stats</p>
-        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold font-mono bg-yellow-500/10 border border-yellow-500/20 px-1.5 py-0.5 rounded-full">10 Franchises</span>
+    <div className="rounded-2xl border border-white/[0.08] bg-[#09152A]/90 backdrop-blur-md p-4 shadow-2xl flex flex-col h-full min-h-0 overflow-hidden">
+      <div className="flex items-center justify-between mb-3 border-b border-white/[0.06] pb-2.5 shrink-0">
+        <p className="text-xs font-display uppercase tracking-widest text-amber-400 font-black">Team Standings & Stats</p>
+        <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold font-mono bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">10 Franchises</span>
       </div>
 
       <div className="flex-1 overflow-y-auto pr-1.5 grid grid-cols-2 gap-3.5 pb-1">

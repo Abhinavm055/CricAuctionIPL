@@ -135,11 +135,11 @@ const PlayerCardComponent = ({ player, currentBid, currentBidderId, currentBidde
       <div 
         className={cn(
           "relative h-full w-full overflow-hidden rounded-2xl border text-white transition-all duration-300",
-          "border-white/10 bg-[#040d21] p-3 md:p-3.5 pb-2 shadow-2xl flex flex-col justify-start"
+          "border-white/[0.08] bg-[#09152A]/95 p-3.5 md:p-4 shadow-2xl flex flex-col justify-start"
         )}
       >
         {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#071838] via-[#040e24] to-[#020714] z-0 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0B1930] via-[#09152A] to-[#050B16] z-0 pointer-events-none" />
 
         <div className="relative z-10 grid grid-cols-1 md:grid-cols-[38%_62%] gap-3 md:gap-4 items-center h-full min-h-0 w-full">
           

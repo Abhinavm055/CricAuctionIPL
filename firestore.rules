@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getAdminEmail() {
+      return get(/databases/$(database)/documents/appConfig/admin).data.adminEmail;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        request.auth.token.email != null &&
+        getAdminEmail() != null &&
+        request.auth.token.email.lower() == getAdminEmail().lower();
+    }
+
+    // App configuration (contains admin configuration)
+    match /appConfig/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Master players catalog: public read, write/delete strictly restricted to admin
+    match /players/{playerId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Master teams catalog: public read, write/delete strictly restricted to admin
+    match /teams/{teamId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // User profiles: public read for leaderboard, users can manage their own profile, admin has full access
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // Live auction sessions and subcollections (teams, etc.)
+    // Open for participant read and transactional writes during multiplayer auction games
+    match /sessions/{sessionId} {
+      allow read, write: if true;
+
+      match /teams/{teamId} {
+        allow read, write: if true;
+      }
+
+      match /{allSubcollections=**} {
+        allow read, write: if true;
+      }
+    }
+
+    // Feedback collection: any user can submit, only admin can view/manage
+    match /feedback/{feedbackId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+  }
+}

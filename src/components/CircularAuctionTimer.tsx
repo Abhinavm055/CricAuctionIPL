@@ -33,29 +33,29 @@ export const CircularAuctionTimer = memo(({
   const diffMs = isRunning ? Math.max(0, timerEndsAtMs - nowMs) : 0;
   const remainingSec = isRunning ? Math.max(0, Math.ceil(diffMs / 1000)) : 0;
 
-  let timerColor = "#10B981"; // Emerald
+  let timerColor = "#F5B82E"; // Gold when active
   let labelText = `${remainingSec}`;
   let timerPulseClass = "";
 
   if (status === 'SOLD') {
-    timerColor = "#FFD700"; // Gold
+    timerColor = "#10B981"; // Emerald confirmation
     labelText = "SOLD";
   } else if (status === 'UNSOLD') {
-    timerColor = "#EF4444"; // Red
+    timerColor = "#EF4444"; // Subtle Red
     labelText = "UNSOLD";
   } else if (status === 'RTM') {
     timerColor = "#A855F7"; // Purple
     labelText = "RTM";
     timerPulseClass = "animate-pulse";
   } else if (status === 'PAUSED') {
-    timerColor = "#F59E0B"; // Amber
+    timerColor = "#94A3B8"; // Muted Slate
     labelText = "PAUSED";
   } else if (remainingSec <= 5) {
-    timerColor = "#EF4444";
-    timerPulseClass = "animate-[timerUrgent_0.6s_infinite_alternate]";
+    timerColor = "#EF4444"; // Red when critical
+    timerPulseClass = "animate-pulse";
     if (remainingSec === 0) labelText = "0";
-  } else if (remainingSec <= 10) {
-    timerColor = "#F59E0B";
+  } else {
+    timerColor = "#F5B82E"; // Gold
   }
 
   const strokeDasharray = 2 * Math.PI * 50;
